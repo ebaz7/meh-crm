@@ -441,24 +441,18 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
                         <style>{`
                             @media print { 
                                 @page { size: A4 landscape; margin: 5mm; }
-                                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                body * { visibility: hidden; }
-                                
-                                /* The Container */
-                                #stock-report-container, #stock-report-container * {
+                                body > * { display: none !important; }
+                                #stock-report-container { 
+                                    display: block !important; 
+                                    position: absolute; 
+                                    left: 0; 
+                                    top: 0; 
+                                    width: 100%; 
+                                    height: auto; 
+                                    overflow: visible; 
                                     visibility: visible;
                                 }
-                                #stock-report-container {
-                                    position: static !important;
-                                    width: 100% !important;
-                                    margin: 0 auto;
-                                    padding: 0;
-                                    background: white;
-                                    display: block !important;
-                                }
-                                
-                                /* Remove any flex or weird positioning that causes issues */
-                                .no-print, .sidebar, header, .tabs { display: none !important; }
+                                #stock-report-container * { visibility: visible; }
                             }
                         `}</style>
                         <div className="flex justify-between items-center mb-4 no-print">

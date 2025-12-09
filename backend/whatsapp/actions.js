@@ -57,6 +57,7 @@ export const handleCreatePayment = (db, args) => {
 export const handleCreateBijak = (db, args) => {
     const company = db.settings.defaultCompany || 'نامشخص';
     const nextSeq = (db.settings.warehouseSequences?.[company] || 1000) + 1;
+    if (!db.settings.warehouseSequences) db.settings.warehouseSequences = {};
     db.settings.warehouseSequences = { ...db.settings.warehouseSequences, [company]: nextSeq };
     
     const newTx = { 
@@ -89,6 +90,67 @@ export const handleCreateBijak = (db, args) => {
     if (args.driver) msg += `\n🚛 راننده: ${args.driver}`;
     if (args.plate) msg += `\n🔢 پلاک: ${args.plate}`;
     return msg;
+};
+
+// NEW: Create Exit Permit (Sales Order)
+export const handleCreateExitPermit = (db, args) => {
+    const nextPermitNum = (db.settings.currentExitPermitNumber || 1000) + 1;
+    db.settings.currentExitPermitNumber = nextPermitNum;
+
+    const newPermit = {
+        id: generateUUID(),
+        permitNumber: nextPermitNum,
+        date: new Date().toISOString().split('T')[0],
+        requester: 'Telegram Bot',
+        items: [{
+            id: generateUUID(),
+            goodsName: args.itemName,
+            cartonCount: Number(args.count) || 0,
+            weight: 0
+        }],
+        destinations: [{
+            id: generateUUID(),
+            recipientName: args.recipient,
+            address: 'ثبت شده توسط ربات',
+            phone: ''
+        }],
+        goodsName: args.itemName, // Legacy field support
+        recipientName: args.recipient, // Legacy field support
+        cartonCount: Number(args.count) || 0,
+        status: 'در انتظار تایید مدیرعامل',
+        createdAt: Date.now()
+    };
+
+    db.exitPermits.push(newPermit);
+    saveDb(db);
+
+    return `🚛 *درخواست خروج (حواله فروش) ثبت شد*\n🔹 شماره مجوز: ${nextPermitNum}\n📦 کالا: ${args.itemName} (${args.count})\n👤 گیرنده: ${args.recipient}\n⏳ وضعیت: در انتظار تایید`;
+};
+
+// NEW: Trade Report
+export const handleTradeReport = (db) => {
+    const records = db.tradeRecords || [];
+    const activeRecords = records.filter(r => r.status !== 'Completed');
+
+    if (activeRecords.length === 0) return "✅ هیچ پرونده بازرگانی فعالی وجود ندارد.";
+
+    let report = `🌍 *گزارش پرونده‌های بازرگانی فعال*\n---------------------------\n`;
+    
+    activeRecords.forEach(r => {
+        // Determine current stage
+        const stages = ['مجوزها و پروفرما', 'بیمه', 'در صف تخصیص ارز', 'تخصیص یافته', 'خرید ارز', 'اسناد حمل', 'گواهی بازرسی', 'ترخیصیه و قبض انبار', 'برگ سبز', 'حمل داخلی', 'هزینه‌های ترخیص', 'قیمت تمام شده'];
+        const completedStages = stages.filter(s => r.stages && r.stages[s] && r.stages[s].isCompleted);
+        const currentStage = completedStages.length > 0 ? completedStages[completedStages.length - 1] : 'شروع نشده';
+
+        report += `📁 *پرونده: ${r.fileNumber}*\n`;
+        report += `📦 کالا: ${r.goodsName}\n`;
+        report += `🏢 شرکت: ${r.company || '-'}\n`;
+        report += `🔄 مرحله: ${currentStage}\n`;
+        report += `💰 ارز پایه: ${r.mainCurrency}\n`;
+        report += `---------------------------\n`;
+    });
+
+    return report;
 };
 
 export const handleApprovePayment = (db, number) => {

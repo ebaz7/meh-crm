@@ -55,6 +55,13 @@ export const initTelegram = (token) => {
 
             // 1. REPORT / CARTABLE (With Buttons)
             if (text === '/start' || text.includes('گزارش') || text.includes('کارتابل')) {
+                // If specific report requested
+                if (text.includes('بازرگانی')) {
+                    const report = Actions.handleTradeReport(db);
+                    bot.sendMessage(chatId, report, { parse_mode: 'Markdown' });
+                    return;
+                }
+                
                 await sendInteractiveReport(chatId, db);
                 return;
             }
@@ -63,8 +70,10 @@ export const initTelegram = (token) => {
             if (text.includes('راهنما') || text === 'help' || text === '/help') {
                 const helpText = `🤖 *راهنمای ربات تلگرام*\n\n` +
                     `📊 *مشاهده کارتابل:* ارسال کلمه "گزارش" یا "کارتابل"\n` +
+                    `🌍 *گزارش بازرگانی:* ارسال کلمه "گزارش بازرگانی"\n\n` +
                     `💰 *ثبت پرداخت:* "دستور پرداخت [مبلغ] به [نام] بابت [شرح]"\n` +
-                    `🚛 *ثبت خروج:* "بیجک [تعداد] [کالا] برای [گیرنده]"\n\n` +
+                    `🚛 *ثبت حواله فروش:* "حواله فروش [تعداد] [کالا] برای [گیرنده]"\n` +
+                    `📦 *صدور بیجک (انبار):* "بیجک [تعداد] [کالا] برای [گیرنده]"\n\n` +
                     `_برای تایید یا رد، از دکمه‌های شیشه‌ای زیر پیام‌های گزارش استفاده کنید._`;
                 bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
                 return;
@@ -87,7 +96,7 @@ export const initTelegram = (token) => {
 
             // 4. CREATE BIJAK (Regex)
             // Pattern: بیجک [count] [item] برای [recipient] ...
-            const bijakMatch = text.match(/(?:بیجک|خروج|حواله)\s+(\d+)\s*(?:کارتن|عدد|شاخه)?\s+(.+?)\s+(?:برای|به)\s+(.+?)(?:\s+(?:راننده)\s+(.+?))?(?:\s+(?:پلاک)\s+(.+))?$/);
+            const bijakMatch = text.match(/(?:بیجک|خروج انبار|صدور بیجک)\s+(\d+)\s*(?:کارتن|عدد|شاخه)?\s+(.+?)\s+(?:برای|به)\s+(.+?)(?:\s+(?:راننده)\s+(.+?))?(?:\s+(?:پلاک)\s+(.+))?$/);
             if (bijakMatch) {
                 const args = {
                     count: bijakMatch[1],
@@ -101,7 +110,21 @@ export const initTelegram = (token) => {
                 return;
             }
 
-            // 5. MANUAL APPROVAL (Legacy Text Command)
+            // 5. CREATE EXIT PERMIT (Sales Order Request) (Regex)
+            // Pattern: حواله فروش [count] [item] برای [recipient]
+            const exitMatch = text.match(/(?:حواله فروش|درخواست خروج|مجوز خروج)\s+(\d+)\s*(?:کارتن|عدد|شاخه)?\s+(.+?)\s+(?:برای|به)\s+(.+?)$/);
+            if (exitMatch) {
+                const args = {
+                    count: exitMatch[1],
+                    itemName: exitMatch[2].trim(),
+                    recipient: exitMatch[3].trim()
+                };
+                const result = Actions.handleCreateExitPermit(db, args);
+                bot.sendMessage(chatId, result, { parse_mode: 'Markdown' });
+                return;
+            }
+
+            // 6. MANUAL APPROVAL (Legacy Text Command)
             if (text.startsWith('تایید') || text.startsWith('رد')) {
                 // ... same logic as WhatsApp but minimal support since we have buttons
                 bot.sendMessage(chatId, "💡 لطفاً برای مدیریت درخواست‌ها کلمه 'گزارش' را ارسال کنید و از دکمه‌های شیشه‌ای استفاده نمایید.");
@@ -167,7 +190,7 @@ const sendInteractiveReport = async (chatId, db) => {
     const pendingExits = db.exitPermits.filter(p => p.status !== 'خارج شده (بایگانی)' && p.status !== 'رد شده');
 
     if (pendingOrders.length === 0 && pendingExits.length === 0) {
-        bot.sendMessage(chatId, "✅ هیچ کارتابل بازی وجود ندارد.");
+        bot.sendMessage(chatId, "✅ هیچ کارتابل بازی وجود ندارد.\nبرای مشاهده گزارشات بازرگانی، دستور 'گزارش بازرگانی' را ارسال کنید.");
         return;
     }
 
