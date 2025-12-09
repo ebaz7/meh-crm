@@ -1,0 +1,241 @@
+
+{
+  "name": "AI Financial Agent (Stable HTTP)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.audio && $json.body.audio.data }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-input-type",
+      "name": "Audio or Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "bodyContentType": "multipart-form-data"
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "fa"
+            }
+          ]
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "id": "http-whisper",
+      "name": "Whisper API (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        940,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const audioData = $('Webhook').item.json.body.audio.data;\n// Binary data prep for HTTP Request node\nreturn {\n  binary: {\n    data: {\n      data: audioData,\n      mimeType: $('Webhook').item.json.body.audio.mimeType || 'audio/ogg',\n      fileName: 'audio.ogg'\n    }\n  },\n  json: {}\n};"
+      },
+      "id": "prep-audio",
+      "name": "Prepare Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendBody": true,
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "gpt-4o-mini"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [\n  {\"role\": \"system\", \"content\": \"You are a financial assistant. Output JSON only. \\nFormat 1 (Chat): { \\\"type\\\": \\\"message\\\", \\\"text\\\": \\\"...\\\" }\\nFormat 2 (Action): { \\\"type\\\": \\\"tool_call\\\", \\\"tool\\\": \\\"TOOL_NAME\\\", \\\"args\\\": { ... } }\\nTools: get_financial_summary, register_payment_order(payee,amount,description), manage_order(trackingNumber, action:approve/reject)\"}, \n  {\"role\": \"user\", \"content\": $json.text ? $json.text : $('Webhook').item.json.body.message}\n] }}"
+            },
+            {
+              "name": "response_format",
+              "value": "={{ {\"type\": \"json_object\"} }}"
+            }
+          ]
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-gpt",
+      "name": "GPT-4o Mini (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1200,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n    const raw = $input.item.json.choices[0].message.content;\n    const parsed = JSON.parse(raw);\n    return { json: parsed };\n} catch (e) {\n    return { \n        json: { \n            type: \"message\", \n            text: \"خطا در پردازش پاسخ هوش مصنوعی.\"\n        } \n    };\n}"
+      },
+      "id": "parse-response",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Audio or Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio or Text?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GPT-4o Mini (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audio": {
+      "main": [
+        [
+          {
+            "node": "Whisper API (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper API (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "GPT-4o Mini (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o Mini (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
