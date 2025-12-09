@@ -124,7 +124,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   // The Invoice Content
   const content = (
-      <div id={containerId} className={`printable-content bg-white w-[148mm] mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none print:w-full print:h-auto ${embed ? '' : 'min-h-[210mm]'}`} style={{ direction: 'rtl' }}>
+      <div id={containerId} className={`printable-content bg-white w-full max-w-[148mm] mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none print:w-full print:h-auto ${embed ? '' : 'min-h-[210mm]'}`} style={{ direction: 'rtl' }}>
             <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
                 <div className="flex items-center gap-3">{companyLogo && <img src={companyLogo} className="w-16 h-16 object-contain"/>}<div><h1 className="text-xl font-black">{tx.company}</h1><p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black border-2 border-black px-3 py-1 rounded">NO: {tx.number}</div><div className="text-sm font-bold">تاریخ: {formatDate(tx.date)}</div></div>
@@ -138,10 +138,10 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   if (embed) return content;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto animate-fade-in no-print">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in no-print safe-pb">
         
-        {/* Main Controls */}
-        <div className="bg-white p-3 rounded-xl shadow-lg absolute top-4 left-4 z-50 flex flex-col gap-2 w-64">
+        {/* Main Controls - Responsive */}
+        <div className="bg-white p-3 rounded-xl shadow-lg z-50 flex flex-col gap-2 w-full max-w-[148mm] md:w-64 md:fixed md:top-4 md:left-4 mb-4 md:mb-0 relative order-1">
             <div className="flex justify-between items-center border-b pb-2"><span className="font-bold text-sm">پنل عملیات</span><button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500"/></button></div>
             <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded"><input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} id="hidePrice"/><label htmlFor="hidePrice" className="cursor-pointer">مخفی کردن قیمت‌ها</label></div>
             <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 p-2 rounded text-sm hover:bg-gray-200 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
@@ -196,7 +196,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
             </div>
         )}
 
-        {content}
+        <div className="order-2 w-full">{content}</div>
     </div>
   );
 };

@@ -41,7 +41,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   // --- RENDER ---
   const content = (
-      <div id={embed ? `print-voucher-${order.id}` : "print-area"} className="bg-white w-[210mm] h-[148mm] mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" style={{ direction: 'rtl' }}>
+      <div id={embed ? `print-voucher-${order.id}` : "print-area"} className="bg-white w-full max-w-[210mm] h-auto min-h-[148mm] mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" style={{ direction: 'rtl' }}>
         {/* Rejected Watermark */}
         {order.status === OrderStatus.REJECTED && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
@@ -92,9 +92,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   if (embed) return content;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-50 pointer-events-none no-print">
-         <div className="bg-white p-3 rounded-xl shadow-lg pointer-events-auto flex flex-col gap-3 w-full max-w-lg mx-auto mt-10 md:mt-0 relative">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
+      <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-50 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
+         <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative">
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
              {(onApprove || onReject || onEdit) && (<div className="flex gap-2 pb-3 border-b border-gray-100">{onApprove && <button onClick={onApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold"><CheckCircle size={18} /> تایید</button>}{onReject && <button onClick={onReject} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold"><XCircle size={18} /> رد</button>}{onEdit && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}</div>)}
              <div className="grid grid-cols-4 gap-2 relative">
@@ -106,7 +106,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
              </div>
          </div>
       </div>
-      {content}
+      <div className="order-2 w-full">{content}</div>
     </div>
   );
 };

@@ -37,7 +37,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   const totalWeight = displayItems.reduce((acc, i) => acc + (Number(i.weight) || 0), 0);
 
   const content = (
-      <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} className="bg-white w-[210mm] min-h-[148mm] mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" style={{ direction: 'rtl' }}>
+      <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} className="bg-white w-full max-w-[210mm] min-h-[148mm] mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" style={{ direction: 'rtl' }}>
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">شرکت تولیدی صنعتی</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black">شماره: {permit.permitNumber}</div><div className="text-sm">تاریخ: {formatDate(permit.date)}</div></div>
@@ -59,9 +59,9 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   if (embed) return content;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-        <div className="bg-white p-3 rounded-xl shadow-lg absolute top-4 left-4 z-50 flex flex-col gap-2 no-print w-48">
-            <button onClick={onClose} className="self-end text-gray-400 hover:text-red-500"><X size={20}/></button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
+        <div className="bg-white p-3 rounded-xl shadow-lg relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-48 mb-4 md:mb-0 order-1">
+            <div className="flex justify-between items-center"><span className="text-sm font-bold md:hidden">عملیات</span><button onClick={onClose} className="self-end text-gray-400 hover:text-red-500"><X size={20}/></button></div>
             {onApprove && <button onClick={onApprove} className="bg-green-600 text-white p-2 rounded flex items-center gap-2 justify-center"><CheckCircle size={16}/> تایید</button>}
             {onReject && <button onClick={onReject} className="bg-red-600 text-white p-2 rounded flex items-center gap-2 justify-center"><XCircle size={16}/> رد</button>}
             <hr className="my-1"/>
@@ -69,7 +69,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             <button onClick={handlePrint} className="bg-blue-600 text-white p-2 rounded text-sm hover:bg-blue-700">چاپ</button>
             <div className="relative"><button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className="w-full bg-green-500 text-white p-2 rounded text-sm hover:bg-green-600 flex items-center justify-center gap-2">{sharing ? <Loader2 size={16} className="animate-spin"/> : <Share2 size={16}/>} واتساپ</button>{showContactSelect && (<div className="absolute top-full left-0 mt-2 w-64 bg-white shadow-xl rounded-xl border z-50 max-h-60 overflow-y-auto">{settings?.savedContacts?.map(c => (<button key={c.id} onClick={() => handleSendWhatsApp(c.number)} className="w-full text-right p-2 hover:bg-gray-100 border-b text-xs flex items-center gap-2"><Users size={12}/> {c.name}</button>))}<button onClick={() => { const n = prompt('شماره:'); if(n) handleSendWhatsApp(n); }} className="w-full text-center p-2 text-xs text-blue-600 font-bold">شماره دستی</button></div>)}</div>
         </div>
-        {content}
+        <div className="order-2 w-full">{content}</div>
     </div>
   );
 };
