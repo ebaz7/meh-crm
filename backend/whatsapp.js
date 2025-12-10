@@ -30,28 +30,72 @@ const getDb = () => {
     return null;
 };
 
+// --- BROWSER DETECTION HELPER ---
+const getExecutablePath = () => {
+    const platform = process.platform;
+    let possiblePaths = [];
+
+    if (platform === 'win32') {
+        possiblePaths = [
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
+            path.join(process.env.PROGRAMFILES || '', 'Google\\Chrome\\Application\\chrome.exe'),
+            path.join(process.env['PROGRAMFILES(X86)'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
+            // Fallback to Edge if Chrome is missing
+            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+        ];
+    } else if (platform === 'linux') {
+        possiblePaths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium'
+        ];
+    } else if (platform === 'darwin') {
+        possiblePaths = [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Chromium.app/Contents/MacOS/Chromium'
+        ];
+    }
+
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) return p;
+    }
+    return null;
+};
+
 // --- WHATSAPP CLIENT ---
 export const initWhatsApp = (authDir) => {
     try {
         console.log(">>> Initializing WhatsApp Module...");
 
-        // FIX: Removed hardcoded Windows paths to allow Puppeteer to use the bundled Chromium.
-        // If it still fails, run 'npx puppeteer install' in the project root.
+        const execPath = getExecutablePath();
+        const puppeteerConfig = { 
+            headless: true, 
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ] 
+        };
+
+        if (execPath) {
+            console.log(`>>> Found local browser at: ${execPath}`);
+            puppeteerConfig.executablePath = execPath;
+        } else {
+            console.log(">>> No local browser found, trying bundled Chromium...");
+        }
         
         client = new Client({ 
             authStrategy: new LocalAuth({ dataPath: authDir }), 
-            puppeteer: { 
-                headless: true, 
-                args: [
-                    '--no-sandbox', 
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu'
-                ] 
-            } 
+            puppeteer: puppeteerConfig
         });
 
         client.on('qr', (qr) => { 
