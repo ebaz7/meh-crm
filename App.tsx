@@ -11,7 +11,7 @@ import ChatRoom from './components/ChatRoom';
 import TradeModule from './components/TradeModule';
 import CreateExitPermit from './components/CreateExitPermit'; 
 import ManageExitPermits from './components/ManageExitPermits'; 
-import WarehouseModule from './components/WarehouseModule'; // NEW
+import WarehouseModule from './components/WarehouseModule';
 import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
