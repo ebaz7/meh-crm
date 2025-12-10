@@ -43,9 +43,9 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
       <div className="order-2 w-full overflow-auto flex justify-center">
           <div className="printable-content bg-white p-8 shadow-2xl relative text-black" 
             style={{ 
-                width: '100%', 
-                maxWidth: '280mm', // Safe A4 Margin
-                minHeight: '200mm', 
+                // A4 Landscape: 297mm x 210mm
+                width: '296mm', 
+                height: '209mm', 
                 direction: 'rtl',
                 padding: '5mm', // Reduced Padding
                 boxSizing: 'border-box'
@@ -90,7 +90,9 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
                                     <td className="p-1 border-r border-gray-300 dir-ltr">{r.stageQ?.queueDate || '-'}</td>
                                     <td className="p-1 border-r border-gray-300 dir-ltr">{r.stageA?.allocationDate || '-'}</td>
                                     <td className={`p-1 border-r border-gray-300 font-bold ${r.remainingDays > 0 ? 'text-green-600' : r.remainingDays === '-' ? '' : 'text-red-600'}`}>{r.remainingDays}</td>
-                                    <td className="p-1 border-r border-gray-300 font-bold">{r.isAllocated ? 'تخصیص یافته' : 'در صف'}</td>
+                                    <td className="p-1 border-r border-gray-300 font-bold">
+                                        {r.isAllocated ? 'تخصیص یافته' : 'در صف'}
+                                    </td>
                                     <td className="p-1 border-r border-gray-300 text-[9px]">{r.operatingBank || '-'}</td>
                                     <td className="p-1 border-r border-gray-300 text-[10px]">{r.isPriority ? '✅' : '-'}</td>
                                     <td className="p-1 border-r border-gray-300 text-[10px]">{r.allocationCurrencyRank === 'Type1' ? 'نوع 1' : r.allocationCurrencyRank === 'Type2' ? 'نوع 2' : '-'}</td>

@@ -37,9 +37,9 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       <div className="order-2 w-full overflow-auto flex justify-center">
           <div className="printable-content bg-white p-4 shadow-2xl relative text-black" 
             style={{ 
-                width: '100%', 
-                maxWidth: '280mm', // Safe margin for A4 Landscape
-                minHeight: '200mm', 
+                // A4 Landscape: 297mm x 210mm
+                width: '296mm', 
+                height: '209mm', 
                 direction: 'rtl',
                 padding: '5mm', // Reduced Padding
                 boxSizing: 'border-box'

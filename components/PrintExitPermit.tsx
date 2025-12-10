@@ -28,7 +28,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   }, [embed]);
 
   const Stamp = ({ title, name, date }: { title: string, name: string, date?: string }) => (
-      <div className="border-2 border-blue-800 text-blue-800 rounded-lg p-2 rotate-[-5deg] opacity-90 inline-block bg-white/80">
+      <div className="border-2 border-blue-800 text-blue-800 rounded-lg p-2 rotate-[-5deg] opacity-90 inline-block bg-white/80 print:bg-transparent">
           <div className="text-[10px] font-bold border-b border-blue-800 mb-1 pb-1 text-center">{title}</div>
           <div className="text-sm font-bold text-center">{name}</div>
           {date && <div className="text-[9px] text-center mt-1">{date}</div>}
@@ -54,10 +54,11 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
         className="printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" 
         style={{ 
             direction: 'rtl',
-            width: '100%',
-            maxWidth: '200mm', // Safe margin for A5 landscape (210mm)
-            minHeight: '138mm',
-            padding: '5mm', // Reduced Padding
+            // A5 Landscape Dimensions (210mm x 148mm)
+            width: '209mm',
+            height: '147mm',
+            margin: '0 auto',
+            padding: '8mm', // Proper padding
             boxSizing: 'border-box'
         }}>
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">

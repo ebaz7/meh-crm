@@ -313,8 +313,8 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
                 />
             )}
 
-            {/* Hidden Rendering Area for Dual Auto-Send */}
-            <div style={{position:'absolute', top:'-9999px', left:'-9999px'}}>
+            {/* Hidden Rendering Area for Dual Auto-Send - Add class hidden-print-export */}
+            <div className="hidden-print-export" style={{position:'absolute', top:'-9999px', left:'-9999px'}}>
                 {createdTxForAutoSend && (
                     <>
                         <div id={`print-bijak-${createdTxForAutoSend.id}-price`}><PrintBijak tx={createdTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>

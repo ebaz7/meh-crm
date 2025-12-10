@@ -196,9 +196,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings }) => {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in relative">
-        {/* Hidden Render for Auto Send */}
+        {/* Hidden Render for Auto Send - Add class hidden-print-export */}
         {permitForAutoSend && (
-            <div style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
+            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
                 <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} />
             </div>
         )}

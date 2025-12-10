@@ -40,8 +40,7 @@
       
       @media print {
         @page {
-          margin: 0; /* Let the content control margins */
-          size: auto;
+          margin: 0; /* Let the content control margins completely */
         }
         
         /* CRITICAL RESET: Force border-box to prevent padding from expanding width */
@@ -53,12 +52,12 @@
 
         /* Collapse the main document flow */
         html, body {
-          height: 0 !important;
-          width: 100% !important;
-          overflow: visible !important; /* Allow absolute content to show */
+          height: 100%;
+          width: 100%;
           margin: 0 !important;
           padding: 0 !important;
           background: white !important;
+          overflow: hidden !important; /* Prevent scrollbars triggering pages */
         }
 
         /* Hide everything by default */
@@ -83,15 +82,14 @@
           position: absolute !important;
           top: 0 !important;
           left: 0 !important;
-          width: 100% !important;
           margin: 0 !important;
-          /* Padding is handled inside the component to prevent cut-off */
-          padding: 0 !important; 
           background-color: white !important;
           z-index: 99999 !important;
+          border: none !important;
+          box-shadow: none !important;
         }
         
-        .no-print {
+        .no-print, .hidden-print-export {
           display: none !important;
         }
       }

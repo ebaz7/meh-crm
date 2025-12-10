@@ -56,7 +56,6 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       getNextTrackingNumber().then(num => setTrackingNumber(num.toString()));
   }, []);
 
-  // ... (Keep existing helpers like getIsoDate, handleEnhance, handleFileChange, addPaymentLine, handleAnalyzePayment etc.) ...
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const form = e.currentTarget.form; if (!form) return; const index = Array.prototype.indexOf.call(form, e.currentTarget); const nextElement = form.elements[index + 1] as HTMLElement; if (nextElement) nextElement.focus(); } };
   const getIsoDate = () => { try { const date = jalaliToGregorian(shamsiDate.year, shamsiDate.month, shamsiDate.day); const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; } catch (e) { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; } };
   const handleAddBank = async () => { const newBank = window.prompt("نام بانک جدید:"); if (!newBank?.trim()) return; const s = await getSettings(); const updated = [...(s.bankNames || []), newBank.trim()]; await saveSettings({ ...s, bankNames: updated }); setAvailableBanks(updated); setNewLine(p => ({ ...p, bankName: newBank.trim() })); };
@@ -125,9 +124,9 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in relative">
-        {/* Hidden Render Area for Auto-Send */}
+        {/* Hidden Render Area for Auto-Send - Add class hidden-print-export */}
         {createdOrderForAutoSend && (
-            <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+            <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
                 <PrintVoucher order={createdOrderForAutoSend} embed settings={settings || undefined} />
             </div>
         )}

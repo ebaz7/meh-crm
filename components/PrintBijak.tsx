@@ -132,14 +132,16 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   const filteredContacts = allContacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.number.includes(contactSearch));
 
-  // The Invoice Content - Use flexible width
+  // The Invoice Content - Use flexible width but stick to A5 dimensions
   const content = (
-      <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none ${embed ? '' : 'min-h-[210mm]'}`} 
+      <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none`} 
         style={{ 
             direction: 'rtl',
-            width: '100%',
-            maxWidth: '140mm', /* Safe A5 Portrait width */
-            padding: '5mm', /* Reduced Margin */
+            // A5 Portrait (148mm x 210mm)
+            width: '147mm',
+            height: '209mm',
+            margin: '0 auto',
+            padding: '8mm', // Proper padding
             boxSizing: 'border-box'
         }}>
             <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
