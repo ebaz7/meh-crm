@@ -22,6 +22,8 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
   const [destinations, setDestinations] = useState<ExitPermitDestination[]>([{ id: generateUUID(), recipientName: '', address: '', phone: '' }]);
   const [driverInfo, setDriverInfo] = useState({ plateNumber: '', driverName: '', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State for rendering the hidden invoice for auto-send
   const [createdPermit, setCreatedPermit] = useState<ExitPermit | null>(null);
 
   useEffect(() => { getNextExitPermitNumber().then(num => setPermitNumber(num.toString())); }, []);
@@ -58,9 +60,10 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
           };
           await saveExitPermit(permit);
           
+          // Trigger the hidden render
           setCreatedPermit(permit);
           
-          // Auto Send
+          // Wait for render, generate image, and send to CEO
           setTimeout(async () => {
               const element = document.getElementById(`print-permit-${permit.id}`);
               if (element) {
@@ -68,17 +71,32 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
                       // Find CEO
                       const users = await getUsers();
                       const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                      
                       if (ceo) {
                           // @ts-ignore
                           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                           const base64 = canvas.toDataURL('image/png').split(',')[1];
-                          let caption = `🚛 *درخواست مجوز خروج جدید*\nشماره: ${permit.permitNumber}\nدرخواست کننده: ${permit.requester}\n\nجهت بررسی و تایید.`;
-                          await apiCall('/send-whatsapp', 'POST', { number: ceo.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` } });
+                          
+                          let caption = `🚛 *درخواست مجوز خروج جدید*\n`;
+                          caption += `شماره: ${permit.permitNumber}\n`;
+                          caption += `درخواست کننده: ${permit.requester}\n`;
+                          caption += `گیرنده: ${permit.recipientName}\n\n`;
+                          caption += `جهت بررسی و تایید ارسال گردید.`;
+
+                          await apiCall('/send-whatsapp', 'POST', { 
+                              number: ceo.phoneNumber, 
+                              message: caption, 
+                              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` } 
+                          });
+                          console.log("Auto sent exit request to CEO");
+                      } else {
+                          console.log("CEO contact not found for auto-send.");
                       }
                   } catch(e) { console.error("Auto send error", e); }
               }
+              // Proceed after attempt
               onSuccess();
-          }, 1000);
+          }, 1500);
 
       } catch (e) { alert('خطا در ثبت درخواست'); setIsSubmitting(false); }
   };
@@ -92,7 +110,11 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in max-w-4xl mx-auto relative">
         {/* Hidden Render for Auto Send */}
-        {createdPermit && <div style={{position: 'absolute', top:'-9999px', left:'-9999px'}}><PrintExitPermit permit={createdPermit} onClose={()=>{}} embed /></div>}
+        {createdPermit && (
+            <div style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
+                <PrintExitPermit permit={createdPermit} onClose={()=>{}} embed />
+            </div>
+        )}
 
         <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Truck size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت درخواست خروج بار (چند ردیفه)</h2></div>
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
