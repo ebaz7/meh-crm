@@ -19,24 +19,9 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
   const orders = await getOrders();
   const order = orders.find(o => o.id === id);
   if (order) {
-      // --- STRICT APPROVAL FLOW VALIDATION ---
-      // Prevent jumping to final steps if previous steps aren't done
-      if (status === OrderStatus.APPROVED_CEO) {
-          if (order.status !== OrderStatus.APPROVED_MANAGER) {
-              // Only allow CEO to skip if they are approving a request they themselves made or if they explicitly override (but standard flow requires manager)
-              // For safety, we block skipping:
-              throw new Error("خطا: قبل از تایید نهایی، باید تایید مدیریت انجام شده باشد.");
-          }
-      }
-      if (status === OrderStatus.APPROVED_MANAGER) {
-          if (order.status !== OrderStatus.APPROVED_FINANCE) {
-              throw new Error("خطا: قبل از تایید مدیریت، باید تایید مالی انجام شده باشد.");
-          }
-      }
-
       const updates: any = { status };
       
-      // Strict Signature Logic based on STATUS
+      // Strict Signature Logic based on STATUS, not just ROLE
       if (status === OrderStatus.APPROVED_FINANCE) {
           if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) {
               updates.approverFinancial = approverUser.fullName;

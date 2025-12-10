@@ -37,63 +37,49 @@
       
       @media print {
         @page {
-          size: A5 landscape;
-          margin: 0mm;
+          size: A5 landscape; /* Force A5 Landscape */
+          margin: 0; /* Remove default margins */
         }
         
-        body {
+        body, html {
+          width: 210mm;
+          height: 148mm;
           background-color: white !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
           margin: 0 !important;
           padding: 0 !important;
-          overflow: hidden !important; /* Prevent scrollbars in print */
-          height: 100vh !important;
+          overflow: hidden !important;
         }
 
-        /* Hide EVERYTHING by default */
-        body > * {
+        /* Hide app root and overlays */
+        #root, .fixed, .no-print {
           display: none !important;
         }
 
-        /* Make the root container invisible but don't set display:none as it breaks react portal references sometimes */
-        #root {
-          display: none !important;
-        }
-
-        /* Ensure modals and overlays don't block print if they are not the target */
-        .fixed {
-            position: absolute !important;
-        }
-
-        /* Only show specific printable content and its children */
-        .printable-content, .printable-content * {
-          display: block !important;
+        /* Show only the printable content */
+        .printable-content {
+          display: flex !important;
+          flex-direction: column;
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 210mm !important;
+          height: 148mm !important;
+          padding: 10mm !important; /* Internal padding for aesthetics */
+          background-color: white !important;
+          z-index: 999999 !important;
+          box-sizing: border-box !important;
           visibility: visible !important;
           opacity: 1 !important;
         }
-
-        .printable-content {
-          position: fixed !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 210mm !important;
-          height: 148mm !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background-color: white !important;
-          z-index: 999999 !important;
-          overflow: hidden !important;
+        
+        .printable-content * {
+          visibility: visible !important;
         }
         
-        /* Specific overrides for flex/grid within printable area to maintain layout */
+        /* Force tailwind grid/flex to work in print */
         .printable-content .flex { display: flex !important; }
         .printable-content .grid { display: grid !important; }
         .printable-content .hidden { display: none !important; }
-
-        .no-print {
-          display: none !important;
-        }
       }
     </style>
   <script type="importmap">
