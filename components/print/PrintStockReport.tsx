@@ -35,7 +35,7 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       
       {/* Printable Content - A4 Landscape */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white p-4 shadow-2xl relative text-black" 
+          <div className="printable-content bg-white p-4 shadow-2xl relative text-black print-overlay" 
             style={{ 
                 width: '100%', 
                 maxWidth: '297mm',
