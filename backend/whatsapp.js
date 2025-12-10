@@ -42,7 +42,6 @@ const getExecutablePath = () => {
             path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
             path.join(process.env.PROGRAMFILES || '', 'Google\\Chrome\\Application\\chrome.exe'),
             path.join(process.env['PROGRAMFILES(X86)'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
-            // Fallback to Edge if Chrome is missing
             'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
             'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
         ];
@@ -62,7 +61,7 @@ const getExecutablePath = () => {
     }
 
     for (const p of possiblePaths) {
-        if (fs.existsSync(p)) return p;
+        if (fs.existsSync(p)) return path.normalize(p); // Normalize for Windows
     }
     return null;
 };
@@ -74,49 +73,30 @@ export const initWhatsApp = (authDir) => {
 
         const execPath = getExecutablePath();
         
-        // Robust Args for Windows environments
+        // Minimal Robust Args for Windows
         const puppeteerArgs = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-gpu', // Critical for Windows Server/Some GPUs
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu',
-            '--disable-extensions',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-default-apps',
-            '--mute-audio',
-            '--no-default-browser-check',
-            '--autoplay-policy=user-gesture-required',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-breakpad',
-            '--disable-client-side-phishing-detection',
-            '--disable-component-update',
-            '--disable-features=Translate',
-            '--disable-hang-monitor',
-            '--disable-ipc-flooding-protection',
-            '--disable-popup-blocking',
-            '--disable-prompt-on-repost',
-            '--disable-renderer-backgrounding',
-            '--disable-sync',
-            '--force-color-profile=srgb',
-            '--metrics-recording-only',
-            '--password-store=basic',
-            '--use-mock-keychain'
+            '--single-process', // Helps with resource locking
+            '--disable-extensions'
         ];
 
         const puppeteerConfig = { 
             headless: true, 
-            args: puppeteerArgs
+            args: puppeteerArgs,
+            authTimeoutMs: 60000, // Wait longer for browser to start
+            qrTimeoutMs: 0, // No timeout for QR
         };
 
         if (execPath) {
             console.log(`>>> Found local browser at: ${execPath}`);
             puppeteerConfig.executablePath = execPath;
         } else {
-            console.log(">>> No local browser found, trying bundled Chromium...");
+            console.log(">>> No local browser found, relying on Puppeteer bundled Chromium...");
         }
         
         client = new Client({ 
@@ -140,6 +120,13 @@ export const initWhatsApp = (authDir) => {
 
         client.on('auth_failure', msg => {
             console.error('>>> WhatsApp Auth Failure:', msg);
+        });
+
+        client.on('disconnected', (reason) => {
+            console.log('>>> WhatsApp Disconnected:', reason);
+            isReady = false;
+            client = null;
+            // Optional: Auto-reconnect logic could go here
         });
 
         client.on('message', async msg => {
@@ -197,7 +184,13 @@ export const initWhatsApp = (authDir) => {
             } catch (error) { console.error("Message Error:", error); }
         });
 
-        client.initialize().catch(e => console.error("WA Init Fail (Client):", e.message));
+        client.initialize().catch(e => {
+            console.error("WA Init Fail (Client):", e.message);
+            // Hint for user
+            if (e.message.includes('launch')) {
+                console.log(">>> TIP: Try deleting the 'wauth' folder manually and restarting to clear corrupted session.");
+            }
+        });
     } catch (e) { console.error("WA Module Error:", e.message); }
 };
 
