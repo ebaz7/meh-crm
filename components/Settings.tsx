@@ -39,6 +39,7 @@ const Settings: React.FC = () => {
   
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyLogo, setNewCompanyLogo] = useState('');
+  const [newCompanyShowInWarehouse, setNewCompanyShowInWarehouse] = useState(true);
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const companyLogoInputRef = useRef<HTMLInputElement>(null);
@@ -146,8 +147,26 @@ const Settings: React.FC = () => {
   const handleAddContact = () => { if (!contactName.trim() || !contactNumber.trim()) return; const newContact: Contact = { id: generateUUID(), name: contactName.trim(), number: contactNumber.trim(), isGroup: isGroupContact }; setSettings({ ...settings, savedContacts: [...(settings.savedContacts || []), newContact] }); setContactName(''); setContactNumber(''); setIsGroupContact(false); };
   const handleDeleteContact = (id: string) => { setSettings({ ...settings, savedContacts: (settings.savedContacts || []).filter(c => c.id !== id) }); };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setIsUploadingLogo(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const result = await uploadFile(file.name, ev.target?.result as string); setNewCompanyLogo(result.url); } catch (error) { alert('خطا در آپلود'); } finally { setIsUploadingLogo(false); } }; reader.readAsDataURL(file); };
-  const handleSaveCompany = () => { if (!newCompanyName.trim()) return; let updatedCompanies = settings.companies || []; if (editingCompanyId) updatedCompanies = updatedCompanies.map(c => c.id === editingCompanyId ? { ...c, name: newCompanyName.trim(), logo: newCompanyLogo } : c); else updatedCompanies = [...updatedCompanies, { id: generateUUID(), name: newCompanyName.trim(), logo: newCompanyLogo }]; setSettings({ ...settings, companies: updatedCompanies, companyNames: updatedCompanies.map(c => c.name) }); setNewCompanyName(''); setNewCompanyLogo(''); setEditingCompanyId(null); };
-  const handleEditCompany = (c: Company) => { setNewCompanyName(c.name); setNewCompanyLogo(c.logo || ''); setEditingCompanyId(c.id); };
+  const handleSaveCompany = () => { 
+      if (!newCompanyName.trim()) return; 
+      let updatedCompanies = settings.companies || []; 
+      if (editingCompanyId) {
+          updatedCompanies = updatedCompanies.map(c => c.id === editingCompanyId ? { ...c, name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse } : c); 
+      } else {
+          updatedCompanies = [...updatedCompanies, { id: generateUUID(), name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse }]; 
+      }
+      setSettings({ ...settings, companies: updatedCompanies, companyNames: updatedCompanies.map(c => c.name) }); 
+      setNewCompanyName(''); 
+      setNewCompanyLogo(''); 
+      setNewCompanyShowInWarehouse(true);
+      setEditingCompanyId(null); 
+  };
+  const handleEditCompany = (c: Company) => { 
+      setNewCompanyName(c.name); 
+      setNewCompanyLogo(c.logo || ''); 
+      setNewCompanyShowInWarehouse(c.showInWarehouse !== false);
+      setEditingCompanyId(c.id); 
+  };
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
   const handleAddBank = () => { if (newBank.trim() && !settings.bankNames.includes(newBank.trim())) { setSettings({ ...settings, bankNames: [...settings.bankNames, newBank.trim()] }); setNewBank(''); } };
   const handleRemoveBank = (name: string) => { setSettings({ ...settings, bankNames: settings.bankNames.filter(b => b !== name) }); };
@@ -276,7 +295,7 @@ const Settings: React.FC = () => {
                             
                             {/* Per Company Notification Settings */}
                             <div className="space-y-6">
-                                {settings.companies?.map(company => (
+                                {settings.companies?.filter(c => c.showInWarehouse !== false).map(company => (
                                     <div key={company.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                         <h4 className="font-bold text-base text-gray-800 mb-3 border-b pb-2 flex justify-between">
                                             <span>شرکت: {company.name}</span>
@@ -330,9 +349,9 @@ const Settings: React.FC = () => {
                                         </div>
                                     </div>
                                 ))}
-                                {(!settings.companies || settings.companies.length === 0) && (
+                                {(!settings.companies || settings.companies.filter(c => c.showInWarehouse !== false).length === 0) && (
                                     <div className="text-center p-4 text-gray-500 border rounded-lg border-dashed">
-                                        هنوز هیچ شرکتی تعریف نشده است. لطفا ابتدا در بخش "اطلاعات پایه" شرکت‌ها را تعریف کنید.
+                                        هیچ شرکتی برای بخش انبار فعال نشده است. لطفا در بخش "اطلاعات پایه"، گزینه "نمایش در انبار" را برای شرکت‌های مورد نظر فعال کنید.
                                     </div>
                                 )}
                             </div>
@@ -340,7 +359,7 @@ const Settings: React.FC = () => {
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 mt-6">
                                 <h4 className="font-bold text-sm text-orange-800 mb-3">شماره آخرین بیجک صادر شده (به تفکیک شرکت)</h4>
                                 <div className="space-y-2">
-                                    {settings.companies?.map(c => (
+                                    {settings.companies?.filter(c => c.showInWarehouse !== false).map(c => (
                                         <div key={c.id} className="flex justify-between items-center bg-white p-2 rounded border">
                                             <span className="text-sm font-bold">{c.name}</span>
                                             <div className="flex items-center gap-2">
@@ -371,16 +390,26 @@ const Settings: React.FC = () => {
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Building size={20}/> مدیریت شرکت‌ها</h3>
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <div className="flex gap-2 items-center mb-4">
-                                    <input type="text" className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام شرکت..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} />
+                                <div className="flex gap-2 items-end mb-4 flex-wrap">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="نام شرکت..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white px-2 py-2 rounded border">
+                                        <input type="checkbox" checked={newCompanyShowInWarehouse} onChange={e => setNewCompanyShowInWarehouse(e.target.checked)} className="w-4 h-4"/>
+                                        <span className="text-xs">نمایش در انبار</span>
+                                    </div>
                                     <div className="w-10 h-10 border rounded bg-white flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => companyLogoInputRef.current?.click()}>{newCompanyLogo ? <img src={newCompanyLogo} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="text-gray-300"/>}</div>
                                     <input type="file" ref={companyLogoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload}/>
-                                    <button type="button" onClick={handleSaveCompany} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">{editingCompanyId ? 'ویرایش' : 'افزودن'}</button>
+                                    <button type="button" onClick={handleSaveCompany} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm h-10">{editingCompanyId ? 'ویرایش' : 'افزودن'}</button>
                                 </div>
                                 <div className="space-y-2 max-h-48 overflow-y-auto">
                                     {settings.companies?.map(c => (
                                         <div key={c.id} className="flex justify-between items-center bg-white p-2 rounded border shadow-sm">
-                                            <div className="flex items-center gap-2">{c.logo && <img src={c.logo} className="w-6 h-6 object-contain"/>}<span className="text-sm">{c.name}</span></div>
+                                            <div className="flex items-center gap-2">
+                                                {c.logo && <img src={c.logo} className="w-6 h-6 object-contain"/>}
+                                                <span className="text-sm font-bold">{c.name}</span>
+                                                {c.showInWarehouse === false && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">مخفی در انبار</span>}
+                                            </div>
                                             <div className="flex gap-1"><button type="button" onClick={() => handleEditCompany(c)} className="text-blue-500 p-1"><Pencil size={14}/></button><button type="button" onClick={() => handleRemoveCompany(c.id)} className="text-red-500 p-1"><Trash2 size={14}/></button></div>
                                         </div>
                                     ))}

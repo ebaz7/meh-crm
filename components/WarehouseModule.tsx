@@ -224,7 +224,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
 
     // --- ALL WAREHOUSES REPORT LOGIC ---
     const allWarehousesStock = useMemo(() => {
-        const companies = settings?.companyNames || [];
+        const companies = settings?.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
         const result = companies.map(company => {
             const companyItems = items.map(catalogItem => {
                 let quantity = 0;
@@ -322,8 +322,11 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
     };
 
     if (!settings || loadingData) return <div className="flex flex-col items-center justify-center h-[50vh] text-gray-500 gap-2"><Loader2 className="animate-spin text-blue-600" size={32}/><span className="text-sm font-bold">در حال بارگذاری اطلاعات انبار...</span></div>;
-    const companyList = settings.companyNames || [];
-    if (companyList.length === 0) return (<div className="flex flex-col items-center justify-center h-[60vh] text-center p-6 animate-fade-in"><div className="bg-amber-100 p-4 rounded-full text-amber-600 mb-4 shadow-sm"><AlertTriangle size={48}/></div><h2 className="text-xl font-bold text-gray-800 mb-2">هنوز شرکتی تعریف نشده است</h2><p className="text-gray-600 max-w-md mb-6 leading-relaxed">برای استفاده از سیستم انبار (ثبت رسید و بیجک)، ابتدا باید نام شرکت‌ها را در بخش تنظیمات سیستم وارد کنید.</p><div className="flex gap-2"><button onClick={() => window.location.hash = '#settings'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg"><Settings size={20}/><span>رفتن به تنظیمات &gt; مدیریت شرکت‌ها</span></button></div></div>);
+    
+    // Filter company list based on showInWarehouse flag
+    const companyList = settings.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
+    
+    if (companyList.length === 0) return (<div className="flex flex-col items-center justify-center h-[60vh] text-center p-6 animate-fade-in"><div className="bg-amber-100 p-4 rounded-full text-amber-600 mb-4 shadow-sm"><AlertTriangle size={48}/></div><h2 className="text-xl font-bold text-gray-800 mb-2">هیچ شرکتی برای انبار فعال نشده است</h2><p className="text-gray-600 max-w-md mb-6 leading-relaxed">برای استفاده از سیستم انبار، لطفاً در تنظیمات سیستم به بخش "مدیریت شرکت‌ها" بروید و تیک "نمایش در انبار" را برای شرکت‌های مورد نظر فعال کنید.</p><div className="flex gap-2"><button onClick={() => window.location.hash = '#settings'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg"><Settings size={20}/><span>رفتن به تنظیمات</span></button></div></div>);
 
     const years = Array.from({length:10},(_,i)=>1400+i); const months = Array.from({length:12},(_,i)=>i+1); const days = Array.from({length:31},(_,i)=>i+1);
 
@@ -441,18 +444,16 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
                         <style>{`
                             @media print { 
                                 @page { size: A4 landscape; margin: 5mm; }
-                                body > * { display: none !important; }
+                                body * { visibility: hidden; }
+                                #stock-report-container, #stock-report-container * { visibility: visible; }
                                 #stock-report-container { 
-                                    display: block !important; 
-                                    position: absolute; 
-                                    left: 0; 
-                                    top: 0; 
-                                    width: 100%; 
-                                    height: auto; 
-                                    overflow: visible; 
-                                    visibility: visible;
+                                    position: fixed;
+                                    left: 0;
+                                    top: 0;
+                                    width: 100%;
+                                    height: auto;
+                                    overflow: visible;
                                 }
-                                #stock-report-container * { visibility: visible; }
                             }
                         `}</style>
                         <div className="flex justify-between items-center mb-4 no-print">

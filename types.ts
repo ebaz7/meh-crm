@@ -183,7 +183,8 @@ export interface RolePermissions {
 export interface Company {
     id: string;
     name: string;
-    logo?: string; 
+    logo?: string;
+    showInWarehouse?: boolean; // Toggle for warehouse module visibility
 }
 
 export interface Contact {

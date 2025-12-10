@@ -264,6 +264,15 @@ app.get('/api/next-exit-permit-number', (req, res) => res.json({ nextNumber: fin
 // 3. Warehouse Routes
 app.get('/api/warehouse/items', (req, res) => res.json(getDb().warehouseItems));
 app.post('/api/warehouse/items', (req, res) => { const db = getDb(); const item = req.body; item.id = item.id || Date.now().toString(); db.warehouseItems.push(item); saveDb(db); res.json(db.warehouseItems); });
+app.put('/api/warehouse/items/:id', (req, res) => { 
+    const db = getDb(); 
+    const idx = db.warehouseItems.findIndex(x => x.id === req.params.id); 
+    if(idx !== -1) { 
+        db.warehouseItems[idx] = { ...db.warehouseItems[idx], ...req.body }; 
+        saveDb(db); 
+        res.json(db.warehouseItems); 
+    } else res.sendStatus(404); 
+});
 app.delete('/api/warehouse/items/:id', (req, res) => { const db = getDb(); db.warehouseItems = db.warehouseItems.filter(x => x.id !== req.params.id); saveDb(db); res.json(db.warehouseItems); });
 
 app.get('/api/warehouse/transactions', (req, res) => res.json(getDb().warehouseTransactions));
