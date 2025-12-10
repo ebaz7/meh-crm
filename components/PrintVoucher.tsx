@@ -171,10 +171,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
   );
 
-  if (embed) return <div id={embed ? `print-voucher-${order.id}` : undefined} className="print-overlay">{content}</div>;
+  if (embed) return <div id={embed ? `print-voucher-${order.id}` : undefined}>{content}</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb print-overlay">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-50 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>

@@ -22,7 +22,7 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb print-overlay">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex justify-between items-center gap-4">
              <span className="font-bold text-sm">پیش‌نمایش چاپ</span>
