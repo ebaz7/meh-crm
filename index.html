@@ -37,49 +37,47 @@
       
       @media print {
         @page {
-          size: A5 landscape; /* Force A5 Landscape */
-          margin: 0; /* Remove default margins */
+          size: A5 landscape;
+          margin: 0;
         }
         
-        body, html {
+        html, body {
           width: 210mm;
           height: 148mm;
-          background-color: white !important;
           margin: 0 !important;
           padding: 0 !important;
+          background: white !important;
           overflow: hidden !important;
         }
 
-        /* Hide app root and overlays */
-        #root, .fixed, .no-print {
-          display: none !important;
+        /* STRATEGY CHANGE: Use visibility instead of display to prevent layout collapse */
+        body * {
+          visibility: hidden;
         }
 
-        /* Show only the printable content */
+        /* Only show the print container and its children */
+        .printable-content, .printable-content * {
+          visibility: visible;
+        }
+
         .printable-content {
-          display: flex !important;
-          flex-direction: column;
           position: fixed !important;
           top: 0 !important;
           left: 0 !important;
           width: 210mm !important;
           height: 148mm !important;
-          padding: 10mm !important; /* Internal padding for aesthetics */
+          margin: 0 !important;
+          padding: 5mm !important; /* Safety padding for printer margins */
+          box-sizing: border-box !important;
           background-color: white !important;
           z-index: 999999 !important;
-          box-sizing: border-box !important;
-          visibility: visible !important;
-          opacity: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
         }
         
-        .printable-content * {
-          visibility: visible !important;
+        .no-print {
+          display: none !important;
         }
-        
-        /* Force tailwind grid/flex to work in print */
-        .printable-content .flex { display: flex !important; }
-        .printable-content .grid { display: grid !important; }
-        .printable-content .hidden { display: none !important; }
       }
     </style>
   <script type="importmap">

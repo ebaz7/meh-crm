@@ -37,7 +37,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handlePrint = () => { 
       setProcessing(true);
-      // Wait for React to render and browser to apply styles
+      // Wait longer for React to render and browser to apply styles before printing
       setTimeout(() => {
           window.print(); 
           setProcessing(false);
@@ -49,6 +49,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setProcessing(false); return; }
       try {
+          // Use fixed dimensions for A5 at approx 300 DPI
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
           const link = document.createElement('a');
@@ -63,20 +64,21 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setProcessing(false); return; }
       try {
+          // Higher scale for crisp text in PDF
           // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
+          const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: '#ffffff', useCORS: true });
           const imgData = canvas.toDataURL('image/png');
           // @ts-ignore
           const { jsPDF } = window.jspdf;
           
           // Setup PDF as A5 Landscape (210mm x 148mm)
-          const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a5' });
+          // 'l' = landscape, 'mm' = millimeters, 'a5' = format
+          const pdf = new jsPDF('l', 'mm', 'a5');
           
-          // A5 Landscape dimensions
           const pdfWidth = 210;
           const pdfHeight = 148;
           
-          // Add image covering the full page (adjusting for margins if needed, but 0,0 is usually best for full graphical receipts)
+          // Add image to fill the PDF completely
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           pdf.save(`Voucher_${order.trackingNumber}.pdf`);
       } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
@@ -103,17 +105,17 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
   };
 
-  // --- RENDER CONTENT (Fixed A5 Dimension Aspect Ratio for consistency) ---
-  // A5 Landscape Ratio: 1.414 (approx 210/148)
+  // --- RENDER CONTENT (Locked A5 Dimensions) ---
   const content = (
       <div 
         id={printAreaId} 
         className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            // Lock dimensions to A5 ratio for on-screen preview to match print/PDF
+            // Lock dimensions exactly to A5 Landscape
             width: '210mm',
             height: '148mm', 
+            // Add padding that looks good on screen and print
             padding: '10mm',
             boxSizing: 'border-box'
         }}
