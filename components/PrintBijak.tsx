@@ -138,7 +138,8 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
         style={{ 
             direction: 'rtl',
             maxWidth: '148mm', /* A5 Width */
-            padding: '12mm' /* Safe margin */
+            padding: '5mm', /* Reduced Margin */
+            boxSizing: 'border-box'
         }}>
             <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
                 <div className="flex items-center gap-3">{companyLogo && <img src={companyLogo} className="w-16 h-16 object-contain"/>}<div><h1 className="text-xl font-black">{tx.company}</h1><p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p></div></div>

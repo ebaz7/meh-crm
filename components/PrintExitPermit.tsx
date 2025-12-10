@@ -56,7 +56,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             direction: 'rtl',
             maxWidth: '210mm',
             minHeight: '148mm',
-            padding: '12mm' 
+            padding: '8mm'  // Reduced Padding
         }}>
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">شرکت تولیدی صنعتی</p></div></div>

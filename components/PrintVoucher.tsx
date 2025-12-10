@@ -119,8 +119,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             width: '100%', 
             maxWidth: '210mm',
             minHeight: '148mm',
-            // Increase padding to ensure printer hardware margins don't cut off content
-            padding: '12mm', 
+            // Reduced padding to prevent overflow in print
+            padding: '8mm', 
             boxSizing: 'border-box'
         }}
       >

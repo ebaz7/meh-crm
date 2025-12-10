@@ -41,7 +41,8 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
                 maxWidth: '297mm',
                 minHeight: '210mm', 
                 direction: 'rtl',
-                padding: '12mm' 
+                padding: '10mm', // Reduced Padding
+                boxSizing: 'border-box'
             }}>
                 {/* Header */}
                 <div className="text-center bg-yellow-300 border border-black py-1 mb-2 font-black text-xl">موجودی کلی انبارها</div>
