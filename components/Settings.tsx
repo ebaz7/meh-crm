@@ -74,7 +74,7 @@ const Settings: React.FC = () => {
           safeData.currentExitPermitNumber = safeData.currentExitPermitNumber || 1000;
           safeData.companies = safeData.companies || [];
           if (safeData.companyNames?.length > 0 && safeData.companies.length === 0) {
-              safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name }));
+              safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true }));
           }
           if(!safeData.warehouseSequences) safeData.warehouseSequences = {};
           if(!safeData.companyNotifications) safeData.companyNotifications = {};
@@ -137,7 +137,39 @@ const Settings: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => { 
       e.preventDefault(); setLoading(true); 
       try { 
-          const syncedSettings = { ...settings, companyNames: settings.companies?.map(c => c.name) || [] };
+          // 1. Check if there are pending company edits in the form that weren't "Added/Edited"
+          let currentCompanies = [...(settings.companies || [])];
+          
+          if (activeCategory === 'data' && (newCompanyName.trim() || editingCompanyId)) {
+              // Apply the pending edit/add automatically
+              if (editingCompanyId) {
+                  currentCompanies = currentCompanies.map(c =>
+                      c.id === editingCompanyId
+                          ? { ...c, name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse }
+                          : c
+                  );
+              } else if (newCompanyName.trim()) {
+                  currentCompanies = [...currentCompanies, {
+                      id: generateUUID(),
+                      name: newCompanyName.trim(),
+                      logo: newCompanyLogo,
+                      showInWarehouse: newCompanyShowInWarehouse
+                  }];
+              }
+              // Clear form
+              setNewCompanyName(''); 
+              setNewCompanyLogo(''); 
+              setNewCompanyShowInWarehouse(true);
+              setEditingCompanyId(null);
+          }
+
+          // 2. Prepare Settings Object
+          const syncedSettings = { 
+              ...settings, 
+              companies: currentCompanies,
+              companyNames: currentCompanies.map(c => c.name) 
+          };
+
           await saveSettings(syncedSettings); 
           setSettings(syncedSettings);
           setMessage('ذخیره شد ✅'); setTimeout(() => setMessage(''), 3000); 
@@ -147,6 +179,7 @@ const Settings: React.FC = () => {
   const handleAddContact = () => { if (!contactName.trim() || !contactNumber.trim()) return; const newContact: Contact = { id: generateUUID(), name: contactName.trim(), number: contactNumber.trim(), isGroup: isGroupContact }; setSettings({ ...settings, savedContacts: [...(settings.savedContacts || []), newContact] }); setContactName(''); setContactNumber(''); setIsGroupContact(false); };
   const handleDeleteContact = (id: string) => { setSettings({ ...settings, savedContacts: (settings.savedContacts || []).filter(c => c.id !== id) }); };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setIsUploadingLogo(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const result = await uploadFile(file.name, ev.target?.result as string); setNewCompanyLogo(result.url); } catch (error) { alert('خطا در آپلود'); } finally { setIsUploadingLogo(false); } }; reader.readAsDataURL(file); };
+  
   const handleSaveCompany = () => { 
       if (!newCompanyName.trim()) return; 
       let updatedCompanies = settings.companies || []; 
@@ -161,12 +194,14 @@ const Settings: React.FC = () => {
       setNewCompanyShowInWarehouse(true);
       setEditingCompanyId(null); 
   };
+
   const handleEditCompany = (c: Company) => { 
       setNewCompanyName(c.name); 
       setNewCompanyLogo(c.logo || ''); 
       setNewCompanyShowInWarehouse(c.showInWarehouse !== false);
       setEditingCompanyId(c.id); 
   };
+
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
   const handleAddBank = () => { if (newBank.trim() && !settings.bankNames.includes(newBank.trim())) { setSettings({ ...settings, bankNames: [...settings.bankNames, newBank.trim()] }); setNewBank(''); } };
   const handleRemoveBank = (name: string) => { setSettings({ ...settings, bankNames: settings.bankNames.filter(b => b !== name) }); };
@@ -394,13 +429,13 @@ const Settings: React.FC = () => {
                                     <div className="flex-1 min-w-[200px]">
                                         <input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="نام شرکت..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} />
                                     </div>
-                                    <div className="flex items-center gap-2 bg-white px-2 py-2 rounded border">
+                                    <div className={`flex items-center gap-2 bg-white px-2 py-2 rounded border cursor-pointer ${newCompanyShowInWarehouse ? 'border-green-200 bg-green-50 text-green-700' : ''}`} onClick={() => setNewCompanyShowInWarehouse(!newCompanyShowInWarehouse)}>
                                         <input type="checkbox" checked={newCompanyShowInWarehouse} onChange={e => setNewCompanyShowInWarehouse(e.target.checked)} className="w-4 h-4"/>
-                                        <span className="text-xs">نمایش در انبار</span>
+                                        <span className="text-xs font-bold select-none">نمایش در انبار</span>
                                     </div>
                                     <div className="w-10 h-10 border rounded bg-white flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => companyLogoInputRef.current?.click()}>{newCompanyLogo ? <img src={newCompanyLogo} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="text-gray-300"/>}</div>
                                     <input type="file" ref={companyLogoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload}/>
-                                    <button type="button" onClick={handleSaveCompany} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm h-10">{editingCompanyId ? 'ویرایش' : 'افزودن'}</button>
+                                    <button type="button" onClick={handleSaveCompany} className={`text-white px-4 py-2 rounded-lg text-sm h-10 font-bold shadow-sm ${editingCompanyId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{editingCompanyId ? 'ذخیره تغییرات شرکت' : 'افزودن شرکت'}</button>
                                 </div>
                                 <div className="space-y-2 max-h-48 overflow-y-auto">
                                     {settings.companies?.map(c => (
@@ -408,9 +443,10 @@ const Settings: React.FC = () => {
                                             <div className="flex items-center gap-2">
                                                 {c.logo && <img src={c.logo} className="w-6 h-6 object-contain"/>}
                                                 <span className="text-sm font-bold">{c.name}</span>
-                                                {c.showInWarehouse === false && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">مخفی در انبار</span>}
+                                                {c.showInWarehouse === false && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold border border-red-200">مخفی در انبار</span>}
+                                                {c.showInWarehouse !== false && <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded font-bold border border-green-200">فعال در انبار</span>}
                                             </div>
-                                            <div className="flex gap-1"><button type="button" onClick={() => handleEditCompany(c)} className="text-blue-500 p-1"><Pencil size={14}/></button><button type="button" onClick={() => handleRemoveCompany(c.id)} className="text-red-500 p-1"><Trash2 size={14}/></button></div>
+                                            <div className="flex gap-1"><button type="button" onClick={() => handleEditCompany(c)} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button type="button" onClick={() => handleRemoveCompany(c.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div>
                                         </div>
                                     ))}
                                 </div>

@@ -75,7 +75,11 @@ if (db.settings?.telegramBotToken) {
 
 // 2. WhatsApp
 setTimeout(() => {
-    initWhatsApp(WAUTH_DIR);
+    try {
+        initWhatsApp(WAUTH_DIR);
+    } catch(e) {
+        console.error("WA Startup Error:", e);
+    }
 }, 3000);
 
 
