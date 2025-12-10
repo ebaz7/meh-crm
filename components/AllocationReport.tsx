@@ -4,6 +4,7 @@ import { TradeRecord, TradeStage } from '../types';
 import { formatCurrency, formatNumberString, deformatNumberString, parsePersianDate } from '../constants';
 import { FileSpreadsheet, Printer, FileDown, Share2, Loader2, Search, Filter, Settings, X, RefreshCw } from 'lucide-react';
 import { apiCall } from '../services/apiService';
+import PrintAllocationReport from './print/PrintAllocationReport'; // Import
 
 interface AllocationReportProps {
     records: TradeRecord[];
@@ -36,6 +37,9 @@ const AllocationReport: React.FC<AllocationReportProps> = ({ records, onUpdateRe
     const [showFilters, setShowFilters] = useState(false);
     const [showRates, setShowRates] = useState(false);
     
+    // Print State
+    const [showPrint, setShowPrint] = useState(false); // NEW
+
     // Advanced Filters
     const [filters, setFilters] = useState({
         company: '',
@@ -194,89 +198,7 @@ const AllocationReport: React.FC<AllocationReportProps> = ({ records, onUpdateRe
 
     // -- Handlers --
     const handlePrint = () => {
-        const content = document.getElementById('allocation-report-table-print-area');
-        if (!content) return;
-
-        // Clone the content to manipulate for print
-        const clone = content.cloneNode(true) as HTMLElement;
-
-        // 1. Sync Selects (Dropdowns) -> Text
-        const originalSelects = content.querySelectorAll('select');
-        const cloneSelects = clone.querySelectorAll('select');
-        originalSelects.forEach((sel, i) => {
-            const selectedText = sel.options[sel.selectedIndex]?.text || '';
-            const span = document.createElement('span');
-            span.innerText = selectedText !== 'انتخاب' ? selectedText : '-';
-            // Copy styles for consistency but ensure no border/bg
-            span.style.cssText = "display: inline-block; text-align: center; min-width: 50px;";
-            cloneSelects[i].parentNode?.replaceChild(span, cloneSelects[i]);
-        });
-
-        // 2. Sync Checkboxes -> Icons
-        const originalCheckboxes = content.querySelectorAll('input[type="checkbox"]');
-        const cloneCheckboxes = clone.querySelectorAll('input[type="checkbox"]');
-        originalCheckboxes.forEach((cb, i) => {
-            const isChecked = (cb as HTMLInputElement).checked;
-            const span = document.createElement('span');
-            span.innerText = isChecked ? '✅' : '⬜'; // Visual tick
-            span.style.fontSize = '16px';
-            cloneCheckboxes[i].parentNode?.replaceChild(span, cloneCheckboxes[i]);
-        });
-
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0px';
-        iframe.style.height = '0px';
-        iframe.style.border = 'none';
-        document.body.appendChild(iframe);
-
-        const doc = iframe.contentWindow?.document;
-        if (!doc) return;
-
-        const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(el => el.outerHTML).join('');
-        
-        doc.open();
-        doc.write(`
-            <html dir="rtl" lang="fa">
-            <head>
-                <title>گزارش صف تخصیص</title>
-                ${styleSheets}
-                <script src="https://cdn.tailwindcss.com"></script>
-                <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
-                <style>
-                    body { background: white !important; margin: 0 !important; padding: 20px !important; font-family: 'Vazirmatn', sans-serif !important; direction: rtl !important; overflow: visible !important; height: auto !important; }
-                    body > * { display: block !important; visibility: visible !important; }
-                    table { width: 100%; border-collapse: collapse; font-size: 10pt; } 
-                    th, td { border: 1px solid #000; padding: 4px; text-align: center; } 
-                    th { background-color: #1e3a8a !important; color: white !important; font-weight: bold; } 
-                    .no-print { display: none !important; }
-                    @media print { 
-                        @page { size: A4 landscape; margin: 10mm; } 
-                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                        .no-print { display: none !important; } 
-                    }
-                </style>
-            </head>
-            <body>
-                <div style="width: 100%;">
-                    <h2 style="text-align: center; margin-bottom: 20px; font-weight: bold;">گزارش صف تخصیص ارز</h2>
-                    ${clone.innerHTML}
-                </div>
-            </body>
-            </html>
-        `);
-        doc.close();
-
-        // Print from parent context to avoid script injection issues
-        setTimeout(() => {
-            if (iframe.contentWindow) {
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
-            }
-            setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 3000);
-        }, 1000);
+        setShowPrint(true);
     };
 
     const handleDownloadPDF = async () => {
@@ -407,6 +329,17 @@ const AllocationReport: React.FC<AllocationReportProps> = ({ records, onUpdateRe
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-sm border overflow-x-auto">
+            {/* Show Print Component Overlay if requested */}
+            {showPrint && (
+                <PrintAllocationReport 
+                    records={processedRecords}
+                    companySummary={companySummary}
+                    totalAllocated={totalAllocated}
+                    totalQueue={totalQueue}
+                    onClose={() => setShowPrint(false)}
+                />
+            )}
+
             {/* Top Bar: Rates & Actions */}
             <div className="bg-gray-100 p-3 rounded mb-4 border border-gray-200 no-print">
                 <div className="flex justify-between items-start flex-wrap gap-4">
@@ -510,11 +443,11 @@ const AllocationReport: React.FC<AllocationReportProps> = ({ records, onUpdateRe
                 )}
             </div>
 
-            {/* Table Area */}
+            {/* Table Area (Visible on Screen, also used for PDF generation) */}
             <div id="allocation-report-table-print-area">
                 <table className="w-full text-[11px] text-center border-collapse border border-gray-400">
                     <thead>
-                        <tr className="bg-[#1e3a8a] text-white print:bg-blue-900 print:text-white">
+                        <tr className="bg-[#1e3a8a] text-white">
                             <th className="p-1 border border-gray-400">ردیف</th>
                             <th className="p-1 border border-gray-400">پرونده / کالا</th>
                             <th className="p-1 border border-gray-400">ثبت سفارش</th>
@@ -603,7 +536,7 @@ const AllocationReport: React.FC<AllocationReportProps> = ({ records, onUpdateRe
                             </tr>
                         </thead>
                         <tbody>
-                            {Object.entries(companySummary).map(([comp, data]) => (
+                            {Object.entries(companySummary).map(([comp, data]: any) => (
                                 <tr key={comp} className="hover:bg-gray-50 border-b border-gray-300">
                                     <td className="p-2 border-r border-gray-300 font-bold">{comp}</td>
                                     <td className="p-2 border-r border-gray-300 font-mono text-green-700 font-bold">{formatUSD(data.allocated)}</td>

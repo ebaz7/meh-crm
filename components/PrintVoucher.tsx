@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate } from '../constants';
 import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users } from 'lucide-react';
@@ -20,6 +20,14 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [sharing, setSharing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
 
+  // Set A5 Landscape for this specific component
+  useEffect(() => {
+      const style = document.getElementById('page-size-style');
+      if (style && !embed) { // Only change page size if not embedded/hidden
+          style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
+      }
+  }, [embed]);
+
   // Smart Compact Mode logic
   const isCompact = order.paymentDetails.length > 2;
   const companyInfo = settings?.companies?.find(c => c.name === order.payingCompany);
@@ -37,11 +45,15 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handlePrint = () => { 
       setProcessing(true);
-      // Wait longer for React to render and browser to apply styles before printing
+      // Re-assert A5 in case it changed
+      const style = document.getElementById('page-size-style');
+      if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
+
+      // Ensure only one print dialog opens
       setTimeout(() => {
           window.print(); 
           setProcessing(false);
-      }, 800);
+      }, 500);
   };
 
   const handleDownloadImage = async () => {
@@ -72,13 +84,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           const { jsPDF } = window.jspdf;
           
           // Setup PDF as A5 Landscape (210mm x 148mm)
-          // 'l' = landscape, 'mm' = millimeters, 'a5' = format
           const pdf = new jsPDF('l', 'mm', 'a5');
-          
           const pdfWidth = 210;
           const pdfHeight = 148;
           
-          // Add image to fill the PDF completely
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           pdf.save(`Voucher_${order.trackingNumber}.pdf`);
       } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
@@ -112,11 +121,11 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            // Lock dimensions exactly to A5 Landscape
+            // Exactly A5 Landscape
             width: '210mm',
             height: '148mm', 
-            // Add padding that looks good on screen and print
-            padding: '10mm',
+            // Slightly reduced padding to ensure content fits without spilling to page 2
+            padding: '8mm',
             boxSizing: 'border-box'
         }}
       >
@@ -127,7 +136,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
         {/* Header */}
         <div className="relative z-10">
-            <div className={`border-b-2 border-gray-800 ${isCompact ? 'pb-1 mb-2' : 'pb-2 mb-4'} flex justify-between items-center`}>
+            <div className={`border-b-2 border-gray-800 ${isCompact ? 'pb-1 mb-2' : 'pb-2 mb-3'} flex justify-between items-center`}>
                 <div className="flex items-center gap-3 w-2/3">
                     {companyLogo && <div className={`${isCompact ? 'w-10 h-10' : 'w-14 h-14'} shrink-0 flex items-center justify-center`}><img src={companyLogo} alt="Logo" className="w-full h-full object-contain" crossOrigin="anonymous" /></div>}
                     <div><h1 className={`${isCompact ? 'text-lg' : 'text-xl'} font-bold text-gray-900`} style={{ letterSpacing: '0px' }}>{order.payingCompany || 'شرکت بازرگانی'}</h1><p className="text-[9px] text-gray-500 font-bold mt-0.5">سیستم مدیریت مالی و پرداخت</p></div>
@@ -145,7 +154,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                     <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5' : 'p-2'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">در وجه (ذینفع):</span><span className={`font-bold text-gray-900 ${isCompact ? 'text-sm' : 'text-base'}`}>{order.payee}</span></div>
                     <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5' : 'p-2'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">مبلغ کل پرداختی:</span><span className={`font-bold text-gray-900 ${isCompact ? 'text-sm' : 'text-base'}`}>{formatCurrency(order.totalAmount)}</span></div>
                 </div>
-                <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5 min-h-[35px]' : 'p-2 min-h-[50px]'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">بابت (شرح پرداخت):</span><p className={`text-gray-800 text-justify font-medium leading-tight ${isCompact ? 'text-[10px]' : 'text-xs'}`}>{order.description}</p></div>
+                <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5 min-h-[30px]' : 'p-2 min-h-[45px]'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">بابت (شرح پرداخت):</span><p className={`text-gray-800 text-justify font-medium leading-tight ${isCompact ? 'text-[10px]' : 'text-xs'}`}>{order.description}</p></div>
                 <div className="border border-gray-300 rounded overflow-hidden">
                     <table className={`w-full text-right ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
                         <thead className="bg-gray-100 border-b border-gray-300"><tr><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600 w-6`}>#</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>نوع پرداخت</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>مبلغ</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>بانک / چک</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>توضیحات</th></tr></thead>
@@ -156,12 +165,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         </div>
 
         {/* Footer */}
-        <div className={`mt-auto ${isCompact ? 'pt-1.5' : 'pt-3'} border-t-2 border-gray-800 relative z-10`}>
+        <div className={`mt-auto ${isCompact ? 'pt-1' : 'pt-2'} border-t-2 border-gray-800 relative z-10`}>
             <div className="grid grid-cols-4 gap-2 text-center">
-                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[50px]' : 'min-h-[70px]'}`}><div className="mb-1 flex items-center justify-center h-full"><span className="font-bold text-gray-900 text-[10px]">{order.requester}</span></div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">درخواست کننده</span></div></div>
-                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[50px]' : 'min-h-[70px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverFinancial ? <Stamp name={order.approverFinancial} title="تایید مالی" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر مالی</span></div></div>
-                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[50px]' : 'min-h-[70px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverManager ? <Stamp name={order.approverManager} title="تایید مدیریت" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیریت</span></div></div>
-                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[50px]' : 'min-h-[70px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverCeo ? <Stamp name={order.approverCeo} title="مدیر عامل" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر عامل</span></div></div>
+                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full"><span className="font-bold text-gray-900 text-[10px]">{order.requester}</span></div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">درخواست کننده</span></div></div>
+                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverFinancial ? <Stamp name={order.approverFinancial} title="تایید مالی" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر مالی</span></div></div>
+                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverManager ? <Stamp name={order.approverManager} title="تایید مدیریت" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیریت</span></div></div>
+                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverCeo ? <Stamp name={order.approverCeo} title="مدیر عامل" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر عامل</span></div></div>
             </div>
         </div>
       </div>

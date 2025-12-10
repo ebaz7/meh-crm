@@ -20,6 +20,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- Dynamic Page Size Style Placeholder -->
+    <style id="page-size-style"></style>
+
     <style>
       body {
         font-family: 'Vazirmatn', sans-serif;
@@ -36,21 +39,26 @@
       }
       
       @media print {
-        @page {
-          size: A5 landscape;
-          margin: 0;
-        }
+        /* Page size is now handled dynamically by components injecting into #page-size-style */
         
         html, body {
-          width: 210mm;
-          height: 148mm;
           margin: 0 !important;
           padding: 0 !important;
           background: white !important;
-          overflow: hidden !important;
+          overflow: hidden !important; /* Stop scrollbars generating extra pages */
+          width: 100%;
+          height: 100%;
         }
 
-        /* STRATEGY CHANGE: Use visibility instead of display to prevent layout collapse */
+        /* Collapse the React Root to 0 height so it doesn't push content */
+        #root {
+          height: 0 !important;
+          overflow: hidden !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Hide all elements by default */
         body * {
           visibility: hidden;
         }
@@ -61,18 +69,17 @@
         }
 
         .printable-content {
-          position: fixed !important;
+          position: fixed !important; /* Fixed positioning snaps it to the page view */
           top: 0 !important;
           left: 0 !important;
-          width: 210mm !important;
-          height: 148mm !important;
           margin: 0 !important;
-          padding: 5mm !important; /* Safety padding for printer margins */
-          box-sizing: border-box !important;
+          padding: 0 !important;
           background-color: white !important;
-          z-index: 999999 !important;
+          z-index: 9999999 !important;
           display: flex !important;
           flex-direction: column !important;
+          page-break-after: avoid !important;
+          break-inside: avoid !important;
         }
         
         .no-print {

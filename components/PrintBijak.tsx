@@ -22,6 +22,14 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   const [contactSearch, setContactSearch] = useState('');
   const [contactsLoading, setContactsLoading] = useState(false);
 
+  // Set A5 Portrait for Bijak
+  useEffect(() => {
+      const style = document.getElementById('page-size-style');
+      if (style && !embed) { // Only change if showing modal
+          style.innerHTML = '@page { size: A5 portrait; margin: 0; }';
+      }
+  }, [embed]);
+
   // Use consistent ID. If embed is true (hidden mode), use unique ID.
   // If showing modal (embed=false), use "print-area" which matches index.html CSS.
   const containerId = embed 
@@ -57,6 +65,10 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   // Added delay to ensure DOM is ready for print
   const handlePrint = () => {
       setProcessing(true);
+      // Re-assert page size just in case
+      const style = document.getElementById('page-size-style');
+      if (style) style.innerHTML = '@page { size: A5 portrait; margin: 0; }';
+
       setTimeout(() => {
           window.print();
           setProcessing(false);
