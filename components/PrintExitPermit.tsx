@@ -76,10 +76,10 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
         </div>
   );
 
-  if (embed) return content;
+  if (embed) return <div id={embed ? `print-permit-${permit.id}` : undefined}>{content}</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb print-overlay">
         <div className="bg-white p-3 rounded-xl shadow-lg relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-48 mb-4 md:mb-0 order-1">
             <div className="flex justify-between items-center"><span className="text-sm font-bold md:hidden">عملیات</span><button onClick={onClose} className="self-end text-gray-400 hover:text-red-500"><X size={20}/></button></div>
             {onApprove && <button onClick={onApprove} className="bg-green-600 text-white p-2 rounded flex items-center gap-2 justify-center"><CheckCircle size={16}/> تایید</button>}

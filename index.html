@@ -40,16 +40,17 @@
       
       @media print {
         @page {
-          margin: 0; /* Control margins via container padding to ensure exact fit */
+          margin: 0;
         }
         
         html, body {
           width: 100%;
-          height: auto !important;
+          height: auto !important; /* Allow content to define height */
+          min-height: 0 !important;
           margin: 0 !important;
           padding: 0 !important;
           background: white !important;
-          overflow: visible !important; /* Allow flow for multi-page reports */
+          overflow: visible !important; /* Visible overflow is standard for print to avoid cutting content */
         }
 
         /* Hide everything by default */
@@ -57,31 +58,43 @@
           visibility: hidden;
         }
 
-        /* Reset #root to allow absolute positioning inside it to work relative to page */
+        /* Collapse root to prevent it taking up space */
         #root {
-          visibility: hidden;
-          height: auto !important;
-          overflow: visible !important;
-          margin: 0 !important;
-          padding: 0 !important;
+          height: 0 !important;
+          min-height: 0 !important;
+          overflow: visible !important; /* Must be visible so absolute children can be seen */
         }
 
-        /* Show the specific printable content */
-        .printable-content, .printable-content * {
+        /* Show ONLY the specific print overlay and its children */
+        .print-overlay, .print-overlay * {
           visibility: visible !important;
         }
 
-        .printable-content {
-          /* CHANGED from 'fixed' to 'absolute' to prevent repeating on every page (double page issue) */
+        .print-overlay {
           position: absolute !important;
           top: 0 !important;
           left: 0 !important;
           width: 100% !important;
           margin: 0 !important;
-          /* Padding is handled by specific components or inline styles */
+          padding: 0 !important;
+          background: white !important;
+          z-index: 99999 !important;
+          
+          /* Reset potentially conflicting styles */
+          display: block !important;
+          height: auto !important;
+          min-height: 0 !important;
+          inset: auto !important;
+          transform: none !important;
+        }
+
+        .printable-content {
+          position: relative !important;
+          width: 100% !important;
+          margin: 0 auto !important;
           box-sizing: border-box !important;
-          z-index: 9999 !important;
-          background-color: white !important;
+          box-shadow: none !important;
+          border: none !important;
         }
         
         .no-print {
