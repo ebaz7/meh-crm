@@ -20,14 +20,22 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
   const order = orders.find(o => o.id === id);
   if (order) {
       const updates: any = { status };
-      if (approverUser.role === UserRole.FINANCIAL) updates.approverFinancial = approverUser.fullName;
-      if (approverUser.role === UserRole.MANAGER) updates.approverManager = approverUser.fullName;
-      if (approverUser.role === UserRole.CEO) updates.approverCeo = approverUser.fullName;
-      if (approverUser.role === UserRole.ADMIN) {
-          if (status === OrderStatus.APPROVED_FINANCE) updates.approverFinancial = approverUser.fullName;
-          if (status === OrderStatus.APPROVED_MANAGER) updates.approverManager = approverUser.fullName;
-          if (status === OrderStatus.APPROVED_CEO) updates.approverCeo = approverUser.fullName;
+      
+      // Strict Signature Logic based on STATUS, not just ROLE
+      if (status === OrderStatus.APPROVED_FINANCE) {
+          if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) {
+              updates.approverFinancial = approverUser.fullName;
+          }
+      } else if (status === OrderStatus.APPROVED_MANAGER) {
+          if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) {
+              updates.approverManager = approverUser.fullName;
+          }
+      } else if (status === OrderStatus.APPROVED_CEO) {
+          if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) {
+              updates.approverCeo = approverUser.fullName;
+          }
       }
+
       if (status === OrderStatus.REJECTED) {
           if (rejectionReason) updates.rejectionReason = rejectionReason;
           updates.rejectedBy = approverUser.fullName; 
