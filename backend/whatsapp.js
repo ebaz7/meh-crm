@@ -34,20 +34,43 @@ const getDb = () => {
 export const initWhatsApp = (authDir) => {
     try {
         console.log(">>> Initializing WhatsApp Module...");
-        const getBrowser = () => { 
-            if (process.platform === 'win32') { 
-                const paths = ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe']; 
-                for (const p of paths) if (fs.existsSync(p)) return p; 
-            } return null; 
-        };
 
+        // FIX: Removed hardcoded Windows paths to allow Puppeteer to use the bundled Chromium.
+        // If it still fails, run 'npx puppeteer install' in the project root.
+        
         client = new Client({ 
             authStrategy: new LocalAuth({ dataPath: authDir }), 
-            puppeteer: { headless: true, executablePath: getBrowser(), args: ['--no-sandbox', '--disable-setuid-sandbox'] } 
+            puppeteer: { 
+                headless: true, 
+                args: [
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ] 
+            } 
         });
 
-        client.on('qr', (qr) => { qrCode = qr; isReady = false; qrcode.generate(qr, { small: true }); });
-        client.on('ready', () => { isReady = true; qrCode = null; clientInfo = client.info.wid.user; console.log(">>> WhatsApp Client Ready! ✅"); });
+        client.on('qr', (qr) => { 
+            qrCode = qr; 
+            isReady = false; 
+            console.log("\n>>> WHATSAPP QR CODE RECEIVED (Scan below):");
+            qrcode.generate(qr, { small: true }); 
+        });
+        
+        client.on('ready', () => { 
+            isReady = true; 
+            qrCode = null; 
+            clientInfo = client.info.wid.user; 
+            console.log(">>> WhatsApp Client Ready! ✅"); 
+        });
+
+        client.on('auth_failure', msg => {
+            console.error('>>> WhatsApp Auth Failure:', msg);
+        });
 
         client.on('message', async msg => {
             try {
@@ -104,7 +127,7 @@ export const initWhatsApp = (authDir) => {
             } catch (error) { console.error("Message Error:", error); }
         });
 
-        client.initialize().catch(e => console.error("WA Init Fail:", e.message));
+        client.initialize().catch(e => console.error("WA Init Fail (Client):", e.message));
     } catch (e) { console.error("WA Module Error:", e.message); }
 };
 
