@@ -44,7 +44,7 @@
           size: auto; /* Let components define size via JS injection */
         }
         
-        /* Global Reset for Print */
+        /* Global Reset for Print - FIXES OVERFLOW */
         *, *::before, *::after {
           box-sizing: border-box !important;
           text-shadow: none !important;
@@ -65,9 +65,11 @@
           visibility: hidden;
         }
 
-        /* Collapse the React Root */
+        /* Collapse the React Root to prevent white pages */
         #root {
-          display: none !important;
+          height: 0 !important;
+          width: 0 !important;
+          overflow: hidden !important;
         }
 
         /* Show ONLY the specific printable content */
@@ -75,6 +77,7 @@
           visibility: visible !important;
         }
 
+        /* FIX: Use fixed positioning to remove from flow and prevent double pages */
         .printable-content {
           position: fixed !important;
           top: 0 !important;
