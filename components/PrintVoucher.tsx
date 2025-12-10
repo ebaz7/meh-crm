@@ -20,10 +20,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [sharing, setSharing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
 
-  // Set A5 Landscape for this specific component
+  // Use useEffect to inject print styles dynamically for A5 Landscape
   useEffect(() => {
       const style = document.getElementById('page-size-style');
-      if (style && !embed) { // Only change page size if not embedded/hidden
+      if (style && !embed) { 
           style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
       }
   }, [embed]);
@@ -109,7 +109,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
   };
 
-  // --- RENDER CONTENT (Flexible width to avoid duplicates) ---
+  // --- RENDER CONTENT (Calculated Widths) ---
   const content = (
       <div 
         id={printAreaId} 
@@ -117,10 +117,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         style={{ 
             direction: 'rtl',
             width: '100%', 
-            maxWidth: '210mm',
-            minHeight: '148mm',
-            // Reduced padding to prevent overflow in print
-            padding: '8mm', 
+            // A5 Landscape is 210mm wide. We set max-width slightly less to ensure printer margins don't clip it.
+            maxWidth: '200mm', 
+            minHeight: '138mm', // Slightly less than 148mm
+            margin: '0 auto',
+            // Crucial: Use modest padding to avoid overflow
+            padding: '5mm', 
             boxSizing: 'border-box'
         }}
       >

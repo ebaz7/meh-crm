@@ -54,9 +54,11 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
         className="printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" 
         style={{ 
             direction: 'rtl',
-            maxWidth: '210mm',
-            minHeight: '148mm',
-            padding: '8mm'  // Reduced Padding
+            width: '100%',
+            maxWidth: '200mm', // Safe margin for A5 landscape (210mm)
+            minHeight: '138mm',
+            padding: '5mm', // Reduced Padding
+            boxSizing: 'border-box'
         }}>
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">شرکت تولیدی صنعتی</p></div></div>

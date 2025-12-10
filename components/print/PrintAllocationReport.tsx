@@ -44,10 +44,10 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
           <div className="printable-content bg-white p-8 shadow-2xl relative text-black" 
             style={{ 
                 width: '100%', 
-                maxWidth: '297mm',
-                minHeight: '210mm', 
+                maxWidth: '280mm', // Safe A4 Margin
+                minHeight: '200mm', 
                 direction: 'rtl',
-                padding: '10mm', // Reduced Padding
+                padding: '5mm', // Reduced Padding
                 boxSizing: 'border-box'
             }}>
                 <h2 className="text-center font-black text-xl mb-4 border-b-2 border-blue-900 pb-2">گزارش صف تخصیص ارز</h2>

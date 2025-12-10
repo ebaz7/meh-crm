@@ -137,7 +137,8 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none ${embed ? '' : 'min-h-[210mm]'}`} 
         style={{ 
             direction: 'rtl',
-            maxWidth: '148mm', /* A5 Width */
+            width: '100%',
+            maxWidth: '140mm', /* Safe A5 Portrait width */
             padding: '5mm', /* Reduced Margin */
             boxSizing: 'border-box'
         }}>

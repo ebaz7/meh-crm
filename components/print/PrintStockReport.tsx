@@ -38,10 +38,10 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
           <div className="printable-content bg-white p-4 shadow-2xl relative text-black" 
             style={{ 
                 width: '100%', 
-                maxWidth: '297mm',
-                minHeight: '210mm', 
+                maxWidth: '280mm', // Safe margin for A4 Landscape
+                minHeight: '200mm', 
                 direction: 'rtl',
-                padding: '10mm', // Reduced Padding
+                padding: '5mm', // Reduced Padding
                 boxSizing: 'border-box'
             }}>
                 {/* Header */}
