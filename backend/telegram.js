@@ -43,6 +43,14 @@ export const initTelegram = (token) => {
         bot = new TelegramBot(token, { polling: true });
         console.log(">>> Telegram Bot Module Loaded & Polling ✅");
 
+        // --- ERROR HANDLING FOR POLLING ---
+        bot.on('polling_error', (error) => {
+            // Suppress EFATAL/ETIMEDOUT logs to avoid spamming the console when VPN is off
+            if (error.code !== 'EFATAL' && error.code !== 'ETIMEDOUT') {
+                console.log(`Telegram Polling Error: ${error.code}`);
+            }
+        });
+
         // --- MESSAGE HANDLER ---
         bot.on('message', async (msg) => {
             const chatId = msg.chat.id;

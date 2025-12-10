@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "fix-browser": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -18,6 +19,7 @@
     "react-dom": "^18.2.0",
     "recharts": "^2.12.2",
     "whatsapp-web.js": "^1.23.0",
+    "puppeteer": "^22.0.0",
     "qrcode-terminal": "^0.12.0",
     "node-telegram-bot-api": "^0.66.0",
     "axios": "^1.6.0",

@@ -30,78 +30,36 @@ const getDb = () => {
     return null;
 };
 
-// --- BROWSER DETECTION HELPER ---
-const getExecutablePath = () => {
-    const platform = process.platform;
-    let possiblePaths = [];
-
-    if (platform === 'win32') {
-        possiblePaths = [
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
-            path.join(process.env.PROGRAMFILES || '', 'Google\\Chrome\\Application\\chrome.exe'),
-            path.join(process.env['PROGRAMFILES(X86)'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
-            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
-        ];
-    } else if (platform === 'linux') {
-        possiblePaths = [
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/snap/bin/chromium'
-        ];
-    } else if (platform === 'darwin') {
-        possiblePaths = [
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            '/Applications/Chromium.app/Contents/MacOS/Chromium'
-        ];
-    }
-
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) return path.normalize(p); // Normalize for Windows
-    }
-    return null;
-};
-
 // --- WHATSAPP CLIENT ---
 export const initWhatsApp = (authDir) => {
     try {
         console.log(">>> Initializing WhatsApp Module...");
 
-        const execPath = getExecutablePath();
-        
-        // Minimal Robust Args for Windows
-        const puppeteerArgs = [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu', // Critical for Windows Server/Some GPUs
-            '--disable-dev-shm-usage',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process', // Helps with resource locking
-            '--disable-extensions'
-        ];
+        // Ensure auth path is absolute to avoid Windows relative path issues
+        const absoluteAuthDir = path.resolve(authDir);
 
-        const puppeteerConfig = { 
-            headless: true, 
-            args: puppeteerArgs,
-            authTimeoutMs: 60000, // Wait longer for browser to start
-            qrTimeoutMs: 0, // No timeout for QR
-        };
-
-        if (execPath) {
-            console.log(`>>> Found local browser at: ${execPath}`);
-            puppeteerConfig.executablePath = execPath;
-        } else {
-            console.log(">>> No local browser found, relying on Puppeteer bundled Chromium...");
-        }
-        
         client = new Client({ 
-            authStrategy: new LocalAuth({ dataPath: authDir }), 
-            puppeteer: puppeteerConfig
+            authStrategy: new LocalAuth({ 
+                dataPath: absoluteAuthDir
+            }), 
+            puppeteer: {
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process'
+                ],
+                authTimeoutMs: 60000,
+            },
+            // Improved stability settings
+            webVersionCache: {
+                type: 'remote',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+            }
         });
 
         client.on('qr', (qr) => { 
@@ -126,13 +84,14 @@ export const initWhatsApp = (authDir) => {
             console.log('>>> WhatsApp Disconnected:', reason);
             isReady = false;
             client = null;
-            // Optional: Auto-reconnect logic could go here
         });
 
         client.on('message', async msg => {
             try {
                 const body = msg.body.trim();
+                // Ignore group messages unless they start with !
                 if (msg.from.includes('@g.us') && !body.startsWith('!')) return;
+                
                 const db = getDb();
                 if (!db) return;
 
@@ -186,9 +145,8 @@ export const initWhatsApp = (authDir) => {
 
         client.initialize().catch(e => {
             console.error("WA Init Fail (Client):", e.message);
-            // Hint for user
-            if (e.message.includes('launch')) {
-                console.log(">>> TIP: Try deleting the 'wauth' folder manually and restarting to clear corrupted session.");
+            if (e.message.includes('Could not find expected browser') || e.message.includes('launch')) {
+                console.log(">>> CRITICAL: Browser not found. Please run 'npm install' to download the browser.");
             }
         });
     } catch (e) { console.error("WA Module Error:", e.message); }
