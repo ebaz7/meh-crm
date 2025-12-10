@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, SystemSettings } from '../types';
 import { formatDate } from '../constants';
 import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Share2, Truck, Package, MapPin, User, Users, Phone } from 'lucide-react';
@@ -19,6 +19,14 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   const [sharing, setSharing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
 
+  // Set A5 Landscape
+  useEffect(() => {
+      const style = document.getElementById('page-size-style');
+      if (style && !embed) { 
+          style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
+      }
+  }, [embed]);
+
   const Stamp = ({ title, name, date }: { title: string, name: string, date?: string }) => (
       <div className="border-2 border-blue-800 text-blue-800 rounded-lg p-2 rotate-[-5deg] opacity-90 inline-block bg-white/80">
           <div className="text-[10px] font-bold border-b border-blue-800 mb-1 pb-1 text-center">{title}</div>
@@ -27,7 +35,12 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       </div>
   );
 
-  const handlePrint = () => { window.print(); };
+  const handlePrint = () => { 
+      setProcessing(true);
+      const style = document.getElementById('page-size-style');
+      if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
+      setTimeout(() => { window.print(); setProcessing(false); }, 500); 
+  };
   const handleDownloadImage = async () => { /* ... existing ... */ };
   const handleSendWhatsApp = async (target: string) => { /* ... existing ... */ };
 
@@ -37,7 +50,14 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   const totalWeight = displayItems.reduce((acc, i) => acc + (Number(i.weight) || 0), 0);
 
   const content = (
-      <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} className="bg-white w-full max-w-[210mm] min-h-[148mm] mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" style={{ direction: 'rtl' }}>
+      <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} 
+        className="printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" 
+        style={{ 
+            direction: 'rtl',
+            maxWidth: '210mm',
+            minHeight: '148mm',
+            padding: '12mm' 
+        }}>
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">شرکت تولیدی صنعتی</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black">شماره: {permit.permitNumber}</div><div className="text-sm">تاریخ: {formatDate(permit.date)}</div></div>

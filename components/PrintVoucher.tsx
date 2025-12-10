@@ -45,11 +45,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handlePrint = () => { 
       setProcessing(true);
-      // Re-assert A5 in case it changed
       const style = document.getElementById('page-size-style');
       if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
 
-      // Ensure only one print dialog opens
       setTimeout(() => {
           window.print(); 
           setProcessing(false);
@@ -61,7 +59,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setProcessing(false); return; }
       try {
-          // Use fixed dimensions for A5 at approx 300 DPI
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
           const link = document.createElement('a');
@@ -76,14 +73,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setProcessing(false); return; }
       try {
-          // Higher scale for crisp text in PDF
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: '#ffffff', useCORS: true });
           const imgData = canvas.toDataURL('image/png');
           // @ts-ignore
           const { jsPDF } = window.jspdf;
           
-          // Setup PDF as A5 Landscape (210mm x 148mm)
           const pdf = new jsPDF('l', 'mm', 'a5');
           const pdfWidth = 210;
           const pdfHeight = 148;
@@ -114,18 +109,18 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
   };
 
-  // --- RENDER CONTENT (Locked A5 Dimensions) ---
+  // --- RENDER CONTENT (Flexible width to avoid duplicates) ---
   const content = (
       <div 
         id={printAreaId} 
         className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            // Exactly A5 Landscape
-            width: '210mm',
-            height: '148mm', 
-            // Slightly reduced padding to ensure content fits without spilling to page 2
-            padding: '8mm',
+            width: '100%', 
+            maxWidth: '210mm',
+            minHeight: '148mm',
+            // Increase padding to ensure printer hardware margins don't cut off content
+            padding: '12mm', 
             boxSizing: 'border-box'
         }}
       >

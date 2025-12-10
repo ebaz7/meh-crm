@@ -31,7 +31,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   }, [embed]);
 
   // Use consistent ID. If embed is true (hidden mode), use unique ID.
-  // If showing modal (embed=false), use "print-area" which matches index.html CSS.
   const containerId = embed 
     ? `print-bijak-${tx.id}${forceHidePrices ? '-noprice' : '-price'}` 
     : "print-area";
@@ -65,7 +64,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   // Added delay to ensure DOM is ready for print
   const handlePrint = () => {
       setProcessing(true);
-      // Re-assert page size just in case
       const style = document.getElementById('page-size-style');
       if (style) style.innerHTML = '@page { size: A5 portrait; margin: 0; }';
 
@@ -134,9 +132,14 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   const filteredContacts = allContacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.number.includes(contactSearch));
 
-  // The Invoice Content
+  // The Invoice Content - Use flexible width
   const content = (
-      <div id={containerId} className={`printable-content bg-white w-full max-w-[148mm] mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none print:w-full print:h-auto ${embed ? '' : 'min-h-[210mm]'}`} style={{ direction: 'rtl' }}>
+      <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none ${embed ? '' : 'min-h-[210mm]'}`} 
+        style={{ 
+            direction: 'rtl',
+            maxWidth: '148mm', /* A5 Width */
+            padding: '12mm' /* Safe margin */
+        }}>
             <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
                 <div className="flex items-center gap-3">{companyLogo && <img src={companyLogo} className="w-16 h-16 object-contain"/>}<div><h1 className="text-xl font-black">{tx.company}</h1><p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black border-2 border-black px-3 py-1 rounded">NO: {tx.number}</div><div className="text-sm font-bold">تاریخ: {formatDate(tx.date)}</div></div>
@@ -151,8 +154,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in no-print safe-pb">
-        
-        {/* Main Controls - Responsive */}
         <div className="bg-white p-3 rounded-xl shadow-lg z-50 flex flex-col gap-2 w-full max-w-[148mm] md:w-64 md:fixed md:top-4 md:left-4 mb-4 md:mb-0 relative order-1">
             <div className="flex justify-between items-center border-b pb-2"><span className="font-bold text-sm">پنل عملیات</span><button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500"/></button></div>
             <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded"><input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} id="hidePrice"/><label htmlFor="hidePrice" className="cursor-pointer">مخفی کردن قیمت‌ها</label></div>
@@ -166,8 +167,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
                 <button onClick={() => setShowContactSelect(true)} className="w-full bg-white border text-gray-700 p-2 rounded text-xs hover:bg-gray-50 flex items-center justify-center gap-2"><Share2 size={14}/> انتخاب مخاطب</button>
             </div>
         </div>
-
-        {/* Contact Select Modal (Centered) */}
+        {/* ... Contact Select Modal ... */}
         {showContactSelect && (
             <div className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col h-[70vh] animate-fade-in">
@@ -207,7 +207,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
                 </div>
             </div>
         )}
-
         <div className="order-2 w-full">{content}</div>
     </div>
   );

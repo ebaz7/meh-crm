@@ -16,7 +16,7 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
     // Set page size to A4 Landscape
     const style = document.getElementById('page-size-style');
     if (style) {
-      style.innerHTML = '@page { size: A4 landscape; margin: 10mm; }';
+      style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
     }
     
     // Trigger print
@@ -41,7 +41,14 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
       
       {/* Printable Content - A4 Landscape */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white p-8 shadow-2xl relative text-black" style={{ width: '297mm', minHeight: '210mm', direction: 'rtl' }}>
+          <div className="printable-content bg-white p-8 shadow-2xl relative text-black" 
+            style={{ 
+                width: '100%', 
+                maxWidth: '297mm',
+                minHeight: '210mm', 
+                direction: 'rtl',
+                padding: '12mm'
+            }}>
                 <h2 className="text-center font-black text-xl mb-4 border-b-2 border-blue-900 pb-2">گزارش صف تخصیص ارز</h2>
                 
                 <table className="w-full text-[10px] text-center border-collapse border border-gray-400 mb-6">

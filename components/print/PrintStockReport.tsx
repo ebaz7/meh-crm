@@ -12,7 +12,7 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
     // Set page size to A4 Landscape
     const style = document.getElementById('page-size-style');
     if (style) {
-      style.innerHTML = '@page { size: A4 landscape; margin: 5mm; }';
+      style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
     }
     
     // Trigger print
@@ -35,7 +35,14 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       
       {/* Printable Content - A4 Landscape */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white p-4 shadow-2xl relative text-black" style={{ width: '297mm', minHeight: '210mm', direction: 'rtl' }}>
+          <div className="printable-content bg-white p-4 shadow-2xl relative text-black" 
+            style={{ 
+                width: '100%', 
+                maxWidth: '297mm',
+                minHeight: '210mm', 
+                direction: 'rtl',
+                padding: '12mm' 
+            }}>
                 {/* Header */}
                 <div className="text-center bg-yellow-300 border border-black py-1 mb-2 font-black text-xl">موجودی کلی انبارها</div>
                 
