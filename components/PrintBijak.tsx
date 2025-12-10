@@ -134,7 +134,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   // The Invoice Content - Use flexible width
   const content = (
-      <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none ${embed ? '' : 'min-h-[210mm]'} ${!embed ? 'print-overlay' : ''}`} 
+      <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none ${embed ? '' : 'min-h-[210mm]'}`} 
         style={{ 
             direction: 'rtl',
             maxWidth: '148mm', /* A5 Width */
@@ -150,7 +150,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       </div>
   );
 
-  if (embed) return <div id={embed ? `print-bijak-${tx.id}${forceHidePrices ? '-noprice' : '-price'}` : undefined}>{content}</div>;
+  if (embed) return content;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in no-print safe-pb">

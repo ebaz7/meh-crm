@@ -51,7 +51,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
 
   const content = (
       <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} 
-        className={`printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col ${!embed ? 'print-overlay' : ''}`}
+        className="printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" 
         style={{ 
             direction: 'rtl',
             maxWidth: '210mm',
@@ -76,7 +76,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
         </div>
   );
 
-  if (embed) return <div id={embed ? `print-permit-${permit.id}` : undefined}>{content}</div>;
+  if (embed) return content;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">

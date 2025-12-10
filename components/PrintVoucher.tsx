@@ -113,9 +113,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const content = (
       <div 
         id={printAreaId} 
-        // IMPORTANT: 'print-overlay' class is applied HERE to the content, not the container
-        // 'printable-content' is kept for layout logic
-        className={`printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden ${!embed ? 'print-overlay' : ''}`}
+        className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
             width: '100%', 
@@ -173,7 +171,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
   );
 
-  // If embedded, return just the content div without the modal wrapper
   if (embed) return <div id={embed ? `print-voucher-${order.id}` : undefined}>{content}</div>;
 
   return (
