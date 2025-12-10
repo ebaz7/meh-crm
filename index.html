@@ -40,20 +40,16 @@
       
       @media print {
         @page {
-          margin: 0 !important;
-          size: auto; /* Let components define size via JS injection */
+          margin: 0;
         }
         
-        /* Global Reset for Print - FIXES OVERFLOW */
-        *, *::before, *::after {
-          box-sizing: border-box !important;
-          text-shadow: none !important;
-          box-shadow: none !important;
-        }
-
+        /* 
+           CRITICAL FIX: 
+           Collapse the main document flow to zero height to prevent 
+           the browser from generating extra pages for the background app.
+        */
         html, body {
-          height: 100vh !important;
-          width: 100% !important;
+          height: 0 !important;
           overflow: hidden !important;
           margin: 0 !important;
           padding: 0 !important;
@@ -65,11 +61,11 @@
           visibility: hidden;
         }
 
-        /* Collapse the React Root to prevent white pages */
+        /* Collapse the React Root to zero so it doesn't push pages */
         #root {
           height: 0 !important;
-          width: 0 !important;
           overflow: hidden !important;
+          display: block !important; /* Must be block to allow children to be fixed/absolute */
         }
 
         /* Show ONLY the specific printable content */
@@ -77,19 +73,18 @@
           visibility: visible !important;
         }
 
-        /* FIX: Use fixed positioning to remove from flow and prevent double pages */
         .printable-content {
-          position: fixed !important;
+          position: absolute !important;
           top: 0 !important;
           left: 0 !important;
           width: 100% !important;
-          height: 100% !important;
+          height: auto !important; /* Allow the content to define the height */
           margin: 0 !important;
-          padding: 0 !important; /* Padding handled inside component styles */
+          padding: 0 !important;
           z-index: 99999 !important;
           background-color: white !important;
-          page-break-after: avoid !important;
-          page-break-before: avoid !important;
+          /* Ensure no page breaks inside the main container if possible */
+          page-break-inside: avoid;
         }
         
         .no-print {
