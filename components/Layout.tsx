@@ -135,15 +135,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const canSeeTrade = perms?.canManageTrade ?? false;
   const canCreateExit = perms?.canCreateExitPermit ?? false;
   
-  // Specific View Permissions
-  const canViewPayment = perms?.canViewPaymentOrders !== false; 
-  // New: Separate creation permission
-  const canCreatePayment = perms?.canCreatePaymentOrder !== false;
+  // Specific View Permissions - STRICT CHECKS
+  // We use explicit strict equality or fallback to ensure settings are respected
+  const canViewPayment = perms ? perms.canViewPaymentOrders === true : false;
+  const canCreatePayment = perms ? perms.canCreatePaymentOrder === true : false;
 
   const canViewExit = perms?.canViewExitPermits || perms?.canCreateExitPermit || perms?.canApproveExitCeo || perms?.canApproveExitFactory;
   
-  // Warehouse Permissions
-  const canManageWarehouse = perms?.canManageWarehouse || currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.FACTORY_MANAGER;
+  // Warehouse Permissions - STRICT CHECK
+  // Only ADMIN bypasses the check. Factory Manager MUST have permission in settings.
+  const canManageWarehouse = currentUser.role === UserRole.ADMIN || (perms && perms.canManageWarehouse === true);
 
   const canSeeSettings = currentUser.role === UserRole.ADMIN || (perms?.canManageSettings ?? false);
 

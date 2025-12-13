@@ -49,16 +49,14 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
     const defaults: RolePermissions = {
         canViewAll: userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER,
         
-        // NEW: Separate Creation Permission
-        // By default, prevent Factory Manager and Sales Manager from creating payments
-        // unless explicitly enabled in settings.
+        // Creation Permission: Default False for Factory/Warehouse/Sales unless enabled
         canCreatePaymentOrder: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER, 
         
-        // Default View Permissions
-        // Warehouse keeper doesn't need to see payment orders by default
-        canViewPaymentOrders: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER, 
+        // Default View Permissions for Payments
+        // CHANGE: SALES_MANAGER removed from default 'true'. Now defaults to 'false' to respect settings checkbox.
+        canViewPaymentOrders: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.FINANCIAL,
         
-        // Warehouse keeper and Factory Manager need to see exit permits
+        // Exit Permits
         canViewExitPermits: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER,
 
         canApproveFinancial: userRole === UserRole.FINANCIAL || userRole === UserRole.ADMIN,
@@ -70,23 +68,22 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canDeleteOwn: true,
         canDeleteAll: userRole === UserRole.ADMIN,
         
-        // Removed SALES_MANAGER from default true. They must be enabled via Settings or be Admin/CEO/Manager.
         canManageTrade: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER,
         
         canManageSettings: userRole === UserRole.ADMIN,
         
-        // Sales Manager creates requests
         canCreateExitPermit: userRole === UserRole.SALES_MANAGER || userRole === UserRole.ADMIN || userRole === UserRole.CEO,
         canApproveExitCeo: userRole === UserRole.CEO || userRole === UserRole.ADMIN,
         canApproveExitFactory: userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN,
         
-        // Exit Archive Permissions
         canViewExitArchive: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER,
         canEditExitArchive: userRole === UserRole.ADMIN,
 
         // Warehouse Permissions
-        canManageWarehouse: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER, // Full Access
-        canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER // Read Only
+        // CHANGE: FACTORY_MANAGER removed from default 'true'. Now defaults to 'false' to respect settings checkbox.
+        canManageWarehouse: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER, 
+        
+        canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER 
     };
 
     if (!settings || !settings.rolePermissions || !settings.rolePermissions[userRole]) {
