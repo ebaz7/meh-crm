@@ -21,7 +21,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const [showBankReport, setShowBankReport] = useState(false);
   const [bankReportTab, setBankReportTab] = useState<'summary' | 'timeline'>('summary');
 
-  // Permission Check: Defaults to false if settings not loaded yet to prevent crash, but strictly checks logic
+  // Permission Check
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
 
@@ -33,7 +33,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const countMgr = orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
-  // Only show active cartable items if user has access. Otherwise empty array.
   const activeCartable = hasPaymentAccess ? orders
     .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED)
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -240,6 +239,23 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                 </div>
             )}
         </div>
+
+        {/* Google Calendar Widget */}
+        {settings?.googleCalendarId && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 mt-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><CalendarDays size={20} className="text-red-500"/> تقویم کاری</h3>
+                <div className="w-full h-[600px] bg-gray-50 rounded-xl overflow-hidden border">
+                    <iframe 
+                        src={`https://calendar.google.com/calendar/embed?height=600&wkst=7&ctz=Asia%2FTehran&bgcolor=%23ffffff&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=1&showCalendars=0&showTz=0&src=${encodeURIComponent(settings.googleCalendarId)}`} 
+                        style={{border: 0}} 
+                        width="100%" 
+                        height="100%" 
+                        frameBorder="0" 
+                        scrolling="no"
+                    ></iframe>
+                </div>
+            </div>
+        )}
 
         {/* Bank Report Modal */}
         {showBankReport && hasPaymentAccess && (
