@@ -288,15 +288,42 @@ export const initTelegram = (token) => {
     if (bot) try { bot.stopPolling(); } catch(e) {}
 
     try {
-        bot = new TelegramBot(token, { polling: true });
+        // Robust polling configuration to handle ETIMEDOUT
+        bot = new TelegramBot(token, { 
+            polling: {
+                interval: 3000, // Check every 3 seconds to avoid spamming bad connections
+                autoStart: true,
+                params: {
+                    timeout: 10 // Long polling timeout in seconds
+                }
+            },
+            request: {
+                // Add agent options to stabilize connection
+                agentOptions: {
+                    keepAlive: true,
+                    family: 4 // Force IPv4
+                },
+                timeout: 30000 // 30s request timeout
+            }
+        });
+        
         console.log(">>> Telegram Bot Module Loaded & Polling ✅");
 
-        // *** ERROR HANDLING TO PREVENT CRASHES ***
+        // *** ERROR HANDLING TO PREVENT CRASHES AND LOG SPAM ***
         bot.on('polling_error', (error) => {
-            console.log(`[Telegram Polling Error] ${error.code}: ${error.message}`);
+            // Filter out common network timeout errors from the console
+            if (error.code === 'ETIMEDOUT' || error.code === 'EFATAL' || error.code === 'ECONNRESET') {
+                // Do nothing or log sparingly
+                // console.log(`[Telegram Network Error] ${error.code} - Retrying...`);
+            } else {
+                console.log(`[Telegram Polling Error] ${error.code}: ${error.message}`);
+            }
         });
+        
         bot.on('error', (error) => {
-            console.log(`[Telegram General Error] ${error.message}`);
+            if (error.code !== 'ETIMEDOUT') {
+                console.log(`[Telegram General Error] ${error.message}`);
+            }
         });
 
         bot.on('message', async (msg) => {
