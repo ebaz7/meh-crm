@@ -8,11 +8,15 @@ import PrintBijak from './PrintBijak';
 import PrintStockReport from './print/PrintStockReport'; 
 import { apiCall } from '../services/apiService';
 
-interface Props { currentUser: User; settings?: SystemSettings; }
+interface Props { 
+    currentUser: User; 
+    settings?: SystemSettings; 
+    initialTab?: 'dashboard' | 'items' | 'entry' | 'exit' | 'reports' | 'stock_report' | 'archive' | 'entry_archive' | 'approvals';
+}
 
-const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
+const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 'dashboard' }) => {
     const [loadingData, setLoadingData] = useState(true);
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'items' | 'entry' | 'exit' | 'reports' | 'stock_report' | 'archive' | 'entry_archive'>('dashboard');
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [items, setItems] = useState<WarehouseItem[]>([]);
     const [transactions, setTransactions] = useState<WarehouseTransaction[]>([]);
     
@@ -56,6 +60,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
     const [approvedTxForAutoSend, setApprovedTxForAutoSend] = useState<WarehouseTransaction | null>(null);
 
     useEffect(() => { loadData(); }, []);
+    useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
     useEffect(() => { if(selectedCompany && activeTab === 'exit' && settings) { updateNextBijak(); } }, [selectedCompany, activeTab, settings]);
 
     const loadData = async () => { setLoadingData(true); try { const [i, t] = await Promise.all([getWarehouseItems(), getWarehouseTransactions()]); setItems(i || []); setTransactions(t || []); } catch (e) { console.error(e); } finally { setLoadingData(false); } };
@@ -249,6 +254,9 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
     const recentBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT').slice(0, 5), [transactions]);
     const filteredArchiveBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && (!archiveFilterCompany || t.company === archiveFilterCompany) && (String(t.number).includes(reportSearch) || t.recipientName?.includes(reportSearch))), [transactions, archiveFilterCompany, reportSearch]);
     const filteredArchiveReceipts = useMemo(() => transactions.filter(t => t.type === 'IN' && (!archiveFilterCompany || t.company === archiveFilterCompany) && (String(t.proformaNumber).includes(reportSearch))), [transactions, archiveFilterCompany, reportSearch]);
+    
+    // Approval Filter
+    const pendingBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING'), [transactions]);
 
     // ... (Export handlers same) ...
     const handleExportKardexPDF = async () => { /* ... */ };
@@ -280,17 +288,58 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings }) => {
             </div>
 
             <div className="bg-gray-100 p-2 flex gap-2 border-b overflow-x-auto no-print">
-                <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>داشبورد</button>
-                <button onClick={() => setActiveTab('items')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'items' ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>تعریف کالا</button>
-                <button onClick={() => setActiveTab('entry')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'entry' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>ورود کالا (رسید)</button>
-                <button onClick={() => setActiveTab('entry_archive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'entry_archive' ? 'bg-white text-emerald-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>مدیریت رسیدها</button>
-                <button onClick={() => setActiveTab('exit')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'exit' ? 'bg-white text-red-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>خروج کالا (بیجک)</button>
-                <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'archive' ? 'bg-white text-gray-800 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>مدیریت بیجک‌ها</button>
-                <button onClick={() => setActiveTab('reports')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'reports' ? 'bg-white text-purple-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>گزارش کاردکس</button>
-                <button onClick={() => setActiveTab('stock_report')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'stock_report' ? 'bg-white text-orange-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>موجودی کل</button>
+                {activeTab === 'approvals' ? (
+                    // Only show approvals tab button if active (simple view for approvers)
+                    <button onClick={() => setActiveTab('approvals')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-white text-orange-600 shadow`}>کارتابل تایید بیجک</button>
+                ) : (
+                    <>
+                    <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>داشبورد</button>
+                    <button onClick={() => setActiveTab('items')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'items' ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>تعریف کالا</button>
+                    <button onClick={() => setActiveTab('entry')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'entry' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>ورود کالا (رسید)</button>
+                    <button onClick={() => setActiveTab('entry_archive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'entry_archive' ? 'bg-white text-emerald-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>مدیریت رسیدها</button>
+                    <button onClick={() => setActiveTab('exit')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'exit' ? 'bg-white text-red-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>خروج کالا (بیجک)</button>
+                    <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'archive' ? 'bg-white text-gray-800 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>مدیریت بیجک‌ها</button>
+                    <button onClick={() => setActiveTab('reports')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'reports' ? 'bg-white text-purple-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>گزارش کاردکس</button>
+                    <button onClick={() => setActiveTab('stock_report')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${activeTab === 'stock_report' ? 'bg-white text-orange-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>موجودی کل</button>
+                    </>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
+                
+                {/* APPROVALS TAB */}
+                {activeTab === 'approvals' && (
+                    <div className="space-y-4">
+                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex justify-between items-center">
+                            <h3 className="font-bold text-orange-800 flex items-center gap-2"><CheckCircle size={24}/> کارتابل تایید بیجک</h3>
+                            <div className="text-sm font-bold text-orange-700 bg-white px-3 py-1 rounded-lg border border-orange-200">
+                                تعداد در انتظار: {pendingBijaks.length}
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <table className="w-full text-sm text-right">
+                                <thead className="bg-gray-100 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">شرکت</th><th className="p-4">گیرنده</th><th className="p-4 text-center">عملیات</th></tr></thead>
+                                <tbody className="divide-y">
+                                    {pendingBijaks.map(tx => (
+                                        <tr key={tx.id} className="hover:bg-gray-50">
+                                            <td className="p-4 font-mono font-bold text-red-600">#{tx.number}</td>
+                                            <td className="p-4 text-xs">{formatDate(tx.date)}</td>
+                                            <td className="p-4 text-xs font-bold">{tx.company}</td>
+                                            <td className="p-4 text-xs">{tx.recipientName}</td>
+                                            <td className="p-4 text-center flex justify-center gap-2">
+                                                <button onClick={() => setViewBijak(tx)} className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
+                                                {canApprove && <button onClick={() => handleApproveBijak(tx)} className="bg-green-100 text-green-600 p-2 rounded hover:bg-green-200" title="تایید و ارسال"><CheckCircle size={16}/></button>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {pendingBijaks.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400">هیچ بیجکی در انتظار تایید نیست.</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'dashboard' && (
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

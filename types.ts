@@ -183,6 +183,7 @@ export interface RolePermissions {
     // Warehouse Permissions
     canManageWarehouse?: boolean; // Full Access
     canViewWarehouseReports?: boolean; // Read Only
+    canApproveBijak?: boolean; // New Permission for Bijak Approval
 }
 
 export interface Company {

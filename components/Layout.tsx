@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
@@ -132,45 +132,40 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const perms = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
-  const canSeeTrade = perms?.canManageTrade ?? false;
-  const canCreateExit = perms?.canCreateExitPermit ?? false;
   
-  // Specific View Permissions - STRICT CHECKS
-  // We use explicit strict equality or fallback to ensure settings are respected
-  const canViewPayment = perms ? perms.canViewPaymentOrders === true : false;
+  // Base Permissions
   const canCreatePayment = perms ? perms.canCreatePaymentOrder === true : false;
-
-  const canViewExit = perms?.canViewExitPermits || perms?.canCreateExitPermit || perms?.canApproveExitCeo || perms?.canApproveExitFactory;
-  
-  // Warehouse Permissions - STRICT CHECK
-  // Only ADMIN bypasses the check. Factory Manager MUST have permission in settings.
+  const canCreateExit = perms?.canCreateExitPermit ?? false;
   const canManageWarehouse = currentUser.role === UserRole.ADMIN || (perms && perms.canManageWarehouse === true);
-
+  const canSeeTrade = perms?.canManageTrade ?? false;
   const canSeeSettings = currentUser.role === UserRole.ADMIN || (perms?.canManageSettings ?? false);
 
   const navItems = [
     { id: 'dashboard', label: 'داشبورد', icon: LayoutDashboard },
   ];
 
+  // 1. PAYMENT MODULE
   if (canCreatePayment) {
       navItems.push({ id: 'create', label: 'ثبت پرداخت', icon: PlusCircle });
   }
-  
-  if (canViewPayment) {
-      navItems.push({ id: 'manage', label: 'کارتابل پرداخت', icon: ListChecks });
+  if (perms?.canViewPaymentOrders) {
+      navItems.push({ id: 'manage', label: 'سوابق پرداخت', icon: ListChecks });
   }
 
+  // 2. EXIT PERMIT MODULE
   if (canCreateExit) {
       navItems.push({ id: 'create-exit', label: 'ثبت خروج', icon: Truck });
   }
-  if (canViewExit) {
-      navItems.push({ id: 'manage-exit', label: 'کارتابل خروج', icon: ClipboardList });
+  if (perms?.canViewExitPermits) {
+      navItems.push({ id: 'manage-exit', label: 'سوابق خروج', icon: ClipboardList });
   }
 
+  // 3. WAREHOUSE & BIJAK MODULE
   if (canManageWarehouse) {
-      navItems.push({ id: 'warehouse', label: 'انبار', icon: Package });
+      navItems.push({ id: 'warehouse', label: 'مدیریت انبار', icon: Package });
   }
 
+  // 4. GENERAL MODULES
   navItems.push({ id: 'chat', label: 'گفتگو', icon: MessageSquare });
 
   if (canSeeTrade) navItems.push({ id: 'trade', label: 'بازرگانی', icon: Container });

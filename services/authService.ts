@@ -83,7 +83,10 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         // CHANGE: FACTORY_MANAGER removed from default 'true'. Now defaults to 'false' to respect settings checkbox.
         canManageWarehouse: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER, 
         
-        canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER 
+        canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER,
+        
+        // Bijak Approval
+        canApproveBijak: userRole === UserRole.ADMIN || userRole === UserRole.CEO
     };
 
     if (!settings || !settings.rolePermissions || !settings.rolePermissions[userRole]) {

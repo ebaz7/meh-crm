@@ -28,6 +28,10 @@ function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [manageOrdersInitialTab, setManageOrdersInitialTab] = useState<'current' | 'archive'>('current');
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState<OrderStatus | 'pending_all' | null>(null);
+  
+  // New: Filter for Exit Permits when coming from Dashboard
+  const [exitPermitStatusFilter, setExitPermitStatusFilter] = useState<'pending' | null>(null);
+
   const isFirstLoad = useRef(true);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_LIMIT = 60 * 60 * 1000; 
@@ -126,19 +130,63 @@ function App() {
   const handleViewArchive = () => { setManageOrdersInitialTab('archive'); setDashboardStatusFilter(null); setActiveTab('manage'); };
   const handleDashboardFilter = (status: OrderStatus | 'pending_all') => { setDashboardStatusFilter(status); setManageOrdersInitialTab('current'); setActiveTab('manage'); };
 
+  // New Handlers for Dashboard Action Cards
+  const handleGoToPaymentApprovals = () => {
+      setDashboardStatusFilter('pending_all');
+      setManageOrdersInitialTab('current');
+      setActiveTab('manage');
+  };
+
+  const handleGoToExitApprovals = () => {
+      setExitPermitStatusFilter('pending');
+      setActiveTab('manage-exit');
+  };
+
+  const handleGoToBijakApprovals = () => {
+      setActiveTab('warehouse'); // The WarehouseModule will default to 'approvals' tab if we pass a prop, or we can handle it there.
+      // We'll modify WarehouseModule to accept an initial tab prop better, or just use the existing one.
+      // But App.tsx doesn't dynamically pass initialTab based on state easily without a re-render.
+      // A simple way is to use a specific hash or prop.
+      // For now, let's rely on passing `initialTab="approvals"` when rendering WarehouseModule if a specific state is set.
+  };
+
+  // State to track if we should open specific warehouse tab
+  const [warehouseInitialTab, setWarehouseInitialTab] = useState<'dashboard' | 'approvals'>('dashboard');
+
+  const handleGoToWarehouseApprovals = () => {
+      setWarehouseInitialTab('approvals');
+      setActiveTab('warehouse');
+  };
+
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} onLogout={handleLogout} notifications={notifications} clearNotifications={() => setNotifications([])}>
+    <Layout activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); if(t!=='warehouse') setWarehouseInitialTab('dashboard'); if(t!=='manage-exit') setExitPermitStatusFilter(null); if(t!=='manage') setDashboardStatusFilter(null); }} currentUser={currentUser} onLogout={handleLogout} notifications={notifications} clearNotifications={() => setNotifications([])}>
       {loading && orders.length === 0 ? ( <div className="flex h-[50vh] items-center justify-center text-blue-600"><Loader2 size={48} className="animate-spin" /></div> ) : (
         <>
-            {activeTab === 'dashboard' && <Dashboard orders={orders} settings={settings} currentUser={currentUser} onViewArchive={handleViewArchive} onFilterByStatus={handleDashboardFilter} />}
+            {activeTab === 'dashboard' && 
+                <Dashboard 
+                    orders={orders} 
+                    settings={settings} 
+                    currentUser={currentUser} 
+                    onViewArchive={handleViewArchive} 
+                    onFilterByStatus={handleDashboardFilter}
+                    onGoToPaymentApprovals={handleGoToPaymentApprovals}
+                    onGoToExitApprovals={handleGoToExitApprovals}
+                    onGoToBijakApprovals={handleGoToWarehouseApprovals}
+                />
+            }
             {activeTab === 'create' && <CreateOrder onSuccess={handleOrderCreated} currentUser={currentUser} />}
+            
             {activeTab === 'manage' && <ManageOrders orders={orders} refreshData={() => loadData(true)} currentUser={currentUser} initialTab={manageOrdersInitialTab} settings={settings} statusFilter={dashboardStatusFilter} />}
+            
             {activeTab === 'create-exit' && <CreateExitPermit onSuccess={() => setActiveTab('manage-exit')} currentUser={currentUser} />}
-            {activeTab === 'manage-exit' && <ManageExitPermits currentUser={currentUser} settings={settings} />}
+            
+            {activeTab === 'manage-exit' && <ManageExitPermits currentUser={currentUser} settings={settings} statusFilter={exitPermitStatusFilter} />}
+
+            {activeTab === 'warehouse' && <WarehouseModule currentUser={currentUser} settings={settings} initialTab={warehouseInitialTab} />}
+            
             {activeTab === 'trade' && <TradeModule currentUser={currentUser} />}
-            {activeTab === 'warehouse' && <WarehouseModule currentUser={currentUser} settings={settings} />}
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'chat' && <ChatRoom currentUser={currentUser} onNotification={addAppNotification} />}
