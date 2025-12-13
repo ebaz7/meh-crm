@@ -230,6 +230,7 @@ const Settings: React.FC = () => {
   ];
   
   const permissionsList = [ 
+      { id: 'canCreatePaymentOrder', label: 'ثبت دستور پرداخت جدید' }, // NEW
       { id: 'canViewPaymentOrders', label: 'مشاهده کارتابل پرداخت' },
       { id: 'canViewExitPermits', label: 'مشاهده کارتابل خروج بار' },
       { id: 'canViewAll', label: 'مشاهده تمام دستورات (همه کاربران)' }, 

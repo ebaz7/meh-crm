@@ -158,6 +158,7 @@ export interface WarehouseTransaction {
 
 export interface RolePermissions {
     canViewAll: boolean;
+    canCreatePaymentOrder: boolean; // New Permission
     canViewPaymentOrders: boolean;
     canViewExitPermits: boolean;
     canApproveFinancial: boolean;

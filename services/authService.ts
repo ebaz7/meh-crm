@@ -49,6 +49,11 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
     const defaults: RolePermissions = {
         canViewAll: userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER,
         
+        // NEW: Separate Creation Permission
+        // By default, prevent Factory Manager and Sales Manager from creating payments
+        // unless explicitly enabled in settings.
+        canCreatePaymentOrder: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER, 
+        
         // Default View Permissions
         // Warehouse keeper doesn't need to see payment orders by default
         canViewPaymentOrders: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER, 
@@ -65,8 +70,8 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canDeleteOwn: true,
         canDeleteAll: userRole === UserRole.ADMIN,
         
-        // Sales Manager, CEO, Manager, Admin can manage trade
-        canManageTrade: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.SALES_MANAGER,
+        // Removed SALES_MANAGER from default true. They must be enabled via Settings or be Admin/CEO/Manager.
+        canManageTrade: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER,
         
         canManageSettings: userRole === UserRole.ADMIN,
         

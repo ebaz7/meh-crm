@@ -137,6 +137,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   
   // Specific View Permissions
   const canViewPayment = perms?.canViewPaymentOrders !== false; 
+  // New: Separate creation permission
+  const canCreatePayment = perms?.canCreatePaymentOrder !== false;
+
   const canViewExit = perms?.canViewExitPermits || perms?.canCreateExitPermit || perms?.canApproveExitCeo || perms?.canApproveExitFactory;
   
   // Warehouse Permissions
@@ -148,8 +151,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
     { id: 'dashboard', label: 'داشبورد', icon: LayoutDashboard },
   ];
 
-  if (canViewPayment) {
+  if (canCreatePayment) {
       navItems.push({ id: 'create', label: 'ثبت پرداخت', icon: PlusCircle });
+  }
+  
+  if (canViewPayment) {
       navItems.push({ id: 'manage', label: 'کارتابل پرداخت', icon: ListChecks });
   }
 
