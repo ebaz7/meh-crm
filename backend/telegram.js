@@ -101,7 +101,12 @@ const createHtmlReport = (title, headers, rows) => {
 
 // --- SINGLE VOUCHER HTML GENERATOR ---
 const createVoucherHtml = (order) => {
-    // Replicating PrintVoucher.tsx visual structure
+    // Replicating PrintVoucher.tsx visual structure exactly
+    // Using inline styles to simulate Tailwind classes for Puppeteer
+    
+    // Format currency
+    const formatMoney = (amount) => new Intl.NumberFormat('fa-IR').format(amount);
+
     return `
     <!DOCTYPE html>
     <html lang="fa" dir="rtl">
@@ -109,86 +114,134 @@ const createVoucherHtml = (order) => {
         <meta charset="UTF-8">
         <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
         <style>
-            body { font-family: 'Vazirmatn', sans-serif; padding: 40px; background: #fff; direction: rtl; width: 210mm; margin: 0 auto; box-sizing: border-box; }
-            .header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .title { font-size: 24px; font-weight: bold; }
-            .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
-            .info-box { text-align: left; }
-            .info-row { font-size: 14px; margin-bottom: 5px; }
-            .info-label { font-weight: bold; color: #555; }
-            .info-value { font-weight: bold; font-family: monospace; font-size: 16px; }
+            body { font-family: 'Vazirmatn', sans-serif; margin: 0; padding: 8mm; box-sizing: border-box; width: 209mm; height: 147mm; direction: rtl; background: white; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 12px; margin-bottom: 12px; }
+            .title-box { display: flex; gap: 12px; align-items: center; width: 66%; }
+            .company-name { font-size: 20px; font-weight: 900; color: #111827; letter-spacing: 0px; }
+            .subtitle { font-size: 9px; font-weight: bold; color: #6b7280; margin-top: 2px; }
+            .info-box { text-align: left; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; width: 33%; }
+            .doc-title { font-size: 16px; font-weight: 900; background-color: #f3f4f6; border: 1px solid #e5e7eb; color: #1f2937; padding: 4px 12px; border-radius: 8px; margin-bottom: 4px; white-space: nowrap; }
+            .info-row { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+            .label { font-weight: bold; color: #6b7280; }
+            .value { font-weight: bold; color: #1f2937; font-size: 16px; font-family: monospace; }
+            .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+            .box { background-color: rgba(249, 250, 251, 0.5); border: 1px solid #d1d5db; padding: 8px; border-radius: 4px; }
+            .box-label { display: block; color: #6b7280; font-size: 9px; margin-bottom: 2px; }
+            .box-value { font-weight: bold; color: #111827; font-size: 16px; }
+            .desc-box { background-color: rgba(249, 250, 251, 0.5); border: 1px solid #d1d5db; padding: 8px; border-radius: 4px; min-height: 45px; margin-bottom: 12px; }
+            .desc-text { color: #1f2937; text-align: justify; font-weight: 500; line-height: 1.25; font-size: 12px; }
             
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
-            .box { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-            .label { font-size: 12px; color: #666; display: block; margin-bottom: 5px; }
-            .value { font-size: 16px; font-weight: bold; }
-            .desc-box { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-            .desc-text { font-size: 14px; line-height: 1.6; text-align: justify; }
-
-            table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px; }
-            th { background: #eee; padding: 8px; border: 1px solid #ccc; font-weight: bold; }
-            td { padding: 8px; border: 1px solid #ccc; text-align: center; }
-
-            .footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 50px; border-top: 2px solid #333; padding-top: 10px; }
-            .sign-box { text-align: center; height: 80px; display: flex; flex-direction: column; justify-content: flex-end; }
-            .sign-label { font-size: 12px; font-weight: bold; color: #666; border-top: 1px solid #ccc; padding-top: 5px; width: 100%; }
-            .stamp { border: 2px solid #1e40af; color: #1e40af; padding: 5px 10px; border-radius: 8px; transform: rotate(-5deg); font-size: 12px; font-weight: bold; display: inline-block; margin-bottom: 5px; opacity: 0.8; }
+            table { width: 100%; text-align: right; font-size: 10px; border-collapse: collapse; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden; }
+            thead { background-color: #f3f4f6; border-bottom: 1px solid #d1d5db; }
+            th { padding: 6px; font-weight: bold; color: #4b5563; }
+            td { padding: 6px; border-bottom: 1px solid #e5e7eb; }
+            tr:last-child td { border-bottom: none; }
+            .footer { margin-top: auto; padding-top: 8px; border-top: 2px solid #1f2937; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; position: relative; }
+            .sign-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 60px; }
+            .sign-name { margin-bottom: 4px; display: flex; align-items: center; justify-content: center; height: 100%; }
+            .sign-role { width: 100%; border-top: 1px solid #9ca3af; padding-top: 2px; font-size: 8px; font-weight: bold; color: #4b5563; }
+            .stamp { border: 2px solid #1e40af; color: #1e40af; border-radius: 8px; py: 4px; px: 12px; transform: rotate(-5deg); opacity: 0.9; background-color: rgba(255,255,255,0.8); display: inline-block; padding: 4px 12px; }
+            .stamp-title { font-size: 9px; font-weight: bold; border-bottom: 1px solid #1e40af; margin-bottom: 2px; text-align: center; padding-bottom: 2px; }
+            .stamp-name { font-size: 10px; text-align: center; font-weight: bold; white-space: nowrap; }
+            .not-signed { color: #d1d5db; font-size: 8px; }
         </style>
     </head>
     <body>
         <div class="header">
-            <div>
-                <div class="title">${order.payingCompany || 'شرکت بازرگانی'}</div>
-                <div class="subtitle">سیستم مدیریت مالی و پرداخت</div>
+            <div class="title-box">
+                <!-- If logo exists, it would be an img tag here -->
+                <div>
+                    <h1 class="company-name">${order.payingCompany || 'شرکت بازرگانی'}</h1>
+                    <p class="subtitle">سیستم مدیریت مالی و پرداخت</p>
+                </div>
             </div>
             <div class="info-box">
-                <div style="background: #eee; padding: 5px 10px; border-radius: 5px; font-weight: bold; margin-bottom: 10px; text-align: center;">رسید پرداخت وجه</div>
-                <div class="info-row"><span class="info-label">شماره:</span> <span class="info-value">${order.trackingNumber}</span></div>
-                <div class="info-row"><span class="info-label">تاریخ:</span> <span class="info-value">${formatDate(order.date)}</span></div>
+                <div class="doc-title">رسید پرداخت وجه</div>
+                <div class="info-row"><span class="label">شماره:</span><span class="value">${order.trackingNumber}</span></div>
+                <div class="info-row"><span class="label">تاریخ:</span><span style="font-weight: bold; color: #1f2937;">${formatDate(order.date)}</span></div>
             </div>
         </div>
 
-        <div class="grid">
-            <div class="box"><span class="label">در وجه (ذینفع):</span><span class="value">${order.payee}</span></div>
-            <div class="box"><span class="label">مبلغ کل پرداختی:</span><span class="value">${fmt(order.totalAmount)} ریال</span></div>
+        <div class="grid-2">
+            <div class="box">
+                <span class="box-label">در وجه (ذینفع):</span>
+                <span class="box-value">${order.payee}</span>
+            </div>
+            <div class="box">
+                <span class="box-label">مبلغ کل پرداختی:</span>
+                <span class="box-value">${formatMoney(order.totalAmount)} ریال</span>
+            </div>
         </div>
 
         <div class="desc-box">
-            <span class="label">بابت (شرح پرداخت):</span>
-            <div class="desc-text">${order.description}</div>
+            <span class="box-label">بابت (شرح پرداخت):</span>
+            <p class="desc-text">${order.description}</p>
         </div>
 
-        <table>
-            <thead><tr><th>#</th><th>نوع پرداخت</th><th>مبلغ</th><th>بانک / چک</th><th>توضیحات</th></tr></thead>
-            <tbody>
-                ${order.paymentDetails.map((d, i) => `
+        <div style="border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;">
+            <table>
+                <thead>
                     <tr>
-                        <td>${i + 1}</td>
-                        <td>${d.method}</td>
-                        <td style="font-family: monospace;">${fmt(d.amount)}</td>
-                        <td>${d.method === 'چک' ? `چک: ${d.chequeNumber || '-'}` : d.method === 'حواله بانکی' ? `بانک: ${d.bankName || '-'}` : '-'}</td>
-                        <td>${d.description || '-'}</td>
+                        <th style="width: 24px;">#</th>
+                        <th>نوع پرداخت</th>
+                        <th>مبلغ</th>
+                        <th>بانک / چک</th>
+                        <th>توضیحات</th>
                     </tr>
-                `).join('')}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    ${order.paymentDetails.slice(0, 4).map((detail, idx) => `
+                        <tr>
+                            <td style="text-align: center;">${idx + 1}</td>
+                            <td style="font-weight: bold;">${detail.method}</td>
+                            <td style="font-family: monospace;">${formatMoney(detail.amount)} ریال</td>
+                            <td>${detail.method === 'چک' ? `چک: ${detail.chequeNumber || ''}${detail.chequeDate ? ` (${detail.chequeDate})` : ''}` : detail.method === 'حواله بانکی' ? `بانک: ${detail.bankName || ''}` : '-'}</td>
+                            <td style="color: #4b5563;">${detail.description || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
 
         <div class="footer">
-            <div class="sign-box">
-                <div style="margin-bottom: 10px; font-weight: bold; font-size: 14px;">${order.requester}</div>
-                <div class="sign-label">درخواست کننده</div>
+            <div class="sign-col">
+                <div class="sign-name">
+                    <span style="font-weight: bold; color: #111827; font-size: 10px;">${order.requester}</span>
+                </div>
+                <div class="sign-role">درخواست کننده</div>
             </div>
-            <div class="sign-box">
-                ${order.approverFinancial ? `<div class="stamp">تایید مالی<br>${order.approverFinancial}</div>` : ''}
-                <div class="sign-label">مدیر مالی</div>
+            <div class="sign-col">
+                <div class="sign-name">
+                    ${order.approverFinancial ? `
+                        <div class="stamp">
+                            <div class="stamp-title">تایید مالی</div>
+                            <div class="stamp-name">${order.approverFinancial}</div>
+                        </div>
+                    ` : '<span class="not-signed">امضا نشده</span>'}
+                </div>
+                <div class="sign-role">مدیر مالی</div>
             </div>
-            <div class="sign-box">
-                ${order.approverManager ? `<div class="stamp">تایید مدیریت<br>${order.approverManager}</div>` : ''}
-                <div class="sign-label">مدیریت</div>
+            <div class="sign-col">
+                <div class="sign-name">
+                    ${order.approverManager ? `
+                        <div class="stamp">
+                            <div class="stamp-title">تایید مدیریت</div>
+                            <div class="stamp-name">${order.approverManager}</div>
+                        </div>
+                    ` : '<span class="not-signed">امضا نشده</span>'}
+                </div>
+                <div class="sign-role">مدیریت</div>
             </div>
-            <div class="sign-box">
-                ${order.approverCeo ? `<div class="stamp">مدیر عامل<br>${order.approverCeo}</div>` : ''}
-                <div class="sign-label">مدیر عامل</div>
+            <div class="sign-col">
+                <div class="sign-name">
+                    ${order.approverCeo ? `
+                        <div class="stamp">
+                            <div class="stamp-title">مدیر عامل</div>
+                            <div class="stamp-name">${order.approverCeo}</div>
+                        </div>
+                    ` : '<span class="not-signed">امضا نشده</span>'}
+                </div>
+                <div class="sign-role">مدیر عامل</div>
             </div>
         </div>
     </body>
@@ -217,14 +270,12 @@ const createAllocationReportHtml = (records) => {
 
         const rialEquiv = amountInUSD * RATES.rialRate;
         
-        // Remaining Days
+        // Remaining Days logic
         let remainingDays = '-';
-        let remainingColor = 'black';
+        let remainingClass = '';
         if (isAllocated && stageA?.allocationDate) {
-            // Need a way to parse Persian date string to JS date in Node environment without complex libraries
-            // Simplified: Just display raw string or use basic logic if critical. 
-            // For report display, raw data is acceptable if calculation is complex.
-            remainingDays = 'محاسبه در وب'; 
+             // simplified date diff logic for nodejs
+             remainingDays = 'Web Calc';
         }
 
         return {
@@ -234,34 +285,40 @@ const createAllocationReportHtml = (records) => {
             reg: r.registrationNumber || '-',
             company: r.company || '-',
             currencyAmt: `${fmt(amount)} ${r.mainCurrency}`,
-            usdAmt: `$ ${fmt(Math.round(amountInUSD))}`,
+            usdAmt: `$ ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(amountInUSD)}`,
             rialAmt: fmt(Math.round(rialEquiv)),
             qDate: stageQ?.queueDate || '-',
             aDate: stageA?.allocationDate || '-',
             rem: remainingDays,
             status: isAllocated ? 'تخصیص یافته' : 'در صف',
+            statusColor: isAllocated ? '#dcfce7' : '#fef9c3', // Green-100 vs Yellow-100
+            statusTextColor: isAllocated ? '#166534' : '#854d0e',
             bank: r.operatingBank || '-',
             prio: r.isPriority ? '✅' : '-',
             rank: r.allocationCurrencyRank === 'Type1' ? 'نوع 1' : r.allocationCurrencyRank === 'Type2' ? 'نوع 2' : '-'
         };
     });
 
+    // Replicate PrintAllocationReport.tsx Table Style
     const trs = processed.map(r => `
-        <tr style="border-bottom: 1px solid #ccc;">
-            <td>${r.idx}</td>
-            <td style="text-align: right;"><b>${r.file}</b><br><span style="font-size:9px;color:#555;">${r.goods}</span></td>
-            <td style="font-family: monospace;">${r.reg}</td>
-            <td>${r.company}</td>
-            <td style="direction: ltr; font-family: monospace;">${r.currencyAmt}</td>
-            <td style="direction: ltr; font-family: monospace; font-weight: bold;">${r.usdAmt}</td>
-            <td style="direction: ltr; font-family: monospace; color: #1e40af;">${r.rialAmt}</td>
-            <td>${r.qDate}</td>
-            <td>${r.aDate}</td>
-            <td>${r.rem}</td>
-            <td style="font-weight: bold; background: ${r.status === 'تخصیص یافته' ? '#dcfce7; color: #166534' : '#fef9c3; color: #854d0e'}">${r.status}</td>
-            <td style="font-size: 10px;">${r.bank}</td>
-            <td>${r.prio}</td>
-            <td style="font-size: 10px;">${r.rank}</td>
+        <tr style="border-bottom: 1px solid #d1d5db; background-color: white;">
+            <td style="border-left: 1px solid #d1d5db; padding: 4px;">${r.idx}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; text-align: right;">
+                <div style="font-weight: bold;">${r.file}</div>
+                <div style="font-size: 8px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${r.goods}</div>
+            </td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; font-family: monospace;">${r.reg}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px;">${r.company}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; direction: ltr; font-family: monospace;">${r.currencyAmt}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; direction: ltr; font-family: monospace; font-weight: bold;">${r.usdAmt}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; direction: ltr; font-family: monospace; color: #2563eb;">${r.rialAmt}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; direction: ltr;">${r.qDate}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; direction: ltr;">${r.aDate}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px;">${r.rem}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; font-weight: bold; background-color: ${r.statusColor}; color: ${r.statusTextColor};">${r.status}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; font-size: 9px;">${r.bank}</td>
+            <td style="border-left: 1px solid #d1d5db; padding: 4px; font-size: 10px;">${r.prio}</td>
+            <td style="padding: 4px; font-size: 10px;">${r.rank}</td>
         </tr>
     `).join('');
 
@@ -272,12 +329,12 @@ const createAllocationReportHtml = (records) => {
         <meta charset="UTF-8">
         <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
         <style>
-            body { font-family: 'Vazirmatn', sans-serif; padding: 20px; background: #fff; direction: rtl; width: 297mm; margin: 0 auto; }
-            h2 { text-align: center; color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; border: 1px solid #999; }
-            th { background-color: #1e3a8a; color: white; padding: 5px; border: 1px solid #999; }
-            td { padding: 4px; border-right: 1px solid #ccc; }
-            tr:nth-child(even) { background-color: #f8fafc; }
+            body { font-family: 'Vazirmatn', sans-serif; padding: 20px; background: #fff; direction: rtl; width: 296mm; margin: 0 auto; box-sizing: border-box; }
+            h2 { text-align: center; font-weight: 900; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; border: 1px solid #9ca3af; margin-bottom: 24px; }
+            thead { background-color: #1e3a8a; color: white; }
+            th { padding: 4px; border: 1px solid #9ca3af; font-weight: normal; }
+            tbody tr:hover { background-color: #f9fafb; }
         </style>
     </head>
     <body>
@@ -285,13 +342,13 @@ const createAllocationReportHtml = (records) => {
         <table>
             <thead>
                 <tr>
-                    <th>ردیف</th><th>پرونده / کالا</th><th>ثبت سفارش</th><th>شرکت</th><th>مبلغ ارزی</th><th>معادل دلار</th><th>معادل ریالی</th>
-                    <th>زمان در صف</th><th>زمان تخصیص</th><th>مانده</th><th>وضعیت</th><th>بانک</th><th>اولویت</th><th>نوع ارز</th>
+                    <th>ردیف</th><th>پرونده / کالا</th><th>ثبت سفارش</th><th>شرکت</th><th>مبلغ ارزی</th><th>معادل دلار ($)</th><th>معادل ریالی</th>
+                    <th>زمان در صف</th><th>زمان تخصیص</th><th>مانده (روز)</th><th>وضعیت</th><th>بانک عامل</th><th>اولویت</th><th>نوع ارز</th>
                 </tr>
             </thead>
             <tbody>${trs}</tbody>
         </table>
-        <div style="margin-top: 20px; font-size: 10px; color: #666; text-align: center;">تولید شده توسط سیستم مدیریت بازرگانی</div>
+        <div style="font-size: 10px; color: #6b7280; text-align: center;">تولید شده توسط سیستم مدیریت بازرگانی</div>
     </body>
     </html>`;
 };
@@ -307,7 +364,7 @@ const generatePdf = async (htmlContent, landscape = true) => {
         format: landscape ? 'A4' : 'A5', 
         landscape: landscape, 
         printBackground: true, 
-        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' } 
+        margin: { top: '5mm', bottom: '5mm', left: '5mm', right: '5mm' } 
     });
     await browser.close();
     return pdfBuffer;
@@ -402,15 +459,18 @@ export const initTelegram = (token) => {
                 let filtered = [];
                 let label = '';
 
+                // Get only finalized orders for archive
+                const archiveOrders = db.orders.filter(o => o.status === 'تایید نهایی').sort((a,b) => b.createdAt - a.createdAt);
+
                 if (type === 'today') {
-                    // Logic for today (simplified)
-                    filtered = db.orders.filter(o => o.status === 'تایید نهایی').slice(0, 20); 
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    filtered = archiveOrders.filter(o => o.date === todayStr); 
                     label = 'امروز';
                 } else if (type === 'month') {
-                    filtered = db.orders.filter(o => o.status === 'تایید نهایی').slice(0, 50);
+                    filtered = archiveOrders.slice(0, 50); // Simplified for this example
                     label = 'این ماه';
                 } else {
-                    filtered = db.orders.filter(o => o.status === 'تایید نهایی').slice(0, 20);
+                    filtered = archiveOrders.slice(0, 20);
                     label = 'آخرین‌ها';
                 }
 
@@ -418,7 +478,7 @@ export const initTelegram = (token) => {
                     return bot.sendMessage(chatId, "هیچ موردی یافت نشد.");
                 }
 
-                bot.sendMessage(chatId, `📂 *نتایج فیلتر (${label})*\nتعداد: ${filtered.length} مورد\nدر حال ارسال لیست...`, { parse_mode: 'Markdown' });
+                await bot.sendMessage(chatId, `📂 *نتایج فیلتر (${label})*\nتعداد: ${filtered.length} مورد\nدر حال ارسال لیست...`, { parse_mode: 'Markdown' });
 
                 // Send items ONE BY ONE with individual download button
                 for (const order of filtered) {
@@ -435,7 +495,7 @@ export const initTelegram = (token) => {
 
                     await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown', reply_markup: keyboard });
                     // Small delay to prevent flood limits
-                    await new Promise(r => setTimeout(r, 100)); 
+                    await new Promise(r => setTimeout(r, 150)); 
                 }
                 
                 await bot.answerCallbackQuery(query.id);
@@ -453,7 +513,8 @@ export const initTelegram = (token) => {
                 
                 try {
                     const html = createVoucherHtml(order);
-                    const pdf = await generatePdf(html, false); // A5 Portrait logic inside helper
+                    // A5 Landscape matches PrintVoucher.tsx
+                    const pdf = await generatePdf(html, true); 
                     await bot.sendDocument(chatId, pdf, {}, { filename: `Voucher_${order.trackingNumber}.pdf`, contentType: 'application/pdf' });
                 } catch(e) { console.error(e); bot.sendMessage(chatId, 'خطا در تولید فایل.'); }
                 return bot.answerCallbackQuery(query.id);
@@ -466,23 +527,20 @@ export const initTelegram = (token) => {
 
                 bot.sendMessage(chatId, "⏳ در حال تولید گزارش...");
                 
-                // Get filtered records based on session
-                // For simplicity here, assuming 'data' contains IDs or just use all active for Queue report if needed
-                // If it's a specific filter, reload based on IDs
                 const records = db.tradeRecords.filter(r => session.data.includes(r.id));
 
                 try {
                     let pdf;
                     if (session.reportType === 'queue') {
-                        // Use Special Complex Report for Queue
+                        // Use Special Complex Report for Queue (Landscape A4) matching web app
                         const html = createAllocationReportHtml(records);
-                        pdf = await generatePdf(html, true); // Landscape A4
+                        pdf = await generatePdf(html, true); 
                         await bot.sendDocument(chatId, pdf, {}, { filename: `Allocation_Report_${Date.now()}.pdf`, contentType: 'application/pdf' });
                     } else {
                         // Standard logic for others (simplified)
                         const rows = records.map(r => [r.fileNumber, r.goodsName, r.company, r.mainCurrency]);
                         const html = createHtmlReport("گزارش بازرگانی", ["پرونده", "کالا", "شرکت", "ارز"], rows);
-                        pdf = await generatePdf(html);
+                        pdf = await generatePdf(html, false);
                         await bot.sendDocument(chatId, pdf, {}, { filename: `Report_${Date.now()}.pdf`, contentType: 'application/pdf' });
                     }
                 } catch(e) { console.error(e); bot.sendMessage(chatId, 'خطا در تولید.'); }
@@ -492,7 +550,6 @@ export const initTelegram = (token) => {
             // Handle other trade types logic...
             if (data.startsWith('trade_type_')) {
                 const rType = data.replace('trade_type_', '');
-                // For 'queue', we might want to skip complex filters or just show 'All'
                 userSessions.set(chatId, { context: 'trade', reportType: rType, step: 'WAITING_FILTER' });
                 
                 const opts = {
@@ -513,6 +570,7 @@ export const initTelegram = (token) => {
                      const c = data.split('|')[1];
                      filtered = filtered.filter(r => r.company === c);
                  }
+                 // Store IDs for PDF generation
                  userSessions.set(chatId, { ...sess, data: filtered.map(r => r.id) });
                  
                  const txt = `آماده دریافت گزارش (${filtered.length} رکورد).`;
@@ -521,7 +579,6 @@ export const initTelegram = (token) => {
                  return bot.sendMessage(chatId, txt, { parse_mode: 'Markdown', ...opts });
             }
             
-            // ... (Keep existing company selector logic) ...
             if (data === 'trade_filter_company_select') {
                 const companies = [...new Set(db.tradeRecords.map(r => r.company).filter(Boolean))];
                 const buttons = companies.map(c => [{ text: c, callback_data: `trade_do_filter_company|${c}` }]);
@@ -573,6 +630,19 @@ async function handleApprovalAction(bot, query, db) {
     }
     bot.answerCallbackQuery(query.id, { text: resultText, show_alert: !resultText.includes('تایید شد') });
 }
+
+// Helper to generate Main Menu
+const getMainMenu = (user) => {
+    const keys = [];
+    if (['admin', 'ceo', 'financial', 'manager'].includes(user.role)) {
+        keys.push(['📊 کارتابل جاری (تایید/رد)']);
+        keys.push(['💰 بایگانی دستور پرداخت']);
+    }
+    if (user.canManageTrade || ['admin', 'ceo', 'manager'].includes(user.role)) {
+        keys.push(['🌍 گزارشات بازرگانی']);
+    }
+    return { keyboard: keys, resize_keyboard: true };
+};
 
 export const sendMessage = async (chatId, text) => { if (bot && chatId) try { await bot.sendMessage(chatId, text); } catch (e) {} };
 export const sendDocument = async (chatId, filePath, caption) => { if (bot && chatId) try { await bot.sendDocument(chatId, fs.createReadStream(filePath), { caption }); } catch (e) {} };
