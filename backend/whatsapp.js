@@ -40,6 +40,7 @@ export const initWhatsApp = (authDir) => {
 
         client = new Client({ 
             authStrategy: new LocalAuth({ 
+                clientId: 'main_session', // Distinct ID to persist session
                 dataPath: absoluteAuthDir
             }), 
             puppeteer: {
@@ -69,6 +70,10 @@ export const initWhatsApp = (authDir) => {
             qrcode.generate(qr, { small: true }); 
         });
         
+        client.on('authenticated', () => {
+            console.log(">>> WhatsApp Authenticated Successfully (Session Restored) ✅");
+        });
+
         client.on('ready', () => { 
             isReady = true; 
             qrCode = null; 
