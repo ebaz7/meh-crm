@@ -44,6 +44,24 @@ const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('fa-IR');
 };
 
+// --- NUMBERING LOGIC (Matches Server Logic) ---
+const findNextAvailableNumber = (arr, key, base) => {
+    const startNum = base + 1;
+    // Extract numbers, filter invalid ones, and sort
+    const existing = arr
+        .map(o => Number(o[key]))
+        .filter(n => !isNaN(n))
+        .sort((a, b) => a - b);
+    
+    let next = startNum;
+    // Find the first gap or the end of the sequence
+    for (const num of existing) {
+        if (num === next) next++;
+        else if (num > next) return next;
+    }
+    return next;
+};
+
 // --- PDF GENERATORS ---
 const createHtmlReport = (title, headers, rows) => {
     const trs = rows.map(row => `<tr>${row.map(cell => `<td>${cell || '-'}</td>`).join('')}</tr>`).join('');
@@ -211,8 +229,10 @@ const sendConfirmation = (chatId, type, data) => {
 
 // --- DB ACTION FUNCTIONS ---
 const performSavePayment = (db, data, user) => {
-    const nextNum = (db.settings.currentTrackingNumber || 1000) + 1;
-    db.settings.currentTrackingNumber = nextNum;
+    // Determine next number using smart logic (checking DB records)
+    const nextNum = findNextAvailableNumber(db.orders, 'trackingNumber', db.settings.currentTrackingNumber || 1000);
+    db.settings.currentTrackingNumber = nextNum; // Update settings to stay strictly sequential for simple next increment
+    
     const order = {
         id: generateUUID(), trackingNumber: nextNum, date: new Date().toISOString().split('T')[0],
         payee: data.payee, totalAmount: data.amount, description: data.description, status: 'در انتظار بررسی مالی',
@@ -226,8 +246,10 @@ const performSavePayment = (db, data, user) => {
 };
 
 const performSaveExit = (db, data, user) => {
-    const nextNum = (db.settings.currentExitPermitNumber || 1000) + 1;
+    // Smart Numbering
+    const nextNum = findNextAvailableNumber(db.exitPermits, 'permitNumber', db.settings.currentExitPermitNumber || 1000);
     db.settings.currentExitPermitNumber = nextNum;
+
     const permit = {
         id: generateUUID(), permitNumber: nextNum, date: new Date().toISOString().split('T')[0], requester: user.fullName,
         items: [{ id: generateUUID(), goodsName: data.goods, cartonCount: data.count, weight: 0 }],
@@ -240,9 +262,15 @@ const performSaveExit = (db, data, user) => {
 };
 
 const performSaveBijak = (db, data, user) => {
-    const nextSeq = (db.settings.warehouseSequences?.[data.company] || 1000) + 1;
+    const company = data.company;
+    // Smart Numbering for Bijak based on company
+    const currentBase = db.settings.warehouseSequences?.[company] || 1000;
+    const companyTxs = db.warehouseTransactions.filter(t => t.company === company && t.type === 'OUT');
+    const nextSeq = findNextAvailableNumber(companyTxs, 'number', currentBase);
+
     if (!db.settings.warehouseSequences) db.settings.warehouseSequences = {};
-    db.settings.warehouseSequences[data.company] = nextSeq;
+    db.settings.warehouseSequences[company] = nextSeq;
+
     const tx = {
         id: generateUUID(), type: 'OUT', date: new Date().toISOString(), company: data.company, number: nextSeq,
         recipientName: data.recipient, driverName: data.driver, plateNumber: data.plate,
