@@ -10,7 +10,7 @@ import AdmZip from 'adm-zip';
 import cron from 'node-cron';
 
 // --- IMPORT DEDICATED MODULES ---
-import { initTelegram, sendDocument as sendTelegramDoc, sendMessage as sendTelegramMsg } from './backend/telegram.js';
+import { initTelegram, sendDocument as sendTelegramDoc, sendMessage as sendTelegramMsg, notifyNewBijak } from './backend/telegram.js';
 import { initWhatsApp, sendMessage as sendWhatsAppMessage, getStatus as getWhatsAppStatus, logout as logoutWhatsApp, getGroups as getWhatsAppGroups } from './backend/whatsapp.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -291,14 +291,17 @@ app.post('/api/warehouse/transactions', async (req, res) => {
         const nextSeq = currentSeq + 1;
         db.settings.warehouseSequences[tx.company] = nextSeq;
         tx.number = nextSeq;
+        
+        // --- NEW APPROVAL LOGIC ---
+        // Ensure status is PENDING and NOT sent to WhatsApp yet
+        tx.status = 'PENDING';
+        
+        // Notify CEO via Telegram
+        notifyNewBijak(tx);
     }
     
     db.warehouseTransactions.unshift(tx);
     saveDb(db);
-
-    // --- NO BACKEND TEXT NOTIFICATION HERE ---
-    // The Frontend (WarehouseModule.tsx) handles sending the Bijak Image + Caption via /send-whatsapp.
-    // This prevents sending two messages (one text from backend, one image from frontend).
 
     res.json(db.warehouseTransactions);
 });

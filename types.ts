@@ -152,6 +152,10 @@ export interface WarehouseTransaction {
     items: WarehouseTransactionItem[];
     description?: string;
     
+    // Approval Workflow
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    approvedBy?: string; // CEO Name
+    
     createdAt: number;
     createdBy: string;
 }
