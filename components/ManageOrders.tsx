@@ -146,14 +146,22 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const getOrdersForTab = () => {
+      // Base filtering for tab
+      let tabOrders = orders;
+      
       if (activeTab === 'archive') {
-          return orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
+          tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
+      } else {
+          tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO);
       }
-      let visibleOrders = orders;
+
+      // Permissions Filtering (Apply to BOTH Archive and Current)
       if (!permissions.canViewAll) {
-          visibleOrders = orders.filter(o => o.requester === currentUser.fullName);
+          // If user cannot view all, they only see their own requests
+          return tabOrders.filter(o => o.requester === currentUser.fullName);
       }
-      return visibleOrders.filter(o => o.status !== OrderStatus.APPROVED_CEO);
+
+      return tabOrders;
   };
 
   const filteredOrders = getOrdersForTab().filter(order => {

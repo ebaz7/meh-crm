@@ -1,9 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings, User } from '../types';
 import { formatCurrency, parsePersianDate, formatNumberString, getShamsiDateFromIso, jalaliToGregorian, getCurrentShamsiDate } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { TrendingUp, Clock, CheckCircle, Activity, Building2, X, XCircle, Banknote, Calendar as CalendarIcon, Share2, Plus, CalendarDays, Loader2, Send, ShieldCheck, ArrowUpRight, List, ChevronLeft, ChevronRight, Briefcase, Settings } from 'lucide-react';
-import { apiCall } from '../services/apiService';
 import { getRolePermissions } from '../services/authService';
 
 interface DashboardProps {
@@ -20,16 +20,10 @@ const MONTHS = [ 'فروردین', 'اردیبهشت', 'خرداد', 'تیر', '
 const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, onViewArchive, onFilterByStatus }) => {
   const [showBankReport, setShowBankReport] = useState(false);
   const [bankReportTab, setBankReportTab] = useState<'summary' | 'timeline'>('summary');
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-  
-  // Calendar State (Fallback)
-  const currentShamsi = getCurrentShamsiDate();
-  const [calendarMonth, setCalendarMonth] = useState({ year: currentShamsi.year, month: currentShamsi.month });
 
-  // Permissions Check
-  const permissions = getRolePermissions(currentUser.role, settings || null);
-  // STRICT check: Only allow interaction if user explicitly has payment view permission
-  const canViewPayments = permissions.canViewPaymentOrders === true;
+  // Permission Check: Defaults to false if settings not loaded yet to prevent crash, but strictly checks logic
+  const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
+  const hasPaymentAccess = permissions.canViewPaymentOrders === true;
 
   const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
   const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -39,13 +33,24 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const countMgr = orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
-  // Active (Current) Cartable Logic - Filtered by permission
-  const activeCartable = canViewPayments ? orders
+  // Only show active cartable items if user has access. Otherwise empty array.
+  const activeCartable = hasPaymentAccess ? orders
     .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED)
     .sort((a, b) => b.createdAt - a.createdAt)
-    .slice(0, 10) : []; // Show empty if no permission
+    .slice(0, 10) : [];
 
-  // Status Widgets Data
+  const handleWidgetClick = (status: OrderStatus | 'pending_all') => {
+      if (hasPaymentAccess && onFilterByStatus) {
+          onFilterByStatus(status);
+      }
+  };
+
+  const handleArchiveClick = () => {
+      if (hasPaymentAccess && onViewArchive) {
+          onViewArchive();
+      }
+  };
+
   const statusWidgets = [
     { 
       key: OrderStatus.PENDING, 
@@ -103,14 +108,12 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   orders.forEach(order => { order.paymentDetails.forEach(detail => { methodDataRaw[detail.method] = (methodDataRaw[detail.method] || 0) + detail.amount; }); });
   const methodData = Object.keys(methodDataRaw).map(key => ({ name: key, amount: methodDataRaw[key] }));
 
-  // Bank Stats
   const bankStats = useMemo(() => {
     const stats: Record<string, number> = {};
     completedOrders.forEach(order => { order.paymentDetails.forEach(detail => { if (detail.bankName && detail.bankName.trim() !== '') { const normalizedName = detail.bankName.trim(); stats[normalizedName] = (stats[normalizedName] || 0) + detail.amount; } }); });
     return Object.entries(stats).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [completedOrders]);
 
-  // Bank Timeline
   const bankTimeline = useMemo(() => {
       const groups: Record<string, { label: string, total: number, count: number, days: Record<string, { total: number, items: any[] }> }> = {};
       completedOrders.forEach(order => {
@@ -136,20 +139,12 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const topBank = bankStats.length > 0 ? bankStats[0] : { name: '-', value: 0 };
   const mostActiveMonth = bankTimeline.length > 0 ? bankTimeline[0] : { label: '-', total: 0 };
 
-  // CALENDAR LOGIC (Fallback)
-  const getDaysInMonth = (y: number, m: number) => {
-      if (m <= 6) return 31;
-      if (m <= 11) return 30;
-      const isLeap = (y % 33 === 1 || y % 33 === 5 || y % 33 === 9 || y % 33 === 13 || y % 33 === 17 || y % 33 === 22 || y % 33 === 26 || y % 33 === 30);
-      return isLeap ? 30 : 29;
-  };
-
   return (
     <div className="space-y-6 pb-20 md:pb-0 animate-fade-in">
         {/* Status Widgets */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {statusWidgets.map((widget) => (
-                <div key={widget.key} onClick={() => onFilterByStatus?.(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key as any)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm cursor-pointer hover:shadow-md transition-all relative overflow-hidden group`}>
+                <div key={widget.key} onClick={() => handleWidgetClick(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key as any)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm transition-all relative overflow-hidden group ${hasPaymentAccess ? 'cursor-pointer hover:shadow-md' : 'opacity-80 cursor-default'}`}>
                     <div className={`absolute top-0 right-0 w-1.5 h-full ${widget.barColor}`}></div>
                     <div className="flex justify-between items-start mb-2">
                         <div className={`p-2 rounded-xl ${widget.bg} ${widget.color}`}>
@@ -182,7 +177,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2"><BarChart size={20} className="text-indigo-500"/> پرداخت‌ها بر اساس بانک</h3>
-                    <button onClick={() => setShowBankReport(true)} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors">گزارش کامل</button>
+                    {hasPaymentAccess && <button onClick={() => setShowBankReport(true)} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors">گزارش کامل</button>}
                 </div>
                 <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -202,44 +197,52 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20} className="text-orange-500"/> آخرین فعالیت‌ها (کارتابل جاری)</h3>
-                {onViewArchive && <button onClick={onViewArchive} className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">مشاهده آرشیو <ArrowUpRight size={14}/></button>}
+                {onViewArchive && hasPaymentAccess && <button onClick={handleArchiveClick} className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">مشاهده آرشیو <ArrowUpRight size={14}/></button>}
             </div>
-            <div className="divide-y divide-gray-100">
-                {activeCartable.length === 0 ? (
-                    <div className="p-8 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
-                        <CheckCircle size={32} className="opacity-20"/>
-                        کارتابل شما خالی است.
-                    </div>
-                ) : (
-                    activeCartable.map(order => (
-                        <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                    {order.trackingNumber % 100}
+            
+            {!hasPaymentAccess ? (
+                <div className="p-8 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                    <ShieldCheck size={32} className="opacity-20"/>
+                    دسترسی به جزئیات پرداخت محدود شده است.
+                </div>
+            ) : (
+                <div className="divide-y divide-gray-100">
+                    {activeCartable.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
+                            <CheckCircle size={32} className="opacity-20"/>
+                            کارتابل شما خالی است.
+                        </div>
+                    ) : (
+                        activeCartable.map(order => (
+                            <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                        {order.trackingNumber % 100}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-gray-800 text-sm">{order.payee}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                                            <span>{new Date(order.date).toLocaleDateString('fa-IR')}</span>
+                                            <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                            <span>{order.requester}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-bold text-gray-800 text-sm">{order.payee}</div>
-                                    <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                                        <span>{formatDate(order.date)}</span>
-                                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                        <span>{order.requester}</span>
+                                <div className="text-right">
+                                    <div className="font-bold text-gray-900 font-mono text-sm">{formatCurrency(order.totalAmount)}</div>
+                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                                        {order.status}
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <div className="font-bold text-gray-900 font-mono text-sm">{formatCurrency(order.totalAmount)}</div>
-                                <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
-                                    {order.status}
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
+                        ))
+                    )}
+                </div>
+            )}
         </div>
 
         {/* Bank Report Modal */}
-        {showBankReport && (
+        {showBankReport && hasPaymentAccess && (
             <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden">
                     <div className="p-4 border-b flex justify-between items-center bg-gray-50">
