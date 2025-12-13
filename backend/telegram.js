@@ -373,6 +373,20 @@ export const initTelegram = (token) => {
                 return;
             }
 
+            // --- SEPARATE CARTABLES ---
+            if (text === '💰 کارتابل پرداخت') {
+                await sendPaymentCartable(chatId, db, user);
+                return;
+            }
+            if (text === '🚛 کارتابل خروج') {
+                await sendExitCartable(chatId, db, user);
+                return;
+            }
+            if (text === '📦 کارتابل بیجک') {
+                await sendBijakCartable(chatId, db, user);
+                return;
+            }
+
             if (text === '💰 بایگانی دستور پرداخت') {
                 if (!user || !['admin', 'ceo', 'financial', 'manager'].includes(user.role)) return bot.sendMessage(chatId, "⛔ عدم دسترسی");
                 const opts = { reply_markup: { inline_keyboard: [[{ text: '📅 امروز', callback_data: 'filter_pay_today' }, { text: '🗓 این ماه', callback_data: 'filter_pay_month' }], [{ text: '🔢 ۵۰ مورد آخر', callback_data: 'filter_pay_last50' }]] } };
@@ -387,10 +401,6 @@ export const initTelegram = (token) => {
                 if (!user || !['admin', 'ceo', 'manager', 'warehouse_keeper', 'sales_manager', 'factory_manager'].includes(user.role)) return bot.sendMessage(chatId, "⛔ عدم دسترسی");
                 const opts = { reply_markup: { inline_keyboard: [[{ text: '📊 موجودی کلی (همه شرکت‌ها)', callback_data: 'wh_report_all' }], [{ text: '🏢 موجودی بر اساس شرکت', callback_data: 'wh_report_company' }], [{ text: '🚛 لیست بیجک‌ها', callback_data: 'wh_bijak_menu' }]] } }; 
                 return bot.sendMessage(chatId, "📦 *منوی گزارشات انبار*", { parse_mode: 'Markdown', ...opts });
-            }
-            if (text === '📊 کارتابل جاری (تایید/رد)' || text === 'کارتابل') {
-                await sendInteractiveReport(chatId, db);
-                return;
             }
         });
 
@@ -600,17 +610,78 @@ export const initTelegram = (token) => {
     } catch (e) { console.error(">>> Telegram Init Error:", e.message); }
 };
 
-// ... (Rest of existing functions: sendInteractiveReport, handleApprovalAction, getMainMenu, exports) ...
-async function sendInteractiveReport(chatId, db) {
-    const pendingOrders = db.orders.filter(o => o.status !== 'تایید نهایی' && o.status !== 'رد شده');
-    const pendingExits = db.exitPermits.filter(p => p.status !== 'خارج شده (بایگانی)' && p.status !== 'رد شده');
-    if (pendingOrders.length === 0 && pendingExits.length === 0) return bot.sendMessage(chatId, "✅ هیچ کارتابل بازی وجود ندارد.");
-    bot.sendMessage(chatId, "📊 *لیست موارد در انتظار بررسی*", { parse_mode: 'Markdown' });
+// --- SPECIFIC CARTABLE HANDLERS ---
+
+async function sendPaymentCartable(chatId, db, user) {
+    let pendingOrders = [];
+    const role = user.role;
+
+    if (role === 'admin') {
+        pendingOrders = db.orders.filter(o => o.status !== 'تایید نهایی' && o.status !== 'رد شده');
+    } else if (role === 'financial') {
+        pendingOrders = db.orders.filter(o => o.status === 'در انتظار بررسی مالی');
+    } else if (role === 'manager') {
+        pendingOrders = db.orders.filter(o => o.status === 'تایید مالی / در انتظار مدیریت');
+    } else if (role === 'ceo') {
+        pendingOrders = db.orders.filter(o => o.status === 'تایید مدیریت / در انتظار مدیرعامل');
+    }
+
+    if (pendingOrders.length === 0) return bot.sendMessage(chatId, "✅ هیچ دستور پرداخت منتظر تاییدی وجود ندارد.");
+
+    bot.sendMessage(chatId, `💰 *کارتابل پرداخت (${pendingOrders.length} مورد)*`, { parse_mode: 'Markdown' });
     for (const order of pendingOrders) {
         const msg = `💰 *دستور پرداخت #${order.trackingNumber}*\n👤 ذینفع: ${order.payee}\n💵 مبلغ: ${fmt(order.totalAmount)} ریال\n📝 شرح: ${order.description || '-'}\n⏳ وضعیت: ${order.status}`;
         await bot.sendMessage(chatId, msg, { reply_markup: { inline_keyboard: [[{ text: '✅ تایید', callback_data: `pay_approve_${order.trackingNumber}` }, { text: '❌ رد', callback_data: `pay_reject_${order.trackingNumber}` }]] } });
+        await new Promise(r => setTimeout(r, 100)); // Slight delay
     }
 }
+
+async function sendExitCartable(chatId, db, user) {
+    let pendingExits = [];
+    const role = user.role;
+
+    if (role === 'admin') {
+        pendingExits = db.exitPermits.filter(p => p.status !== 'خارج شده (بایگانی)' && p.status !== 'رد شده');
+    } else if (role === 'ceo') {
+        pendingExits = db.exitPermits.filter(p => p.status === 'در انتظار تایید مدیرعامل');
+    } else if (role === 'factory_manager') {
+        pendingExits = db.exitPermits.filter(p => p.status === 'تایید مدیرعامل / در انتظار خروج (کارخانه)');
+    }
+
+    if (pendingExits.length === 0) return bot.sendMessage(chatId, "✅ هیچ مجوز خروج منتظر تاییدی وجود ندارد.");
+
+    bot.sendMessage(chatId, `🚛 *کارتابل خروج (${pendingExits.length} مورد)*`, { parse_mode: 'Markdown' });
+    for (const permit of pendingExits) {
+        const itemsSummary = permit.items?.map(i => `${i.cartonCount} کارتن ${i.goodsName}`).join('، ') || permit.goodsName;
+        const msg = `🚛 *مجوز خروج #${permit.permitNumber}*\n👤 گیرنده: ${permit.recipientName}\n📦 کالا: ${itemsSummary}\n⏳ وضعیت: ${permit.status}`;
+        await bot.sendMessage(chatId, msg, { reply_markup: { inline_keyboard: [[{ text: '✅ تایید', callback_data: `exit_approve_${permit.permitNumber}` }, { text: '❌ رد', callback_data: `exit_reject_${permit.permitNumber}` }]] } });
+        await new Promise(r => setTimeout(r, 100));
+    }
+}
+
+async function sendBijakCartable(chatId, db, user) {
+    // Assuming Admins and CEOs approve Bijaks
+    if (!['admin', 'ceo'].includes(user.role)) return bot.sendMessage(chatId, "⛔ عدم دسترسی");
+
+    const pendingBijaks = db.warehouseTransactions.filter(t => t.type === 'OUT' && t.status === 'PENDING');
+
+    if (pendingBijaks.length === 0) return bot.sendMessage(chatId, "✅ هیچ بیجک منتظر تاییدی وجود ندارد.");
+
+    bot.sendMessage(chatId, `📦 *کارتابل بیجک (${pendingBijaks.length} مورد)*`, { parse_mode: 'Markdown' });
+    for (const tx of pendingBijaks) {
+        const msg = `📦 *درخواست خروج کالا (بیجک)*\n` +
+                    `🏢 شرکت: ${tx.company}\n` +
+                    `🔢 شماره: ${tx.number}\n` +
+                    `👤 گیرنده: ${tx.recipientName}\n` +
+                    `📦 اقلام: ${tx.items.length} مورد\n` +
+                    `👤 ثبت کننده: ${tx.createdBy}`;
+        
+        await bot.sendMessage(chatId, msg, { reply_markup: { inline_keyboard: [[{ text: '✅ تایید و ارسال', callback_data: `bijak_approve_${tx.id}` }, { text: '❌ رد', callback_data: `bijak_reject_${tx.id}` }]] } });
+        await new Promise(r => setTimeout(r, 100));
+    }
+}
+
+// ... (Rest of existing functions: handleApprovalAction, getMainMenu, exports) ...
 
 async function handleApprovalAction(bot, query, db) {
     const [type, action, id] = query.data.split('_'); 
@@ -632,13 +703,21 @@ const getMainMenu = (user) => {
     if (['admin', 'ceo', 'manager', 'sales_manager'].includes(user.role)) actionRow.push('🚛 ثبت مجوز خروج');
     if (['admin', 'warehouse_keeper', 'manager'].includes(user.role)) actionRow.push('📦 صدور بیجک انبار');
     if (actionRow.length > 0) keys.push(actionRow);
-    if (['admin', 'ceo', 'financial', 'manager'].includes(user.role)) {
-        keys.push(['📊 کارتابل جاری (تایید/رد)', '💰 بایگانی دستور پرداخت']);
-    }
+    
+    // Separate Approval Buttons
+    const approvalRow = [];
+    if (['admin', 'ceo', 'financial', 'manager'].includes(user.role)) approvalRow.push('💰 کارتابل پرداخت');
+    if (['admin', 'ceo', 'factory_manager'].includes(user.role)) approvalRow.push('🚛 کارتابل خروج');
+    if (['admin', 'ceo'].includes(user.role)) approvalRow.push('📦 کارتابل بیجک');
+    
+    if (approvalRow.length > 0) keys.push(approvalRow);
+
     const reportRow = [];
+    if (['admin', 'ceo', 'financial', 'manager'].includes(user.role)) reportRow.push('💰 بایگانی دستور پرداخت');
     if (user.canManageTrade || ['admin', 'ceo', 'manager'].includes(user.role)) reportRow.push('🌍 گزارشات بازرگانی');
     if (['admin', 'ceo', 'manager', 'warehouse_keeper', 'sales_manager', 'factory_manager'].includes(user.role)) reportRow.push('📦 گزارشات انبار');
     if (reportRow.length > 0) keys.push(reportRow);
+    
     return { keyboard: keys, resize_keyboard: true };
 };
 
