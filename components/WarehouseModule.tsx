@@ -6,6 +6,7 @@ import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatNumberStri
 import { Package, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, FileText, BarChart3, Eye, Loader2, AlertTriangle, Settings, ArrowLeftRight, Search, FileClock, Printer, FileDown, Share2, LayoutGrid, Archive, Edit, Save, X, Container, CheckCircle } from 'lucide-react';
 import PrintBijak from './PrintBijak';
 import PrintStockReport from './print/PrintStockReport'; 
+import WarehouseKardexReport from './reports/WarehouseKardexReport'; // NEW IMPORT
 import { apiCall } from '../services/apiService';
 
 interface Props { 
@@ -47,8 +48,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     const [editingReceipt, setEditingReceipt] = useState<WarehouseTransaction | null>(null); 
     
     // Reports State
-    const [reportFilterCompany, setReportFilterCompany] = useState('');
-    const [reportFilterItem, setReportFilterItem] = useState('');
     const [archiveFilterCompany, setArchiveFilterCompany] = useState('');
     const [reportSearch, setReportSearch] = useState('');
     const [processingExport, setProcessingExport] = useState(false);
@@ -208,26 +207,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
         try { await updateWarehouseTransaction(updatedTx); setEditingReceipt(null); loadData(); alert('رسید با موفقیت ویرایش شد.'); } catch (e) { console.error(e); alert('خطا در ویرایش رسید.'); }
     };
 
-    // ... (Kardex Logic same) ...
-    const kardexData = useMemo(() => {
-        if (!reportFilterCompany) return []; 
-        let runningBalance = 0; 
-        const movements: any[] = []; 
-        transactions.forEach(tx => { 
-            if (reportFilterCompany && tx.company !== reportFilterCompany) return; 
-            // Include pending? Maybe not in Kardex until approved? Assuming yes for now.
-            if (tx.status === 'REJECTED') return; 
-            
-            tx.items.forEach(item => { 
-                if (reportFilterItem && item.itemId !== reportFilterItem) return; 
-                movements.push({ date: tx.date, txId: tx.id, type: tx.type, company: tx.company, docNumber: tx.number, desc: tx.type === 'IN' ? `پروفرما: ${tx.proformaNumber || '-'}` : `گیرنده: ${tx.recipientName || '-'}`, quantity: item.quantity, itemId: item.itemId, itemName: item.itemName }); 
-            }); 
-        }); 
-        movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); 
-        const calculated = movements.map(m => { if (m.type === 'IN') runningBalance += m.quantity; else runningBalance -= m.quantity; return { ...m, balance: runningBalance }; }); 
-        return calculated; 
-    }, [transactions, reportFilterCompany, reportFilterItem]);
-
     // ... (Stock Report Logic same) ...
     const allWarehousesStock = useMemo(() => {
         const companies = settings?.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
@@ -259,8 +238,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     const pendingBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING'), [transactions]);
 
     // ... (Export handlers same) ...
-    const handleExportKardexPDF = async () => { /* ... */ };
-    const handleSendKardexWhatsApp = async () => { /* ... */ };
     const handlePrintStock = () => { setShowPrintStockReport(true); };
     const handleDownloadStockPDF = async () => { /* ... */ };
 
@@ -307,6 +284,15 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
             <div className="flex-1 overflow-y-auto p-6">
                 
+                {/* --- REPORTS TAB (REPLACED WITH NEW COMPONENT) --- */}
+                {activeTab === 'reports' && (
+                    <WarehouseKardexReport 
+                        items={items}
+                        transactions={transactions}
+                        companies={companyList}
+                    />
+                )}
+
                 {/* APPROVALS TAB */}
                 {activeTab === 'approvals' && (
                     <div className="space-y-4">

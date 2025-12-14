@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem } from '../types';
 import { getTradeRecords, saveTradeRecord, updateTradeRecord, deleteTradeRecord, getSettings, uploadFile } from '../services/storageService';
@@ -394,7 +393,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
     // ... (Keep existing Print/Download functions if they are reused elsewhere) ...
     const handlePrintReport = () => { const content = document.getElementById('allocation-report-table-print-area'); if (!content) return; const printWindow = window.open('', '_blank', 'width=1200,height=800'); if (!printWindow) { alert("پنجره پاپ‌آپ مسدود شده است. لطفا اجازه دهید."); return; } const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(el => el.outerHTML).join(''); printWindow.document.write(`<html dir="rtl" lang="fa"><head><title>گزارش</title>${styleSheets}</head><body>${content.innerHTML}<script>setTimeout(function() { window.focus(); window.print(); }, 1000);</script></body></html>`); printWindow.document.close(); };
-    const handlePrintTrade = () => { window.print(); };
+    const handlePrintTrade = () => { 
+        const style = document.getElementById('page-size-style');
+        if (style) style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
+        window.print(); 
+    };
     
     // Fixed: Properly implemented PDF download handler
     const handleDownloadReportPDF = async (elementId: string, filename: string) => {
@@ -1147,6 +1150,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 </div>
                             </div>
                             
+                            {/* ACTIVATED PRINT/PDF BUTTONS */}
                             <div className="flex justify-end gap-2" data-html2canvas-ignore>
                                 <button onClick={handlePrintTrade} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm"><Printer size={16}/> چاپ گزارش</button>
                                 <button onClick={handleDownloadFinalCalculationPDF} disabled={isGeneratingPdf} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
@@ -1167,93 +1171,118 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     // Dashboard View
     return (
         <div className="p-6 h-[calc(100vh-100px)] overflow-y-auto animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                    {navLevel !== 'ROOT' && <button onClick={navLevel === 'GROUP' ? () => goCompany(selectedCompany!) : goRoot} className="p-2 hover:bg-white rounded-full transition-colors"><ChevronRight /></button>}
-                    <h2 className="text-2xl font-bold text-gray-800">{navLevel === 'ROOT' ? 'پرونده‌های بازرگانی' : navLevel === 'COMPANY' ? selectedCompany : selectedGroup}</h2>
+            {/* Header / Actions */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+                        <Container className="text-blue-600" size={32}/>
+                        سیستم مدیریت بازرگانی
+                    </h1>
+                    <p className="text-gray-500 text-sm mt-1">مدیریت پرونده‌های وارداتی، تخصیص ارز و مراحل گمرکی</p>
                 </div>
-                <div className="flex gap-3">
-                    <button onClick={() => setShowArchived(!showArchived)} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors ${showArchived ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border'}`}><Archive size={18} /> {showArchived ? 'نمایش فعال‌ها' : 'نمایش بایگانی'}</button>
-                    <button onClick={() => setViewMode('reports')} className="px-4 py-2 rounded-lg text-sm font-bold bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 flex items-center gap-2"><FileSpreadsheet size={18} /> گزارشات</button>
-                    <button onClick={() => setShowNewModal(true)} className="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-600/20"><Plus size={18} /> پرونده جدید</button>
+                <div className="flex gap-2">
+                    <button onClick={() => setViewMode('reports')} className="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all">
+                        <FileSpreadsheet size={20}/> گزارشات جامع
+                    </button>
+                    <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all">
+                        <Plus size={20}/> پرونده جدید
+                    </button>
                 </div>
             </div>
 
-            {/* Breadcrumb / Search */}
-            <div className="mb-6 flex gap-4">
-                <div className="flex-1 relative">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                    <input type="text" placeholder="جستجو در پرونده‌ها..." className="w-full pl-4 pr-10 py-3 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                </div>
-            </div>
-
-            {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {searchTerm ? (
-                    // Search Results
-                    records.filter(r => (showArchived ? r.isArchived : !r.isArchived) && (r.goodsName.includes(searchTerm) || r.fileNumber.includes(searchTerm) || r.sellerName.includes(searchTerm))).map(record => (
-                        <div key={record.id} onClick={() => { setSelectedRecord(record); setActiveTab('timeline'); setViewMode('details'); }} className="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-transparent hover:border-blue-200 group">
-                            <div className="flex justify-between items-start mb-3">
-                                <div className="bg-blue-50 text-blue-600 p-2 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors"><FileText size={24} /></div>
-                                <span className={`text-[10px] px-2 py-1 rounded-full ${record.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{record.status === 'Completed' ? 'تکمیل شده' : 'در جریان'}</span>
-                            </div>
-                            <h3 className="font-bold text-gray-800 mb-1 truncate">{record.goodsName}</h3>
-                            <p className="text-xs text-gray-500 mb-3 font-mono">{record.fileNumber}</p>
-                            <div className="flex justify-between items-center text-xs text-gray-400 border-t pt-3">
-                                <span>{record.company}</span>
-                                <span>{record.sellerName}</span>
-                            </div>
-                        </div>
-                    ))
-                ) : (
-                    // Folders (Company / Group) or Files
-                    navLevel !== 'GROUP' ? (
-                        groupedData.map((item: any) => (
-                            <div key={item.name} onClick={() => item.type === 'company' ? goCompany(item.name) : goGroup(item.name)} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-transparent hover:border-indigo-200 flex flex-col items-center justify-center gap-3 group">
-                                <div className={`p-4 rounded-full ${item.type === 'company' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'} group-hover:scale-110 transition-transform`}>
-                                    {item.type === 'company' ? <Building2 size={32} /> : <Package size={32} />}
-                                </div>
-                                <h3 className="font-bold text-gray-800 text-lg text-center">{item.name}</h3>
-                                <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{item.count} پرونده</span>
-                            </div>
-                        ))
-                    ) : (
-                        // List Records in Group
-                        records.filter(r => (showArchived ? r.isArchived : !r.isArchived) && r.company === selectedCompany && r.commodityGroup === selectedGroup).map(record => (
-                            <div key={record.id} onClick={() => { setSelectedRecord(record); setActiveTab('timeline'); setViewMode('details'); }} className="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-transparent hover:border-blue-200 group relative">
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteRecord(record.id); }} className="absolute top-4 left-4 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="bg-blue-50 text-blue-600 p-2 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors"><FileText size={24} /></div>
-                                </div>
-                                <h3 className="font-bold text-gray-800 mb-1 truncate">{record.goodsName}</h3>
-                                <p className="text-xs text-gray-500 mb-3 font-mono">{record.fileNumber}</p>
-                                <div className="flex justify-between items-center text-xs text-gray-400 border-t pt-3">
-                                    <span>{record.sellerName}</span>
-                                    <span>{new Date(record.createdAt).toLocaleDateString('fa-IR')}</span>
-                                </div>
-                            </div>
-                        ))
-                    )
+            {/* Navigation Breadcrumbs */}
+            <div className="flex items-center gap-2 mb-6 text-sm text-gray-600">
+                <button onClick={goRoot} className={`hover:text-blue-600 ${navLevel === 'ROOT' ? 'font-bold text-gray-800' : ''}`}><Home size={16} className="inline mb-1"/> خانه</button>
+                {selectedCompany && (
+                    <>
+                        <span className="text-gray-300">/</span>
+                        <button onClick={() => goCompany(selectedCompany)} className={`hover:text-blue-600 ${navLevel === 'COMPANY' ? 'font-bold text-gray-800' : ''}`}>{selectedCompany}</button>
+                    </>
+                )}
+                {selectedGroup && (
+                    <>
+                        <span className="text-gray-300">/</span>
+                        <span className="font-bold text-gray-800">{selectedGroup}</span>
+                    </>
+                )}
+                {navLevel !== 'ROOT' && (
+                    <button onClick={() => { if(navLevel==='GROUP') goCompany(selectedCompany!); else goRoot(); }} className="mr-auto text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100">
+                        <ChevronRight size={14}/> بازگشت
+                    </button>
                 )}
             </div>
+
+            {/* Content: Grouped Cards or List */}
+            {navLevel !== 'GROUP' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {groupedData.map((item, idx) => (
+                        <div key={idx} onClick={() => item.type === 'company' ? goCompany(item.name) : goGroup(item.name)} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 group-hover:h-full transition-all duration-300"></div>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    {item.type === 'company' ? <Building2 size={24}/> : <Package size={24}/>}
+                                </div>
+                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">{item.count} پرونده</span>
+                            </div>
+                            <h3 className="font-bold text-lg text-gray-800 mb-1">{item.name}</h3>
+                            <p className="text-xs text-gray-500">کلیک برای مشاهده جزئیات</p>
+                        </div>
+                    ))}
+                    {groupedData.length === 0 && (
+                        <div className="col-span-full text-center py-10 text-gray-400">موردی یافت نشد.</div>
+                    )}
+                </div>
+            ) : (
+                /* List of Records in Group */
+                <div className="space-y-4">
+                    <div className="relative mb-4">
+                        <Search className="absolute right-3 top-3 text-gray-400" size={20}/>
+                        <input className="w-full pl-4 pr-12 py-3 border rounded-xl shadow-sm focus:ring-2 focus:ring-blue-100 outline-none transition-all" placeholder="جستجو در پرونده‌ها..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+                    </div>
+                    {records.filter(r => (r.company === selectedCompany) && (r.commodityGroup === selectedGroup) && (!showArchived ? !r.isArchived : true) && (r.goodsName.includes(searchTerm) || r.fileNumber.includes(searchTerm))).map(record => {
+                        const currentStage = STAGES.slice().reverse().find(s => record.stages[s]?.isCompleted) || 'شروع نشده';
+                        return (
+                            <div key={record.id} className="bg-white p-4 rounded-xl border border-gray-200 hover:border-blue-300 transition-all shadow-sm flex flex-col md:flex-row items-center gap-4 group">
+                                <div className="p-3 bg-gray-100 rounded-xl text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors"><FolderOpen size={24}/></div>
+                                <div className="flex-1 text-center md:text-right">
+                                    <h3 className="font-bold text-gray-800 text-lg">{record.goodsName}</h3>
+                                    <div className="text-sm text-gray-500 flex flex-wrap gap-3 justify-center md:justify-start mt-1">
+                                        <span className="bg-gray-50 px-2 py-0.5 rounded border">پرونده: {record.fileNumber}</span>
+                                        <span className="bg-gray-50 px-2 py-0.5 rounded border">فروشنده: {record.sellerName}</span>
+                                        <span className="bg-gray-50 px-2 py-0.5 rounded border">ارز: {record.mainCurrency}</span>
+                                    </div>
+                                </div>
+                                <div className="text-center md:text-left min-w-[150px]">
+                                    <div className="text-xs text-gray-500 mb-1">مرحله فعلی</div>
+                                    <div className="font-bold text-blue-600 text-sm bg-blue-50 px-3 py-1 rounded-full inline-block">{currentStage}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setSelectedRecord(record); setViewMode('details'); setActiveTab('timeline'); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">مشاهده و مدیریت</button>
+                                    <button onClick={() => handleDeleteRecord(record.id)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100 transition-colors"><Trash2 size={20}/></button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* New Record Modal */}
             {showNewModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in">
-                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-xl text-gray-800">ایجاد پرونده جدید</h3><button onClick={() => setShowNewModal(false)}><X size={24} className="text-gray-400 hover:text-red-500"/></button></div>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-scale-in">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-xl text-gray-800">ایجاد پرونده بازرگانی جدید</h3><button onClick={() => setShowNewModal(false)}><X size={24} className="text-gray-400 hover:text-red-500"/></button></div>
                         <div className="space-y-4">
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">شماره پرونده</label><input className="w-full border rounded-xl p-3 bg-gray-50 font-mono text-left dir-ltr" value={newFileNumber} onChange={e => setNewFileNumber(e.target.value)} placeholder="File No..." /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">نام کالا (شرح کلی)</label><input className="w-full border rounded-xl p-3 bg-gray-50" value={newGoodsName} onChange={e => setNewGoodsName(e.target.value)} placeholder="مثال: قطعات الکترونیکی" /></div>
+                            <div><label className="block text-sm font-bold text-gray-700 mb-1">شماره پرونده / سفارش</label><input className="w-full border rounded-xl p-3 bg-gray-50 font-mono text-left dir-ltr focus:bg-white transition-colors" value={newFileNumber} onChange={e => setNewFileNumber(e.target.value)} placeholder="NO-1403-..." autoFocus /></div>
+                            <div><label className="block text-sm font-bold text-gray-700 mb-1">نام کالا (شرح کلی)</label><input className="w-full border rounded-xl p-3 bg-gray-50 focus:bg-white transition-colors" value={newGoodsName} onChange={e => setNewGoodsName(e.target.value)} placeholder="مثال: قطعات یدکی..." /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">فروشنده</label><input className="w-full border rounded-xl p-3 bg-gray-50" value={newSellerName} onChange={e => setNewSellerName(e.target.value)} /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">ارز پایه</label><select className="w-full border rounded-xl p-3 bg-gray-50" value={newMainCurrency} onChange={e => setNewMainCurrency(e.target.value)}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">فروشنده</label><input className="w-full border rounded-xl p-3 bg-gray-50 focus:bg-white transition-colors" value={newSellerName} onChange={e => setNewSellerName(e.target.value)} /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">ارز پایه</label><select className="w-full border rounded-xl p-3 bg-white" value={newMainCurrency} onChange={e => setNewMainCurrency(e.target.value)}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">گروه کالایی</label><select className="w-full border rounded-xl p-3 bg-gray-50" value={newCommodityGroup} onChange={e => setNewCommodityGroup(e.target.value)}><option value="">انتخاب...</option>{commodityGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">شرکت</label><select className="w-full border rounded-xl p-3 bg-gray-50" value={newRecordCompany} onChange={e => setNewRecordCompany(e.target.value)}><option value="">انتخاب...</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">گروه کالایی</label><div className="relative"><input className="w-full border rounded-xl p-3 bg-gray-50 focus:bg-white transition-colors" value={newCommodityGroup} onChange={e => setNewCommodityGroup(e.target.value)} list="commodity-list" /><datalist id="commodity-list">{commodityGroups.map(g => <option key={g} value={g}/>)}</datalist></div></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">شرکت</label><select className="w-full border rounded-xl p-3 bg-white" value={newRecordCompany} onChange={e => setNewRecordCompany(e.target.value)}><option value="">انتخاب...</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                             </div>
-                            <button onClick={handleCreateRecord} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 mt-4">ایجاد پرونده</button>
+                            <button onClick={handleCreateRecord} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 mt-4 transition-transform active:scale-95">ثبت پرونده</button>
                         </div>
                     </div>
                 </div>
