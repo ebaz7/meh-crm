@@ -7,6 +7,7 @@ import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowR
 import { apiCall } from '../services/apiService';
 import AllocationReport from './AllocationReport';
 import CurrencyReport from './reports/CurrencyReport'; // NEW IMPORT
+import CompanyPerformanceReport from './reports/CompanyPerformanceReport'; // NEW IMPORT
 
 interface TradeModuleProps {
     currentUser: User;
@@ -22,7 +23,7 @@ const CURRENCIES = [
 ];
 
 // Report Types
-type ReportType = 'general' | 'allocation_queue' | 'allocated' | 'currency' | 'insurance' | 'shipping' | 'inspection' | 'clearance' | 'green_leaf';
+type ReportType = 'general' | 'allocation_queue' | 'allocated' | 'currency' | 'insurance' | 'shipping' | 'inspection' | 'clearance' | 'green_leaf' | 'company_performance';
 
 const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [records, setRecords] = useState<TradeRecord[]>([]);
@@ -348,6 +349,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             case 'currency': 
                 return <CurrencyReport records={records} />;
             
+            // NEW: Company Performance Report
+            case 'company_performance':
+                return <CompanyPerformanceReport records={records} />;
+            
             // NEW ISOLATED COMPONENT
             case 'allocation_queue':
                 return <AllocationReport records={records} onUpdateRecord={handleUpdateRecordFromReport} settings={settings} />;
@@ -380,6 +385,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                         <button onClick={() => setActiveReport('general')} className={`p-2 rounded text-right text-sm ${activeReport === 'general' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📄 لیست کلی پرونده‌ها</button>
                         <button onClick={() => setActiveReport('allocation_queue')} className={`p-2 rounded text-right text-sm ${activeReport === 'allocation_queue' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>⏳ در صف تخصیص</button>
                         <button onClick={() => setActiveReport('currency')} className={`p-2 rounded text-right text-sm ${activeReport === 'currency' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>💰 وضعیت خرید ارز</button>
+                        <button onClick={() => setActiveReport('company_performance')} className={`p-2 rounded text-right text-sm ${activeReport === 'company_performance' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📊 عملکرد شرکت‌ها</button>
                         <button onClick={() => setActiveReport('clearance')} className={`p-2 rounded text-right text-sm ${activeReport === 'clearance' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>🏭 ترخیصیه و قبض انبار</button>
                         <button onClick={() => setActiveReport('green_leaf')} className={`p-2 rounded text-right text-sm ${activeReport === 'green_leaf' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>🍃 برگ سبز و گمرک</button>
                     </div>
@@ -388,7 +394,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 
                 {/* Content */}
                 <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col w-full min-h-0">
-                    <h2 className="text-xl font-bold mb-4 hidden md:block">{activeReport === 'general' ? 'لیست کلی پرونده‌ها' : activeReport === 'allocation_queue' ? 'گزارش صف تخصیص' : activeReport === 'currency' ? 'گزارش ارزی' : 'گزارش'}</h2>
+                    <h2 className="text-xl font-bold mb-4 hidden md:block">
+                        {activeReport === 'general' ? 'لیست کلی پرونده‌ها' : 
+                         activeReport === 'allocation_queue' ? 'گزارش صف تخصیص' : 
+                         activeReport === 'currency' ? 'گزارش وضعیت خرید ارز' : 
+                         activeReport === 'company_performance' ? 'خلاصه عملکرد شرکت‌ها' : 
+                         'گزارش'}
+                    </h2>
                     {renderReportContent}
                 </div>
             </div>

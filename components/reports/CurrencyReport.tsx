@@ -72,68 +72,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
     const weeksPassed = getWeeksPassed(selectedYear);
 
-    // -- Calculate Summary (Independent of Top Table Filters except Year) --
-    // This ensures the summary includes archive/all records for the selected year regardless of top view.
-    const summaryByCompany = React.useMemo(() => {
-        const summary: Record<string, number> = {};
-        let totalAll = 0;
-
-        records.forEach(r => {
-            const tranches = r.currencyPurchaseData?.tranches || [];
-            
-            // Legacy handling
-            if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
-                const pDate = r.currencyPurchaseData?.purchaseDate;
-                if (!pDate) return;
-                const pYear = parseInt(pDate.split('/')[0]);
-                if (pYear !== selectedYear) return;
-
-                const amount = r.currencyPurchaseData?.purchasedAmount || 0;
-                const type = r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR';
-                
-                let usdRate = 1;
-                if (type === 'EUR') usdRate = rates.eurToUsd;
-                else if (type === 'AED') usdRate = rates.aedToUsd;
-                else if (type === 'CNY') usdRate = rates.cnyToUsd;
-                else if (type === 'TRY') usdRate = rates.tryToUsd;
-
-                const usdAmount = amount * usdRate;
-                const comp = r.company || 'نامشخص';
-                summary[comp] = (summary[comp] || 0) + usdAmount;
-                totalAll += usdAmount;
-            } else {
-                // Tranche handling
-                tranches.forEach(t => {
-                    const pDate = t.date;
-                    if (!pDate) return;
-                    const pYear = parseInt(pDate.split('/')[0]);
-                    if (pYear !== selectedYear) return;
-
-                    let usdRate = 1;
-                    if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
-                    else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
-                    else if (t.currencyType === 'CNY') usdRate = rates.cnyToUsd;
-                    else if (t.currencyType === 'TRY') usdRate = rates.tryToUsd;
-
-                    const usdAmount = t.amount * usdRate;
-                    const comp = r.company || 'نامشخص';
-                    summary[comp] = (summary[comp] || 0) + usdAmount;
-                    totalAll += usdAmount;
-                });
-            }
-        });
-
-        return {
-            details: Object.entries(summary).map(([name, total]) => ({
-                name,
-                total,
-                weeklyAvg: weeksPassed > 0 ? total / weeksPassed : 0
-            })).sort((a,b) => b.total - a.total),
-            totalAll
-        };
-    }, [records, rates, selectedYear, weeksPassed]);
-
-
     // -- Data Processing for Main Table (With Grouping/RowSpan) --
     const processedGroups = React.useMemo(() => {
         const groups: any[] = [];
@@ -435,40 +373,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                             </tr>
                         </tbody>
                     </table>
-
-                    {/* Summary Table (Always includes Archive for the year) */}
-                    <div className="border border-black mt-4 page-break-inside-avoid">
-                        <div className="bg-blue-100 font-bold py-1 border-b border-black text-center text-sm">
-                            خلاصه عملکرد شرکت‌ها در سال {selectedYear} (شامل بایگانی)
-                        </div>
-                        <table className="w-full border-collapse text-center">
-                            <thead>
-                                <tr className="bg-blue-50 text-[10px]">
-                                    <th className="border-b border-l border-black p-1">نام شرکت</th>
-                                    <th className="border-b border-l border-black p-1">جمع کل خرید (دلار)</th>
-                                    <th className="border-b border-black p-1">میانگین هفتگی (دلار)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {summaryByCompany.details.map((item, idx) => (
-                                    <tr key={idx} className="hover:bg-blue-50/50">
-                                        <td className="border-b border-l border-black p-1 font-bold">{item.name}</td>
-                                        <td className="border-b border-l border-black p-1 dir-ltr font-mono">{formatUSD(item.total)}</td>
-                                        <td className="border-b border-black p-1 dir-ltr font-mono text-blue-700">{formatUSD(item.weeklyAvg)}</td>
-                                    </tr>
-                                ))}
-                                <tr className="bg-gray-200 font-black">
-                                    <td className="border-l border-black p-1">جمع کل</td>
-                                    <td className="border-l border-black p-1 dir-ltr">{formatUSD(summaryByCompany.totalAll)}</td>
-                                    <td className="p-1 dir-ltr">{formatUSD(weeksPassed > 0 ? summaryByCompany.totalAll / weeksPassed : 0)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div className="text-[9px] text-gray-500 p-1 text-center bg-gray-50 border-t border-black">
-                            تعداد هفته‌های سپری شده از سال: {Math.round(weeksPassed)}
-                        </div>
-                    </div>
-
                 </div>
             </div>
         </div>
