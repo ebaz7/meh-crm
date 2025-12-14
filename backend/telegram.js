@@ -46,6 +46,19 @@ const formatDate = (dateStr) => {
 
 const formatCurrency = (val) => new Intl.NumberFormat('en-US').format(val);
 
+// Safe Callback Answer to prevent crash on timeout
+const safeAnswerCallback = async (queryId, options = {}) => {
+    if (!bot) return;
+    try {
+        await bot.answerCallbackQuery(queryId, options);
+    } catch (e) {
+        // Prevent crash on "query is too old" error
+        if (!e.message.includes('query is too old')) {
+             console.error("Callback Answer Error (Handled):", e.message);
+        }
+    }
+};
+
 // --- NUMBERING LOGIC (Matches Server Logic) ---
 const findNextAvailableNumber = (arr, key, base) => {
     const startNum = base + 1;
@@ -576,9 +589,9 @@ export const initTelegram = (token) => {
             if (data.startsWith('bijak_approve_')) {
                 const txId = data.replace('bijak_approve_', '');
                 const txIndex = db.warehouseTransactions.findIndex(t => t.id === txId);
-                if (txIndex === -1) return bot.answerCallbackQuery(query.id, { text: 'بیجک یافت نشد.' });
+                if (txIndex === -1) return safeAnswerCallback(query.id, { text: 'بیجک یافت نشد.' });
                 const tx = db.warehouseTransactions[txIndex];
-                if (tx.status === 'APPROVED') return bot.answerCallbackQuery(query.id, { text: 'قبلاً تایید شده است.' });
+                if (tx.status === 'APPROVED') return safeAnswerCallback(query.id, { text: 'قبلاً تایید شده است.' });
 
                 tx.status = 'APPROVED';
                 tx.approvedBy = user.fullName;
@@ -607,7 +620,7 @@ export const initTelegram = (token) => {
                         bot.sendMessage(chatId, "✅ به واتساپ ارسال شد.");
                     }
                 } catch (e) {}
-                return bot.answerCallbackQuery(query.id);
+                return safeAnswerCallback(query.id);
             }
 
             if (data.startsWith('bijak_reject_')) {
@@ -618,7 +631,7 @@ export const initTelegram = (token) => {
                     saveDb(db);
                     await bot.editMessageText(`${query.message.text}\n\n❌ *توسط ${user.fullName} رد شد.*`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
                 }
-                return bot.answerCallbackQuery(query.id);
+                return safeAnswerCallback(query.id);
             }
 
             // Existing Logic (Approvals, Filters, Reports)
@@ -637,21 +650,26 @@ export const initTelegram = (token) => {
                     await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '📥 دانلود رسید PDF', callback_data: `dl_pay_single_${order.id}` }]] } });
                     await new Promise(r => setTimeout(r, 150)); 
                 }
-                await bot.answerCallbackQuery(query.id); return;
+                await safeAnswerCallback(query.id); return;
             }
             
             if (data.startsWith('dl_pay_single_')) {
+                // IMMEDIATE ANSWER to prevent timeout if PDF generation is slow
+                await safeAnswerCallback(query.id);
+                
                 const orderId = data.replace('dl_pay_single_', ''); const order = db.orders.find(o => o.id === orderId);
-                if (!order) return bot.answerCallbackQuery(query.id, { text: 'سند یافت نشد.' });
+                if (!order) return bot.sendMessage(chatId, 'سند یافت نشد.');
+                
                 bot.sendMessage(chatId, `⏳ در حال ایجاد فایل PDF سند ${order.trackingNumber}...`);
                 try { const html = createVoucherHtml(order); const pdf = await generatePdf(html, { format: 'A5', landscape: true }); await bot.sendDocument(chatId, pdf, {}, { filename: `Voucher_${order.trackingNumber}.pdf`, contentType: 'application/pdf' }); } catch(e) { bot.sendMessage(chatId, 'خطا در تولید فایل.'); }
-                return bot.answerCallbackQuery(query.id);
+                return;
             }
 
             if (data === 'wh_report_all') {
+                await safeAnswerCallback(query.id);
                 bot.sendMessage(chatId, "⏳ در حال تولید گزارش موجودی کلی...");
                 try { const calculatedData = calculateStockData(db); const html = createStockReportHtml(calculatedData); const pdf = await generatePdf(html, { format: 'A4', landscape: true }); await bot.sendDocument(chatId, pdf, {}, { filename: `Stock_Report_All_${Date.now()}.pdf`, contentType: 'application/pdf' }); } catch(e) { bot.sendMessage(chatId, "خطا در تولید گزارش."); }
-                return bot.answerCallbackQuery(query.id);
+                return;
             }
             if (data === 'wh_report_company') {
                 const companies = db.settings.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
@@ -659,10 +677,11 @@ export const initTelegram = (token) => {
                 return bot.editMessageText("🏢 شرکت مورد نظر را انتخاب کنید:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
             }
             if (data.startsWith('wh_do_report_company')) {
+                await safeAnswerCallback(query.id);
                 const companyName = data.split('|')[1];
                 bot.sendMessage(chatId, `⏳ در حال تولید گزارش موجودی ${companyName}...`);
                 try { const calculatedData = calculateStockData(db, companyName); const html = createStockReportHtml(calculatedData); const pdf = await generatePdf(html, { format: 'A4', landscape: true }); await bot.sendDocument(chatId, pdf, {}, { filename: `Stock_Report_${companyName}.pdf`, contentType: 'application/pdf' }); } catch(e) { bot.sendMessage(chatId, "خطا در تولید گزارش."); }
-                return bot.answerCallbackQuery(query.id);
+                return;
             }
             if (data === 'wh_bijak_menu') {
                 const opts = { reply_markup: { inline_keyboard: [[{ text: '📦 ۱۰ بیجک آخر', callback_data: 'wh_bijak_list_10' }]] } };
@@ -677,14 +696,15 @@ export const initTelegram = (token) => {
                     await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '📥 دانلود PDF', callback_data: `dl_bijak_${tx.id}` }]] } });
                     await new Promise(r => setTimeout(r, 150)); 
                 }
-                await bot.answerCallbackQuery(query.id); return;
+                await safeAnswerCallback(query.id); return;
             }
             if (data.startsWith('dl_bijak_')) {
+                await safeAnswerCallback(query.id);
                 const txId = data.replace('dl_bijak_', ''); const tx = db.warehouseTransactions.find(t => t.id === txId);
-                if (!tx) return bot.answerCallbackQuery(query.id, { text: 'بیجک یافت نشد.' });
+                if (!tx) return bot.sendMessage(chatId, 'بیجک یافت نشد.');
                 bot.sendMessage(chatId, `⏳ در حال تولید فایل...`);
                 try { const html = createBijakHtml(tx); const pdf = await generatePdf(html, { format: 'A5', landscape: false }); await bot.sendDocument(chatId, pdf, {}, { filename: `Bijak_${tx.number}.pdf`, contentType: 'application/pdf' }); } catch(e) { bot.sendMessage(chatId, 'خطا در تولید فایل.'); }
-                return bot.answerCallbackQuery(query.id);
+                return;
             }
             
             // Trade Reports
@@ -693,6 +713,9 @@ export const initTelegram = (token) => {
                 
                 // Direct PDF generation for reports that don't need filtering
                 if (rType === 'currency' || rType === 'performance') {
+                    // Safe Answer First
+                    await safeAnswerCallback(query.id);
+                    
                     bot.sendMessage(chatId, `⏳ در حال تولید گزارش ${rType === 'currency' ? 'خرید ارز' : 'عملکرد شرکت‌ها'}...`);
                     try {
                         let pdf;
@@ -708,7 +731,7 @@ export const initTelegram = (token) => {
                             await bot.sendDocument(chatId, pdf, {}, { filename: `Performance_Report_${calc.year}.pdf`, contentType: 'application/pdf' });
                         }
                     } catch(e) { console.error(e); bot.sendMessage(chatId, 'خطا در تولید گزارش.'); }
-                    return bot.answerCallbackQuery(query.id);
+                    return;
                 }
 
                 // Filtering flow for other reports
@@ -723,7 +746,7 @@ export const initTelegram = (token) => {
                  userSessions.set(chatId, { ...sess, data: filtered.map(r => r.id) });
                  const txt = `آماده دریافت گزارش (${filtered.length} رکورد).`;
                  const opts = { reply_markup: { inline_keyboard: [[{ text: '📥 دانلود PDF کامل', callback_data: 'dl_trade_pdf' }]] } };
-                 await bot.answerCallbackQuery(query.id); return bot.sendMessage(chatId, txt, { parse_mode: 'Markdown', ...opts });
+                 await safeAnswerCallback(query.id); return bot.sendMessage(chatId, txt, { parse_mode: 'Markdown', ...opts });
             }
             if (data === 'trade_filter_company_select') {
                 const companies = [...new Set(db.tradeRecords.map(r => r.company).filter(Boolean))];
@@ -731,15 +754,18 @@ export const initTelegram = (token) => {
                 return bot.editMessageText("🏢 شرکت را انتخاب کنید:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
             }
             if (data === 'dl_trade_pdf') {
-                const session = userSessions.get(chatId); if (!session) return bot.answerCallbackQuery(query.id, { text: 'نشست نامعتبر' });
+                const session = userSessions.get(chatId); if (!session) return safeAnswerCallback(query.id, { text: 'نشست نامعتبر' });
+                
+                await safeAnswerCallback(query.id);
                 bot.sendMessage(chatId, "⏳ در حال تولید گزارش...");
+                
                 const records = db.tradeRecords.filter(r => session.data.includes(r.id));
                 try {
                     let pdf;
                     if (session.reportType === 'queue') { const html = createAllocationReportHtml(records); pdf = await generatePdf(html, { format: 'A4', landscape: true }); await bot.sendDocument(chatId, pdf, {}, { filename: `Allocation_Report_${Date.now()}.pdf`, contentType: 'application/pdf' }); } 
                     else { const rows = records.map(r => [r.fileNumber, r.goodsName, r.company, r.mainCurrency]); const html = createHtmlReport("گزارش بازرگانی", ["پرونده", "کالا", "شرکت", "ارز"], rows); pdf = await generatePdf(html, { format: 'A4', landscape: false }); await bot.sendDocument(chatId, pdf, {}, { filename: `Report_${Date.now()}.pdf`, contentType: 'application/pdf' }); }
                 } catch(e) { bot.sendMessage(chatId, 'خطا در تولید.'); }
-                return bot.answerCallbackQuery(query.id);
+                return;
             }
         });
 
@@ -829,7 +855,7 @@ async function handleApprovalAction(bot, query, db) {
         const statusText = action === 'approve' ? 'تایید شد' : 'رد شد';
         await bot.editMessageText(`${query.message.text}\n\n${statusEmoji} *${statusText}*`, { chat_id: query.message.chat.id, message_id: query.message.message_id, parse_mode: 'Markdown' });
     }
-    bot.answerCallbackQuery(query.id, { text: resultText, show_alert: !resultText.includes('تایید شد') });
+    safeAnswerCallback(query.id, { text: resultText, show_alert: !resultText.includes('تایید شد') });
 }
 
 const getMainMenu = (user) => {
