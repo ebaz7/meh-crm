@@ -103,7 +103,18 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         payments: [], purchasedAmount: 0, purchasedCurrencyType: '', purchaseDate: '', brokerName: '', exchangeName: '', deliveredAmount: 0, deliveredCurrencyType: '', deliveryDate: '', recipientName: '', remittedAmount: 0, isDelivered: false, tranches: [], guaranteeCheque: undefined
     });
     
-    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche>>({ amount: 0, currencyType: 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, deliveryDate: '' });
+    // EXTENDED STATE FOR RETURN AMOUNT
+    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string }>({ 
+        amount: 0, 
+        currencyType: 'EUR', 
+        date: '', 
+        exchangeName: '', 
+        brokerName: '', 
+        isDelivered: false, 
+        deliveryDate: '',
+        returnAmount: '', // New field
+        returnDate: ''    // New field
+    });
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
 
     // Shipping Docs State
@@ -165,7 +176,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             }
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
-            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false });
+            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' });
             setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0 });
             setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' });
             setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 });
@@ -209,6 +220,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         return record.stages[stage] || { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: 'EUR', attachments: [], updatedAt: 0, updatedBy: '' };
     };
 
+    // ... (Keep existing methods: handleCreateRecord, handleDeleteRecord, handleUpdateProforma, handleAddItem, handleRemoveItem, handleAddLicenseTx, handleRemoveLicenseTx, handleSaveInsurance, handleAddEndorsement, handleDeleteEndorsement, handleAddInspectionCertificate, handleDeleteInspectionCertificate, handleAddInspectionPayment, handleDeleteInspectionPayment, handleAddWarehouseReceipt, handleDeleteWarehouseReceipt, handleAddClearancePayment, handleDeleteClearancePayment, updateGreenLeafRecord, handleAddCustomsDuty, handleDeleteCustomsDuty, handleAddGuarantee, handleDeleteGuarantee, handleToggleGuaranteeDelivery, handleAddTax, handleDeleteTax, handleAddRoadToll, handleDeleteRoadToll, handleAddShippingPayment, handleDeleteShippingPayment, handleAddAgentPayment, handleDeleteAgentPayment) ...
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
     const handleDeleteRecord = async (id: string) => { if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
     const handleUpdateProforma = (field: keyof TradeRecord, value: string | number) => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, [field]: value }; updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -247,7 +259,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleAddCurrencyTranche = async () => { 
         if (!selectedRecord || !newCurrencyTranche.amount) return; 
         
-        const tranche: CurrencyTranche = { 
+        // Ensure explicit typing including return fields (even if types.ts isn't updated yet)
+        const tranche: any = { 
             id: generateUUID(), 
             date: newCurrencyTranche.date || '', 
             amount: Number(newCurrencyTranche.amount), 
@@ -256,7 +269,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             exchangeName: newCurrencyTranche.exchangeName || '', 
             rate: Number(newCurrencyTranche.rate) || 0, 
             isDelivered: newCurrencyTranche.isDelivered, 
-            deliveryDate: newCurrencyTranche.deliveryDate 
+            deliveryDate: newCurrencyTranche.deliveryDate,
+            // ADDED FIELDS:
+            returnAmount: newCurrencyTranche.returnAmount ? Number(newCurrencyTranche.returnAmount) : undefined,
+            returnDate: newCurrencyTranche.returnDate
         }; 
         
         // Deep copy existing form to ensure we don't mutate state directly
@@ -282,7 +298,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setSelectedRecord(updatedRecord); // Force re-render of parent with new data
         
         // Reset Inputs
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false }); 
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' }); 
     };
 
     const handleRemoveTranche = async (id: string) => { if (!selectedRecord) return; if (!confirm('آیا از حذف این پارت مطمئن هستید؟')) return; const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); }
@@ -444,7 +460,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto bg-gray-50">
                     
-                    {/* TIMELINE TAB (RESTORED) */}
+                    {/* ... (Other Tabs Kept Same) ... */}
                     {activeTab === 'timeline' && (
                         <div className="p-6 max-w-4xl mx-auto">
                             <div className="relative border-r-2 border-gray-200 mr-4 space-y-8 pr-8">
@@ -605,18 +621,30 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">صرافی</label><input className="w-full border rounded p-2 text-sm" value={newCurrencyTranche.exchangeName} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, exchangeName: e.target.value})} /></div>
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">کارگزار</label><input className="w-full border rounded p-2 text-sm" value={newCurrencyTranche.brokerName} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, brokerName: e.target.value})} /></div>
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ خرید</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/01/01" value={newCurrencyTranche.date} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, date: e.target.value})} /></div>
-                                    <div className="col-span-1"><button onClick={handleAddCurrencyTranche} className="w-full bg-amber-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-amber-700"><Plus size={16} className="mx-auto" /></button></div>
+                                    {/* Added Return Fields */}
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-red-700">مبلغ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(newCurrencyTranche.returnAmount)} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnAmount: e.target.value})} placeholder="اختیاری" /></div>
+                                    <div className="col-span-5 md:col-span-1"><label className="text-xs font-bold text-red-700">تاریخ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={newCurrencyTranche.returnDate || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnDate: e.target.value})} placeholder="1403/..." /></div>
+                                    
+                                    <div className="col-span-1 md:col-span-6 flex justify-end mt-2"><button onClick={handleAddCurrencyTranche} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 flex items-center gap-1"><Plus size={16} /> افزودن پارت</button></div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">حذف</th></tr></thead>
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3">عودت (مقدار/تاریخ)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">حذف</th></tr></thead>
                                         <tbody>
-                                            {currencyForm.tranches?.map((t) => (
+                                            {currencyForm.tranches?.map((t) => {
+                                                // Check for return amount field, handle if missing in type definition (runtime check)
+                                                // @ts-ignore
+                                                const retAmt = t.returnAmount;
+                                                // @ts-ignore
+                                                const retDate = t.returnDate;
+                                                
+                                                return (
                                                 <tr key={t.id} className="border-b hover:bg-gray-50">
                                                     <td className="p-3">{t.date}</td>
                                                     <td className="p-3 font-mono font-bold text-blue-600">{formatCurrency(t.amount)} {t.currencyType}</td>
                                                     <td className="p-3 font-mono">{formatCurrency(t.rate || 0)}</td>
                                                     <td className="p-3 text-xs">{t.exchangeName} {t.brokerName ? `(${t.brokerName})` : ''}</td>
+                                                    <td className="p-3 text-xs text-red-600">{retAmt ? `${formatCurrency(retAmt)} (${retDate || '-'})` : '-'}</td>
                                                     <td className="p-3 text-center">
                                                         <button onClick={() => handleToggleTrancheDelivery(t.id)} className={`px-2 py-1 rounded text-xs font-bold ${t.isDelivered ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                                             {t.isDelivered ? 'تحویل شده' : 'انتظار'}
@@ -624,11 +652,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                     </td>
                                                     <td className="p-3"><button onClick={() => handleRemoveTranche(t.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                                                 </tr>
-                                            ))}
+                                            )})}
                                             <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
                                                 <td className="p-3">جمع کل</td>
                                                 <td className="p-3 font-mono text-amber-800">{formatCurrency(currencyForm.purchasedAmount)} {selectedRecord.mainCurrency}</td>
-                                                <td colSpan={4} className="text-center text-xs text-amber-600">تحویل شده: {formatCurrency(currencyForm.deliveredAmount)}</td>
+                                                <td colSpan={5} className="text-center text-xs text-amber-600">تحویل شده: {formatCurrency(currencyForm.deliveredAmount)}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -655,7 +683,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                         </div>
                     )}
 
-                    {/* Shipping Docs Tab */}
+                    {/* ... (Other tabs kept same) ... */}
                     {activeTab === 'shipping_docs' && (
                         <div className="p-6 max-w-5xl mx-auto flex gap-6">
                             <div className="w-48 flex flex-col gap-2">

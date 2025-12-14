@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
-import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate } from '../../constants';
+import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate, formatCurrency } from '../../constants';
 import { FileSpreadsheet, Printer, FileDown, Filter, RefreshCw, X, Loader2 } from 'lucide-react';
 
 interface CurrencyReportProps {
@@ -36,7 +36,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
     const [filters, setFilters] = useState({
         company: '',
         bank: '',
-        currencyType: ''
+        currencyType: '',
+        archiveStatus: 'active' as 'active' | 'archive' | 'all' // New Filter
     });
 
     // Helper Data
@@ -59,9 +60,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         if (year > currentShamsi.year) return 0;
         
         // Calculate weeks passed in current year
-        // Approx: Month * 4.3 + Day/7
-        const daysPassed = (currentShamsi.month - 1) * 30 + currentShamsi.day + (currentShamsi.month > 6 ? 6 : 0); // Roughly
-        // More precise logic for first 6 months (31 days)
         let totalDays = 0;
         for (let m = 1; m < currentShamsi.month; m++) {
             totalDays += (m <= 6 ? 31 : 30);
@@ -74,127 +72,181 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
     const weeksPassed = getWeeksPassed(selectedYear);
 
-    // -- Data Processing (Flatten Tranches) --
-    const processedRows = React.useMemo(() => {
-        let rows: any[] = [];
+    // -- Calculate Summary (Independent of Top Table Filters except Year) --
+    // This ensures the summary includes archive/all records for the selected year regardless of top view.
+    const summaryByCompany = React.useMemo(() => {
+        const summary: Record<string, number> = {};
+        let totalAll = 0;
 
         records.forEach(r => {
-            // Filter by record-level fields
-            if (filters.company && r.company !== filters.company) return;
-            if (filters.bank && r.operatingBank !== filters.bank) return;
-            
-            // NOTE: Removed exclusion of 'Completed'/'Archived' status as per request.
-
             const tranches = r.currencyPurchaseData?.tranches || [];
             
-            // Backward compatibility
+            // Legacy handling
             if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
-                // Filter by YEAR
                 const pDate = r.currencyPurchaseData?.purchaseDate;
                 if (!pDate) return;
                 const pYear = parseInt(pDate.split('/')[0]);
                 if (pYear !== selectedYear) return;
 
-                rows.push({
-                    recordId: r.id,
-                    fileNumber: r.fileNumber,
-                    orderNumber: r.orderNumber || r.fileNumber,
-                    registrationNumber: r.registrationNumber,
-                    goodsName: r.goodsName,
-                    company: r.company,
-                    currencyType: r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR',
-                    originalAmount: r.currencyPurchaseData?.purchasedAmount || 0,
-                    purchaseDate: pDate,
-                    rate: 0,
-                    exchangeName: r.currencyPurchaseData?.exchangeName || '-',
-                    isDelivered: r.currencyPurchaseData?.isDelivered,
-                    bank: r.operatingBank,
-                    trackingCode: '-',
-                    deliveredAmount: r.currencyPurchaseData?.deliveredAmount || 0,
-                    returnAmount: 0,
-                    returnDate: '-'
-                });
+                const amount = r.currencyPurchaseData?.purchasedAmount || 0;
+                const type = r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR';
+                
+                let usdRate = 1;
+                if (type === 'EUR') usdRate = rates.eurToUsd;
+                else if (type === 'AED') usdRate = rates.aedToUsd;
+                else if (type === 'CNY') usdRate = rates.cnyToUsd;
+                else if (type === 'TRY') usdRate = rates.tryToUsd;
+
+                const usdAmount = amount * usdRate;
+                const comp = r.company || 'نامشخص';
+                summary[comp] = (summary[comp] || 0) + usdAmount;
+                totalAll += usdAmount;
             } else {
+                // Tranche handling
                 tranches.forEach(t => {
                     const pDate = t.date;
                     if (!pDate) return;
                     const pYear = parseInt(pDate.split('/')[0]);
                     if (pYear !== selectedYear) return;
 
-                    rows.push({
-                        recordId: r.id,
-                        fileNumber: r.fileNumber,
-                        orderNumber: r.orderNumber || r.fileNumber,
-                        registrationNumber: r.registrationNumber,
-                        goodsName: r.goodsName,
-                        company: r.company,
-                        currencyType: t.currencyType,
-                        originalAmount: t.amount,
-                        purchaseDate: t.date,
-                        rate: t.rate || 0,
-                        exchangeName: t.exchangeName || '-',
-                        brokerName: t.brokerName || '-',
-                        isDelivered: t.isDelivered,
-                        bank: r.operatingBank,
-                        trackingCode: t.id.substring(0, 5).toUpperCase(),
-                        deliveredAmount: t.isDelivered ? t.amount : 0,
-                        returnAmount: 0,
-                        returnDate: '-'
-                    });
+                    let usdRate = 1;
+                    if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
+                    else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
+                    else if (t.currencyType === 'CNY') usdRate = rates.cnyToUsd;
+                    else if (t.currencyType === 'TRY') usdRate = rates.tryToUsd;
+
+                    const usdAmount = t.amount * usdRate;
+                    const comp = r.company || 'نامشخص';
+                    summary[comp] = (summary[comp] || 0) + usdAmount;
+                    totalAll += usdAmount;
                 });
             }
         });
 
-        // Search Filter
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            rows = rows.filter(row => 
-                row.fileNumber.toLowerCase().includes(term) ||
-                row.goodsName.toLowerCase().includes(term) ||
-                row.company.toLowerCase().includes(term) ||
-                row.exchangeName.toLowerCase().includes(term)
-            );
-        }
+        return {
+            details: Object.entries(summary).map(([name, total]) => ({
+                name,
+                total,
+                weeklyAvg: weeksPassed > 0 ? total / weeksPassed : 0
+            })).sort((a,b) => b.total - a.total),
+            totalAll
+        };
+    }, [records, rates, selectedYear, weeksPassed]);
 
-        // Currency Filter
-        if (filters.currencyType) {
-            rows = rows.filter(row => row.currencyType === filters.currencyType);
-        }
 
-        // Calculate USD and Rial
-        return rows.map(row => {
-            let usdRate = 1;
-            if (row.currencyType === 'EUR') usdRate = rates.eurToUsd;
-            else if (row.currencyType === 'AED') usdRate = rates.aedToUsd;
-            else if (row.currencyType === 'CNY') usdRate = rates.cnyToUsd;
-            else if (row.currencyType === 'TRY') usdRate = rates.tryToUsd;
-            else if (row.currencyType === 'USD') usdRate = 1;
+    // -- Data Processing for Main Table (With Grouping/RowSpan) --
+    const processedGroups = React.useMemo(() => {
+        const groups: any[] = [];
 
-            const usdAmount = row.originalAmount * usdRate;
-            const rialAmount = row.originalAmount * (row.rate || 0);
+        records.forEach(r => {
+            // 1. Filter by Archive Status
+            if (filters.archiveStatus === 'active' && (r.status === 'Completed' || r.isArchived)) return;
+            if (filters.archiveStatus === 'archive' && !(r.status === 'Completed' || r.isArchived)) return;
 
-            return { ...row, usdAmount, rialAmount };
+            // 2. Standard Filters
+            if (filters.company && r.company !== filters.company) return;
+            if (filters.bank && r.operatingBank !== filters.bank) return;
+            
+            // Search Filter
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const matches = 
+                    r.fileNumber.toLowerCase().includes(term) ||
+                    r.goodsName.toLowerCase().includes(term) ||
+                    r.company.toLowerCase().includes(term) ||
+                    r.currencyPurchaseData?.exchangeName?.includes(term);
+                if (!matches) return;
+            }
+
+            const tranches = r.currencyPurchaseData?.tranches || [];
+            const recordTranches: any[] = [];
+
+            // Legacy Handling
+            if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
+                const pDate = r.currencyPurchaseData?.purchaseDate;
+                if (pDate && parseInt(pDate.split('/')[0]) === selectedYear) {
+                    // Currency Filter
+                    const cType = r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR';
+                    if (filters.currencyType && cType !== filters.currencyType) return;
+
+                    let usdRate = 1;
+                    if (cType === 'EUR') usdRate = rates.eurToUsd;
+                    else if (cType === 'AED') usdRate = rates.aedToUsd;
+                    else if (cType === 'CNY') usdRate = rates.cnyToUsd;
+                    else if (cType === 'TRY') usdRate = rates.tryToUsd;
+
+                    recordTranches.push({
+                        currencyType: cType,
+                        originalAmount: r.currencyPurchaseData?.purchasedAmount || 0,
+                        usdAmount: (r.currencyPurchaseData?.purchasedAmount || 0) * usdRate,
+                        purchaseDate: pDate,
+                        rialAmount: 0,
+                        exchangeName: r.currencyPurchaseData?.exchangeName || '-',
+                        brokerName: r.currencyPurchaseData?.brokerName || '-',
+                        isDelivered: r.currencyPurchaseData?.isDelivered,
+                        deliveredAmount: r.currencyPurchaseData?.deliveredAmount || 0,
+                        returnAmount: 0,
+                        returnDate: '-'
+                    });
+                }
+            } else {
+                tranches.forEach(t => {
+                    const pDate = t.date;
+                    if (pDate && parseInt(pDate.split('/')[0]) === selectedYear) {
+                        if (filters.currencyType && t.currencyType !== filters.currencyType) return;
+
+                        let usdRate = 1;
+                        if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
+                        else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
+                        else if (t.currencyType === 'CNY') usdRate = rates.cnyToUsd;
+                        else if (t.currencyType === 'TRY') usdRate = rates.tryToUsd;
+
+                        recordTranches.push({
+                            currencyType: t.currencyType,
+                            originalAmount: t.amount,
+                            usdAmount: t.amount * usdRate,
+                            purchaseDate: t.date,
+                            rialAmount: t.amount * (t.rate || 0),
+                            exchangeName: t.exchangeName || '-',
+                            brokerName: t.brokerName || '-', // Replaces Tracking Code
+                            isDelivered: t.isDelivered,
+                            deliveredAmount: t.isDelivered ? t.amount : 0,
+                            // @ts-ignore
+                            returnAmount: t.returnAmount || 0, // New Field
+                            // @ts-ignore
+                            returnDate: t.returnDate || '-'    // New Field
+                        });
+                    }
+                });
+            }
+
+            if (recordTranches.length > 0) {
+                groups.push({
+                    recordInfo: {
+                        goodsName: r.goodsName,
+                        fileNumber: r.fileNumber,
+                        orderNumber: r.orderNumber || r.fileNumber,
+                        registrationNumber: r.registrationNumber,
+                        company: r.company,
+                        bank: r.operatingBank
+                    },
+                    tranches: recordTranches
+                });
+            }
         });
+
+        return groups;
     }, [records, filters, searchTerm, rates, selectedYear]);
 
-    // -- Totals --
-    const totalOriginal = processedRows.reduce((sum, r) => sum + r.originalAmount, 0);
-    const totalUSD = processedRows.reduce((sum, r) => sum + r.usdAmount, 0);
-    const totalRial = processedRows.reduce((sum, r) => sum + r.rialAmount, 0);
-
-    // -- Summary By Company --
-    const summaryByCompany = React.useMemo(() => {
-        const summary: Record<string, number> = {};
-        processedRows.forEach(row => {
-            const comp = row.company || 'نامشخص';
-            summary[comp] = (summary[comp] || 0) + row.usdAmount;
+    // -- Totals for Main Table --
+    const tableTotals = processedGroups.reduce((acc, group) => {
+        group.tranches.forEach((t: any) => {
+            acc.usd += t.usdAmount;
+            acc.original += t.originalAmount;
+            acc.rial += t.rialAmount;
         });
-        return Object.entries(summary).map(([name, total]) => ({
-            name,
-            total,
-            weeklyAvg: weeksPassed > 0 ? total / weeksPassed : 0
-        })).sort((a,b) => b.total - a.total);
-    }, [processedRows, weeksPassed]);
+        return acc;
+    }, { usd: 0, original: 0, rial: 0 });
 
     // -- Export Handlers --
     const handlePrint = () => {
@@ -223,11 +275,14 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
     };
 
     const handleExportExcel = () => {
-        // Simple CSV Export
-        const headers = ["ردیف", "شرح کالا", "شماره پرونده", "شرکت", "دلار معادل", "تاریخ"];
+        const headers = ["ردیف", "شرح کالا", "شماره پرونده", "شرکت", "دلار معادل", "تاریخ", "کارگزار", "مبلغ عودت"];
         const rows = [headers.join(",")];
-        processedRows.forEach((r, idx) => {
-            rows.push(`${idx+1},"${r.goodsName}","${r.fileNumber}","${r.company}",${r.usdAmount},${r.purchaseDate}`);
+        let idx = 1;
+        processedGroups.forEach(g => {
+            g.tranches.forEach((t: any) => {
+                rows.push(`${idx},"${g.recordInfo.goodsName}","${g.recordInfo.fileNumber}","${g.recordInfo.company}",${t.usdAmount},${t.purchaseDate},"${t.brokerName}",${t.returnAmount}`);
+                idx++;
+            });
         });
         const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -268,12 +323,12 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
                 {/* Filters Panel */}
                 {showFilters && (
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-white p-3 rounded border animate-fade-in">
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 bg-white p-3 rounded border animate-fade-in">
                         <div><label className="text-[10px] font-bold block mb-1">جستجو</label><input className="w-full border rounded p-1 text-sm" placeholder="..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
                         <div><label className="text-[10px] font-bold block mb-1">شرکت</label><select className="w-full border rounded p-1 text-sm" value={filters.company} onChange={e => setFilters({...filters, company: e.target.value})}><option value="">همه</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                         <div><label className="text-[10px] font-bold block mb-1">بانک</label><select className="w-full border rounded p-1 text-sm" value={filters.bank} onChange={e => setFilters({...filters, bank: e.target.value})}><option value="">همه</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
-                        <div><label className="text-[10px] font-bold block mb-1">نوع ارز</label><select className="w-full border rounded p-1 text-sm" value={filters.currencyType} onChange={e => setFilters({...filters, currencyType: e.target.value})}><option value="">همه</option><option value="EUR">یورو</option><option value="AED">درهم</option><option value="CNY">یوان</option><option value="USD">دلار</option></select></div>
-                        <div className="md:col-span-4 flex justify-end"><button onClick={() => { setFilters({company:'', bank:'', currencyType:'', startDate:'', endDate:''}); setSearchTerm(''); }} className="text-xs text-red-500 flex items-center gap-1"><X size={12}/> پاک کردن فیلترها</button></div>
+                        <div><label className="text-[10px] font-bold block mb-1">وضعیت بایگانی</label><select className="w-full border rounded p-1 text-sm" value={filters.archiveStatus} onChange={e => setFilters({...filters, archiveStatus: e.target.value as any})}><option value="active">پرونده‌های جاری</option><option value="archive">بایگانی شده</option><option value="all">همه موارد</option></select></div>
+                        <div className="md:col-span-5 flex justify-end"><button onClick={() => { setFilters({company:'', bank:'', currencyType:'', archiveStatus:'active'}); setSearchTerm(''); }} className="text-xs text-red-500 flex items-center gap-1"><X size={12}/> پاک کردن فیلترها</button></div>
                     </div>
                 )}
 
@@ -316,7 +371,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                 <th rowSpan={2} className="border border-black p-1">تاریخ<br/>خرید ارز</th>
                                 <th rowSpan={2} className="border border-black p-1">ارز خریداری شده<br/>(ریال)</th>
                                 <th rowSpan={2} className="border border-black p-1">محل ارسال<br/>(صرافی)</th>
-                                <th rowSpan={2} className="border border-black p-1">کد رهگیری<br/>(تراکنش)</th>
+                                <th rowSpan={2} className="border border-black p-1">کارگزار</th> {/* CHANGED FROM Tracking Code */}
                                 <th rowSpan={2} className="border border-black p-1">ارز موجود<br/>نزد هر بانک</th>
                                 <th colSpan={2} className="border border-black p-1 bg-green-50">وضعیت تحویل</th>
                                 <th colSpan={2} className="border border-black p-1 bg-red-50">عودت</th>
@@ -332,46 +387,59 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {processedRows.map((row, index) => (
-                                <tr key={`${row.recordId}_${index}`} className="hover:bg-gray-50 leading-tight">
-                                    <td className="border border-black p-1">{index + 1}</td>
-                                    <td className="border border-black p-1 text-right truncate max-w-[100px]" title={row.goodsName}>{row.goodsName}</td>
-                                    <td className="border border-black p-1 font-mono">{row.fileNumber}</td>
-                                    <td className="border border-black p-1 font-mono">{row.registrationNumber || '-'}</td>
-                                    <td className="border border-black p-1">{row.company}</td>
-                                    <td className="border border-black p-1 font-mono font-bold bg-blue-50/30">{formatUSD(row.usdAmount)}</td>
-                                    <td className="border border-black p-1 font-mono">{formatNumberString(row.originalAmount)}</td>
-                                    <td className="border border-black p-1">{row.currencyType}</td>
-                                    <td className="border border-black p-1 dir-ltr">{row.purchaseDate}</td>
-                                    <td className="border border-black p-1 font-mono">{row.rialAmount > 0 ? formatNumberString(row.rialAmount) : '-'}</td>
-                                    <td className="border border-black p-1 text-[9px] truncate max-w-[80px]" title={row.exchangeName}>{row.exchangeName}</td>
-                                    <td className="border border-black p-1 font-mono text-[9px]">{row.trackingCode}</td>
-                                    <td className="border border-black p-1">{row.bank}</td>
-                                    <td className="border border-black p-1 font-mono bg-green-50/30">{formatNumberString(row.deliveredAmount)}</td>
-                                    <td className="border border-black p-1">{row.isDelivered ? '✅' : '⏳'}</td>
-                                    <td className="border border-black p-1 bg-red-50/30">{row.returnAmount > 0 ? formatNumberString(row.returnAmount) : '-'}</td>
-                                    <td className="border border-black p-1 bg-red-50/30">{row.returnDate}</td>
-                                </tr>
+                            {processedGroups.map((group, gIndex) => (
+                                <React.Fragment key={gIndex}>
+                                    {group.tranches.map((t: any, tIndex: number) => (
+                                        <tr key={`${gIndex}_${tIndex}`} className="hover:bg-gray-50 leading-tight">
+                                            {/* Row Span Logic: Only render details on first tranche */}
+                                            {tIndex === 0 && (
+                                                <>
+                                                    <td className="border border-black p-1" rowSpan={group.tranches.length}>{gIndex + 1}</td>
+                                                    <td className="border border-black p-1 text-right truncate max-w-[100px]" rowSpan={group.tranches.length} title={group.recordInfo.goodsName}>{group.recordInfo.goodsName}</td>
+                                                    <td className="border border-black p-1 font-mono" rowSpan={group.tranches.length}>{group.recordInfo.fileNumber}</td>
+                                                    <td className="border border-black p-1 font-mono" rowSpan={group.tranches.length}>{group.recordInfo.registrationNumber || '-'}</td>
+                                                    <td className="border border-black p-1" rowSpan={group.tranches.length}>{group.recordInfo.company}</td>
+                                                </>
+                                            )}
+                                            
+                                            {/* Tranche Specific Data */}
+                                            <td className="border border-black p-1 font-mono font-bold bg-blue-50/30">{formatUSD(t.usdAmount)}</td>
+                                            <td className="border border-black p-1 font-mono">{formatNumberString(t.originalAmount)}</td>
+                                            <td className="border border-black p-1">{t.currencyType}</td>
+                                            <td className="border border-black p-1 dir-ltr">{t.purchaseDate}</td>
+                                            <td className="border border-black p-1 font-mono">{t.rialAmount > 0 ? formatNumberString(t.rialAmount) : '-'}</td>
+                                            <td className="border border-black p-1 text-[9px] truncate max-w-[80px]" title={t.exchangeName}>{t.exchangeName}</td>
+                                            <td className="border border-black p-1 font-mono text-[9px]">{t.brokerName}</td> {/* Replaced Tracking Code */}
+                                            
+                                            {tIndex === 0 && <td className="border border-black p-1" rowSpan={group.tranches.length}>{group.recordInfo.bank}</td>}
+                                            
+                                            <td className="border border-black p-1 font-mono bg-green-50/30">{formatNumberString(t.deliveredAmount)}</td>
+                                            <td className="border border-black p-1">{t.isDelivered ? '✅' : '⏳'}</td>
+                                            <td className="border border-black p-1 bg-red-50/30">{t.returnAmount > 0 ? formatNumberString(t.returnAmount) : '-'}</td>
+                                            <td className="border border-black p-1 bg-red-50/30">{t.returnDate}</td>
+                                        </tr>
+                                    ))}
+                                </React.Fragment>
                             ))}
-                            {processedRows.length === 0 && (
+                            {processedGroups.length === 0 && (
                                 <tr><td colSpan={18} className="border border-black p-4 text-gray-400">اطلاعاتی یافت نشد</td></tr>
                             )}
                             <tr className="bg-gray-200 font-bold text-[9px]">
                                 <td colSpan={5} className="border border-black p-1 text-center">جمع کل</td>
-                                <td className="border border-black p-1 dir-ltr">{formatUSD(totalUSD)}</td>
-                                <td className="border border-black p-1 dir-ltr">{formatNumberString(totalOriginal)}</td>
+                                <td className="border border-black p-1 dir-ltr">{formatUSD(tableTotals.usd)}</td>
+                                <td className="border border-black p-1 dir-ltr">{formatNumberString(tableTotals.original)}</td>
                                 <td className="border border-black p-1">-</td>
                                 <td className="border border-black p-1">-</td>
-                                <td className="border border-black p-1 dir-ltr">{formatNumberString(totalRial)}</td>
+                                <td className="border border-black p-1 dir-ltr">{formatNumberString(tableTotals.rial)}</td>
                                 <td colSpan={8} className="border border-black p-1"></td>
                             </tr>
                         </tbody>
                     </table>
 
-                    {/* Summary Table */}
+                    {/* Summary Table (Always includes Archive for the year) */}
                     <div className="border border-black mt-4 page-break-inside-avoid">
                         <div className="bg-blue-100 font-bold py-1 border-b border-black text-center text-sm">
-                            خلاصه عملکرد شرکت‌ها در سال {selectedYear}
+                            خلاصه عملکرد شرکت‌ها در سال {selectedYear} (شامل بایگانی)
                         </div>
                         <table className="w-full border-collapse text-center">
                             <thead>
@@ -382,7 +450,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {summaryByCompany.map((item, idx) => (
+                                {summaryByCompany.details.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/50">
                                         <td className="border-b border-l border-black p-1 font-bold">{item.name}</td>
                                         <td className="border-b border-l border-black p-1 dir-ltr font-mono">{formatUSD(item.total)}</td>
@@ -391,8 +459,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                 ))}
                                 <tr className="bg-gray-200 font-black">
                                     <td className="border-l border-black p-1">جمع کل</td>
-                                    <td className="border-l border-black p-1 dir-ltr">{formatUSD(totalUSD)}</td>
-                                    <td className="p-1 dir-ltr">{formatUSD(weeksPassed > 0 ? totalUSD / weeksPassed : 0)}</td>
+                                    <td className="border-l border-black p-1 dir-ltr">{formatUSD(summaryByCompany.totalAll)}</td>
+                                    <td className="p-1 dir-ltr">{formatUSD(weeksPassed > 0 ? summaryByCompany.totalAll / weeksPassed : 0)}</td>
                                 </tr>
                             </tbody>
                         </table>
