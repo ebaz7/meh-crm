@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem } from '../types';
 import { getTradeRecords, saveTradeRecord, updateTradeRecord, deleteTradeRecord, getSettings, uploadFile } from '../services/storageService';
 import { generateUUID, formatCurrency, formatNumberString, deformatNumberString, parsePersianDate, formatDate, calculateDaysDiff, getStatusLabel } from '../constants';
-import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight } from 'lucide-react';
+import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2 } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import AllocationReport from './AllocationReport';
 import CurrencyReport from './reports/CurrencyReport'; // NEW IMPORT
@@ -116,6 +116,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         returnAmount: '', // New field
         returnDate: ''    // New field
     });
+    const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null); // EDIT STATE
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
 
     // Shipping Docs State
@@ -178,6 +179,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
             setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' });
+            setEditingTrancheId(null);
             setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0 });
             setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' });
             setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 });
@@ -260,9 +262,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleAddCurrencyTranche = async () => { 
         if (!selectedRecord || !newCurrencyTranche.amount) return; 
         
+        let updatedTranches = [...(currencyForm.tranches || [])];
+
         // Ensure explicit typing including return fields (even if types.ts isn't updated yet)
-        const tranche: any = { 
-            id: generateUUID(), 
+        const trancheData: any = { 
             date: newCurrencyTranche.date || '', 
             amount: Number(newCurrencyTranche.amount), 
             currencyType: newCurrencyTranche.currencyType || selectedRecord.mainCurrency || 'EUR', 
@@ -275,14 +278,22 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             returnAmount: newCurrencyTranche.returnAmount ? Number(newCurrencyTranche.returnAmount) : undefined,
             returnDate: newCurrencyTranche.returnDate
         }; 
-        
-        // Deep copy existing form to ensure we don't mutate state directly
-        const currentTranches = [...(currencyForm.tranches || [])]; 
-        const updatedTranches = [...currentTranches, tranche]; 
+
+        if (editingTrancheId) {
+            // Update existing
+            updatedTranches = updatedTranches.map(t => t.id === editingTrancheId ? { ...t, ...trancheData } : t);
+        } else {
+            // Add new
+            updatedTranches.push({ ...trancheData, id: generateUUID() });
+        }
         
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
         const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); 
         
+        // Calculate Total RETURNED Amount (converted to main currency units if mixed, assuming same currency for now or user handles it)
+        // Note: For proper cost calculation in Final Stage, we need to subtract returned amounts
+        const totalReturned = updatedTranches.reduce((acc, t: any) => acc + (t.returnAmount || 0), 0);
+
         const updatedForm: CurrencyPurchaseData = { 
             ...currencyForm, 
             tranches: updatedTranches, 
@@ -295,14 +306,62 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         
         // Update Record and Persist
         const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; 
+        
+        // Update Stage Cost (Net Amount)
+        if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
+        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased - totalReturned; // Subtract Returns from Cost
+
         await updateTradeRecord(updatedRecord); 
         setSelectedRecord(updatedRecord); // Force re-render of parent with new data
         
         // Reset Inputs
         setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' }); 
+        setEditingTrancheId(null);
     };
 
-    const handleRemoveTranche = async (id: string) => { if (!selectedRecord) return; if (!confirm('آیا از حذف این پارت مطمئن هستید؟')) return; const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); }
+    const handleEditTranche = (tranche: any) => {
+        setNewCurrencyTranche({
+            amount: tranche.amount,
+            currencyType: tranche.currencyType,
+            date: tranche.date,
+            exchangeName: tranche.exchangeName,
+            brokerName: tranche.brokerName,
+            isDelivered: tranche.isDelivered,
+            deliveryDate: tranche.deliveryDate,
+            rate: tranche.rate,
+            returnAmount: tranche.returnAmount ? String(tranche.returnAmount) : '',
+            returnDate: tranche.returnDate
+        });
+        setEditingTrancheId(tranche.id);
+    };
+
+    const handleCancelEditTranche = () => {
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' });
+        setEditingTrancheId(null);
+    };
+
+    const handleRemoveTranche = async (id: string) => { 
+        if (!selectedRecord) return; 
+        if (!confirm('آیا از حذف این پارت مطمئن هستید؟')) return; 
+        
+        const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); 
+        const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
+        const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); 
+        const totalReturned = updatedTranches.reduce((acc, t: any) => acc + (t.returnAmount || 0), 0);
+
+        const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
+        setCurrencyForm(updatedForm); 
+        
+        const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; 
+        
+        // Update Stage Cost (Net Amount)
+        if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
+        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased - totalReturned;
+
+        await updateTradeRecord(updatedRecord); 
+        setSelectedRecord(updatedRecord); 
+    };
+
     const handleToggleTrancheDelivery = async (id: string) => { if (!selectedRecord) return; const updatedTranches = (currencyForm.tranches || []).map(t => { if (t.id === id) return { ...t, isDelivered: !t.isDelivered }; return t; }); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleSaveCurrencyGuarantee = async () => { if (!selectedRecord) return; const gCheck = { amount: deformatNumberString(currencyGuarantee.amount), bank: currencyGuarantee.bank, chequeNumber: currencyGuarantee.number, dueDate: currencyGuarantee.date, isDelivered: currencyGuarantee.isDelivered }; const updatedForm = { ...currencyForm, guaranteeCheque: gCheck }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert("اطلاعات چک ضمانت ارزی ذخیره شد."); };
     const handleToggleCurrencyGuaranteeDelivery = async () => { if (!selectedRecord || !selectedRecord.currencyPurchaseData?.guaranteeCheque) return; const currentStatus = selectedRecord.currencyPurchaseData.guaranteeCheque.isDelivered || false; setCurrencyGuarantee(prev => ({ ...prev, isDelivered: !currentStatus })); const updatedForm = { ...currencyForm, guaranteeCheque: { ...currencyForm.guaranteeCheque!, isDelivered: !currentStatus } }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -637,11 +696,14 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-red-700">مبلغ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(newCurrencyTranche.returnAmount)} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnAmount: e.target.value})} placeholder="اختیاری" /></div>
                                     <div className="col-span-5 md:col-span-1"><label className="text-xs font-bold text-red-700">تاریخ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={newCurrencyTranche.returnDate || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnDate: e.target.value})} placeholder="1403/..." /></div>
                                     
-                                    <div className="col-span-1 md:col-span-6 flex justify-end mt-2"><button onClick={handleAddCurrencyTranche} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 flex items-center gap-1"><Plus size={16} /> افزودن پارت</button></div>
+                                    <div className="col-span-1 md:col-span-6 flex justify-end mt-2 gap-2">
+                                        {editingTrancheId && <button onClick={handleCancelEditTranche} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-300">انصراف</button>}
+                                        <button onClick={handleAddCurrencyTranche} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 flex items-center gap-1"><Plus size={16} /> {editingTrancheId ? 'ویرایش و ذخیره' : 'افزودن پارت'}</button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3">عودت (مقدار/تاریخ)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">حذف</th></tr></thead>
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3">عودت (مقدار/تاریخ)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">عملیات</th></tr></thead>
                                         <tbody>
                                             {currencyForm.tranches?.map((t) => {
                                                 // Check for return amount field, handle if missing in type definition (runtime check)
@@ -662,7 +724,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                             {t.isDelivered ? 'تحویل شده' : 'انتظار'}
                                                         </button>
                                                     </td>
-                                                    <td className="p-3"><button onClick={() => handleRemoveTranche(t.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
+                                                    <td className="p-3 flex gap-1">
+                                                        <button onClick={() => handleEditTranche(t)} className="text-amber-500 hover:text-amber-700 p-1"><Edit2 size={16}/></button>
+                                                        <button onClick={() => handleRemoveTranche(t.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 size={16}/></button>
+                                                    </td>
                                                 </tr>
                                             )})}
                                             <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
