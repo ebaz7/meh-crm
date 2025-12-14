@@ -3,11 +3,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem } from '../types';
 import { getTradeRecords, saveTradeRecord, updateTradeRecord, deleteTradeRecord, getSettings, uploadFile } from '../services/storageService';
 import { generateUUID, formatCurrency, formatNumberString, deformatNumberString, parsePersianDate, formatDate, calculateDaysDiff, getStatusLabel } from '../constants';
-import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2 } from 'lucide-react';
+import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2, Edit } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import AllocationReport from './AllocationReport';
-import CurrencyReport from './reports/CurrencyReport'; // NEW IMPORT
-import CompanyPerformanceReport from './reports/CompanyPerformanceReport'; // NEW IMPORT
+import CurrencyReport from './reports/CurrencyReport';
+import CompanyPerformanceReport from './reports/CompanyPerformanceReport';
 
 interface TradeModuleProps {
     currentUser: User;
@@ -48,7 +48,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     // Modal & Form States
     const [showNewModal, setShowNewModal] = useState(false);
     const [newFileNumber, setNewFileNumber] = useState('');
-    const [newGoodsName, setNewGoodsName] = useState(''); // Stores System File Number
+    const [newGoodsName, setNewGoodsName] = useState('');
     const [newSellerName, setNewSellerName] = useState('');
     const [newCommodityGroup, setNewCommodityGroup] = useState('');
     const [newMainCurrency, setNewMainCurrency] = useState('EUR');
@@ -56,6 +56,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     
     const [activeTab, setActiveTab] = useState<'timeline' | 'proforma' | 'insurance' | 'currency_purchase' | 'shipping_docs' | 'inspection' | 'clearance_docs' | 'green_leaf' | 'internal_shipping' | 'agent_fees' | 'final_calculation'>('timeline');
     
+    // EDIT METADATA STATE (NEW)
+    const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
+    const [editMetadataForm, setEditMetadataForm] = useState<Partial<TradeRecord>>({});
+
     // Stage Detail Modal State
     const [editingStage, setEditingStage] = useState<TradeStage | null>(null);
     const [stageFormData, setStageFormData] = useState<Partial<TradeStageData>>({});
@@ -84,7 +88,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [greenLeafForm, setGreenLeafForm] = useState<GreenLeafData>({ duties: [], guarantees: [], taxes: [], roadTolls: [] });
     const [newCustomsDuty, setNewCustomsDuty] = useState<Partial<GreenLeafCustomsDuty>>({ cottageNumber: '', part: '', amount: 0, paymentMethod: 'Bank', bank: '', date: '' });
     const [newGuaranteeDetails, setNewGuaranteeDetails] = useState<Partial<GreenLeafGuarantee>>({ guaranteeNumber: '', chequeNumber: '', chequeBank: '', chequeDate: '', cashAmount: 0, cashBank: '', cashDate: '', chequeAmount: 0 });
-    const [selectedDutyForGuarantee, setSelectedDutyForGuarantee] = useState<string>(''); // ID of the duty
+    const [selectedDutyForGuarantee, setSelectedDutyForGuarantee] = useState<string>('');
     const [newTax, setNewTax] = useState<Partial<GreenLeafTax>>({ part: '', amount: 0, bank: '', date: '' });
     const [newRoadToll, setNewRoadToll] = useState<Partial<GreenLeafRoadToll>>({ part: '', amount: 0, bank: '', date: '' });
 
@@ -113,10 +117,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         brokerName: '', 
         isDelivered: false, 
         deliveryDate: '',
-        returnAmount: '', // New field
-        returnDate: ''    // New field
+        returnAmount: '',
+        returnDate: ''
     });
-    const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null); // EDIT STATE
+    const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null);
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
 
     // Shipping Docs State
@@ -223,7 +227,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         return record.stages[stage] || { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: 'EUR', attachments: [], updatedAt: 0, updatedBy: '' };
     };
 
-    // ... (Keep existing methods: handleCreateRecord, handleDeleteRecord, handleUpdateProforma, handleAddItem, handleRemoveItem, handleAddLicenseTx, handleRemoveLicenseTx, handleSaveInsurance, handleAddEndorsement, handleDeleteEndorsement, handleAddInspectionCertificate, handleDeleteInspectionCertificate, handleAddInspectionPayment, handleDeleteInspectionPayment, handleAddWarehouseReceipt, handleDeleteWarehouseReceipt, handleAddClearancePayment, handleDeleteClearancePayment, updateGreenLeafRecord, handleAddCustomsDuty, handleDeleteCustomsDuty, handleAddGuarantee, handleDeleteGuarantee, handleToggleGuaranteeDelivery, handleAddTax, handleDeleteTax, handleAddRoadToll, handleDeleteRoadToll, handleAddShippingPayment, handleDeleteShippingPayment, handleAddAgentPayment, handleDeleteAgentPayment) ...
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
     const handleDeleteRecord = async (id: string) => { if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
     const handleUpdateProforma = (field: keyof TradeRecord, value: string | number) => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, [field]: value }; updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -392,8 +395,63 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     // ... (Keep existing Print/Download functions if they are reused elsewhere) ...
     const handlePrintReport = () => { const content = document.getElementById('allocation-report-table-print-area'); if (!content) return; const printWindow = window.open('', '_blank', 'width=1200,height=800'); if (!printWindow) { alert("پنجره پاپ‌آپ مسدود شده است. لطفا اجازه دهید."); return; } const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(el => el.outerHTML).join(''); printWindow.document.write(`<html dir="rtl" lang="fa"><head><title>گزارش</title>${styleSheets}</head><body>${content.innerHTML}<script>setTimeout(function() { window.focus(); window.print(); }, 1000);</script></body></html>`); printWindow.document.close(); };
     const handlePrintTrade = () => { window.print(); };
-    const handleDownloadReportPDF = async (elementId: string, filename: string) => { /* ... existing ... */ };
+    
+    // Fixed: Properly implemented PDF download handler
+    const handleDownloadReportPDF = async (elementId: string, filename: string) => {
+        setIsGeneratingPdf(true);
+        const element = document.getElementById(elementId);
+        if (!element) { setIsGeneratingPdf(false); return; }
+        try {
+            // @ts-ignore
+            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+            const imgData = canvas.toDataURL('image/png');
+            // @ts-ignore
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pdfWidth = 210;
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`${filename}.pdf`);
+        } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); } 
+        finally { setIsGeneratingPdf(false); }
+    };
+    
     const handleDownloadFinalCalculationPDF = () => handleDownloadReportPDF('print-trade-final', `Final_Calculation_${selectedRecord?.fileNumber}`);
+
+    // Removed duplicate groupedData declaration here. The useMemo hook is already defined above.
+
+    // HANDLER FOR EDIT METADATA MODAL
+    const openEditMetadata = () => {
+        if(!selectedRecord) return;
+        setEditMetadataForm({
+            fileNumber: selectedRecord.fileNumber,
+            goodsName: selectedRecord.goodsName,
+            sellerName: selectedRecord.sellerName,
+            company: selectedRecord.company,
+            commodityGroup: selectedRecord.commodityGroup,
+            mainCurrency: selectedRecord.mainCurrency,
+            registrationNumber: selectedRecord.registrationNumber,
+            operatingBank: selectedRecord.operatingBank,
+            orderNumber: selectedRecord.orderNumber
+        });
+        setShowEditMetadataModal(true);
+    };
+
+    const saveMetadata = async () => {
+        if(!selectedRecord) return;
+        // Merge updates
+        const updatedRecord = { ...selectedRecord, ...editMetadataForm };
+        
+        // Save to DB
+        await updateTradeRecord(updatedRecord);
+        
+        // Update Local State
+        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+        setSelectedRecord(updatedRecord);
+        setShowEditMetadataModal(false);
+        
+        // If company changed, the grouping logic in useMemo will auto-handle it if user goes back to dashboard.
+    };
 
     // --- OPTIMIZED REPORT CONTENT (USE MEMO) ---
     const renderReportContent = useMemo(() => {
@@ -476,6 +534,42 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
         return (
             <div className="flex flex-col h-[calc(100vh-100px)] animate-fade-in relative">
+                
+                {/* EDIT METADATA MODAL */}
+                {showEditMetadataModal && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-xl text-gray-800">ویرایش مشخصات پرونده</h3>
+                                <button onClick={() => setShowEditMetadataModal(false)}><X size={24} className="text-gray-400 hover:text-red-500"/></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">شماره پرونده</label>
+                                    <input className="w-full border rounded-xl p-3 bg-gray-50 font-mono text-left dir-ltr" value={editMetadataForm.fileNumber || ''} onChange={e => setEditMetadataForm({...editMetadataForm, fileNumber: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">نام کالا (شرح کلی)</label>
+                                    <input className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.goodsName || ''} onChange={e => setEditMetadataForm({...editMetadataForm, goodsName: e.target.value})} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">فروشنده</label><input className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.sellerName || ''} onChange={e => setEditMetadataForm({...editMetadataForm, sellerName: e.target.value})} /></div>
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">ارز پایه</label><select className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.mainCurrency || ''} onChange={e => setEditMetadataForm({...editMetadataForm, mainCurrency: e.target.value})}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">گروه کالایی</label><select className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.commodityGroup || ''} onChange={e => setEditMetadataForm({...editMetadataForm, commodityGroup: e.target.value})}><option value="">انتخاب...</option>{commodityGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">شرکت</label><select className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.company || ''} onChange={e => setEditMetadataForm({...editMetadataForm, company: e.target.value})}><option value="">انتخاب...</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">شماره ثبت سفارش</label><input className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.registrationNumber || ''} onChange={e => setEditMetadataForm({...editMetadataForm, registrationNumber: e.target.value})} /></div>
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">بانک عامل</label><select className="w-full border rounded-xl p-3 bg-white" value={editMetadataForm.operatingBank || ''} onChange={e => setEditMetadataForm({...editMetadataForm, operatingBank: e.target.value})}><option value="">انتخاب...</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                </div>
+                                <button onClick={saveMetadata} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 mt-4">ذخیره تغییرات</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Stage Edit Modal */}
                 {editingStage && (
                     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
@@ -512,7 +606,17 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
                 {/* Header */}
                 <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm z-10">
-                    <div className="flex items-center gap-4"><button onClick={() => setViewMode('dashboard')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowRight /></button><div><h1 className="text-xl font-bold flex items-center gap-2">{selectedRecord.goodsName}<span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{selectedRecord.fileNumber}</span></h1><p className="text-xs text-gray-500">{selectedRecord.company} | {selectedRecord.sellerName}</p></div></div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setViewMode('dashboard')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowRight /></button>
+                        <div>
+                            <h1 className="text-xl font-bold flex items-center gap-2">
+                                {selectedRecord.goodsName}
+                                <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{selectedRecord.fileNumber}</span>
+                                <button onClick={openEditMetadata} className="text-gray-400 hover:text-blue-600 transition-colors p-1" title="ویرایش مشخصات پرونده"><Edit size={16}/></button>
+                            </h1>
+                            <p className="text-xs text-gray-500">{selectedRecord.company} | {selectedRecord.sellerName}</p>
+                        </div>
+                    </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                         <button onClick={() => setActiveTab('timeline')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'timeline' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}>تایم‌لاین</button>
                         <button onClick={() => setActiveTab('proforma')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'proforma' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}>پروفرما</button>
@@ -1034,7 +1138,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
                     {/* FINAL CALCULATION TAB */}
                     {activeTab === 'final_calculation' && (
-                        <div className="p-6 max-w-6xl mx-auto space-y-8">
+                        <div id="print-trade-final" className="p-6 max-w-6xl mx-auto space-y-8">
                             <div className="bg-white p-6 rounded-xl shadow-sm border flex flex-col md:flex-row justify-between items-center gap-4">
                                 <div><h3 className="font-bold text-gray-800 text-lg mb-1">وضعیت نهایی پرونده</h3><p className="text-xs text-gray-500">مدیریت تعهدات و بایگانی پرونده</p></div>
                                 <div className="flex gap-2 flex-wrap justify-end">
@@ -1043,7 +1147,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 </div>
                             </div>
                             
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-2" data-html2canvas-ignore>
                                 <button onClick={handlePrintTrade} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm"><Printer size={16}/> چاپ گزارش</button>
                                 <button onClick={handleDownloadFinalCalculationPDF} disabled={isGeneratingPdf} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
                             </div>
