@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { TradeRecord, TradeStage } from '../../types';
-import { formatCurrency, formatNumberString, deformatNumberString, formatDate, jalaliToGregorian } from '../../constants';
-import { FileSpreadsheet, Printer, FileDown, Search, Filter, Settings, X, RefreshCw, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { TradeRecord } from '../../types';
+import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate } from '../../constants';
+import { FileSpreadsheet, Printer, FileDown, Filter, RefreshCw, X, Loader2 } from 'lucide-react';
 
 interface CurrencyReportProps {
     records: TradeRecord[];
@@ -26,6 +26,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         tryToUsd: 0.03
     });
     
+    const [selectedYear, setSelectedYear] = useState<number>(getCurrentShamsiDate().year);
     const [searchTerm, setSearchTerm] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [showRates, setShowRates] = useState(false);
@@ -35,14 +36,13 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
     const [filters, setFilters] = useState({
         company: '',
         bank: '',
-        currencyType: '',
-        startDate: '',
-        endDate: ''
+        currencyType: ''
     });
 
     // Helper Data
     const availableCompanies = Array.from(new Set(records.map(r => r.company).filter(Boolean)));
     const availableBanks = Array.from(new Set(records.map(r => r.operatingBank).filter(Boolean)));
+    const years = Array.from({ length: 5 }, (_, i) => getCurrentShamsiDate().year - 2 + i);
 
     useEffect(() => {
         const savedRates = localStorage.getItem(STORAGE_KEY_RATES);
@@ -53,20 +53,48 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         localStorage.setItem(STORAGE_KEY_RATES, JSON.stringify(rates));
     }, [rates]);
 
+    const getWeeksPassed = (year: number) => {
+        const currentShamsi = getCurrentShamsiDate();
+        if (year < currentShamsi.year) return 52;
+        if (year > currentShamsi.year) return 0;
+        
+        // Calculate weeks passed in current year
+        // Approx: Month * 4.3 + Day/7
+        const daysPassed = (currentShamsi.month - 1) * 30 + currentShamsi.day + (currentShamsi.month > 6 ? 6 : 0); // Roughly
+        // More precise logic for first 6 months (31 days)
+        let totalDays = 0;
+        for (let m = 1; m < currentShamsi.month; m++) {
+            totalDays += (m <= 6 ? 31 : 30);
+        }
+        totalDays += currentShamsi.day;
+        
+        const weeks = totalDays / 7;
+        return weeks > 0 ? weeks : 1; 
+    };
+
+    const weeksPassed = getWeeksPassed(selectedYear);
+
     // -- Data Processing (Flatten Tranches) --
     const processedRows = React.useMemo(() => {
         let rows: any[] = [];
 
         records.forEach(r => {
-            // Filter by record-level fields first
+            // Filter by record-level fields
             if (filters.company && r.company !== filters.company) return;
             if (filters.bank && r.operatingBank !== filters.bank) return;
-            if (r.status === 'Completed' || r.isArchived) return; // Only active records usually
+            
+            // NOTE: Removed exclusion of 'Completed'/'Archived' status as per request.
 
             const tranches = r.currencyPurchaseData?.tranches || [];
             
-            // Backward compatibility: If no tranches but has purchased amount
+            // Backward compatibility
             if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
+                // Filter by YEAR
+                const pDate = r.currencyPurchaseData?.purchaseDate;
+                if (!pDate) return;
+                const pYear = parseInt(pDate.split('/')[0]);
+                if (pYear !== selectedYear) return;
+
                 rows.push({
                     recordId: r.id,
                     fileNumber: r.fileNumber,
@@ -76,19 +104,23 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     company: r.company,
                     currencyType: r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR',
                     originalAmount: r.currencyPurchaseData?.purchasedAmount || 0,
-                    purchaseDate: r.currencyPurchaseData?.purchaseDate || '-',
-                    rate: 0, // Unknown in simple mode
+                    purchaseDate: pDate,
+                    rate: 0,
                     exchangeName: r.currencyPurchaseData?.exchangeName || '-',
-                    brokerName: r.currencyPurchaseData?.brokerName || '-',
                     isDelivered: r.currencyPurchaseData?.isDelivered,
                     bank: r.operatingBank,
-                    trackingCode: '-', // No tranche ID
+                    trackingCode: '-',
                     deliveredAmount: r.currencyPurchaseData?.deliveredAmount || 0,
                     returnAmount: 0,
                     returnDate: '-'
                 });
             } else {
                 tranches.forEach(t => {
+                    const pDate = t.date;
+                    if (!pDate) return;
+                    const pYear = parseInt(pDate.split('/')[0]);
+                    if (pYear !== selectedYear) return;
+
                     rows.push({
                         recordId: r.id,
                         fileNumber: r.fileNumber,
@@ -106,8 +138,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                         bank: r.operatingBank,
                         trackingCode: t.id.substring(0, 5).toUpperCase(),
                         deliveredAmount: t.isDelivered ? t.amount : 0,
-                        returnAmount: 0, // Placeholder
-                        returnDate: '-' // Placeholder
+                        returnAmount: 0,
+                        returnDate: '-'
                     });
                 });
             }
@@ -143,12 +175,26 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
             return { ...row, usdAmount, rialAmount };
         });
-    }, [records, filters, searchTerm, rates]);
+    }, [records, filters, searchTerm, rates, selectedYear]);
 
     // -- Totals --
     const totalOriginal = processedRows.reduce((sum, r) => sum + r.originalAmount, 0);
     const totalUSD = processedRows.reduce((sum, r) => sum + r.usdAmount, 0);
     const totalRial = processedRows.reduce((sum, r) => sum + r.rialAmount, 0);
+
+    // -- Summary By Company --
+    const summaryByCompany = React.useMemo(() => {
+        const summary: Record<string, number> = {};
+        processedRows.forEach(row => {
+            const comp = row.company || 'نامشخص';
+            summary[comp] = (summary[comp] || 0) + row.usdAmount;
+        });
+        return Object.entries(summary).map(([name, total]) => ({
+            name,
+            total,
+            weeklyAvg: weeksPassed > 0 ? total / weeksPassed : 0
+        })).sort((a,b) => b.total - a.total);
+    }, [processedRows, weeksPassed]);
 
     // -- Export Handlers --
     const handlePrint = () => {
@@ -171,58 +217,41 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
             const pdfWidth = 297;
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Currency_Report_${new Date().toLocaleDateString('fa-IR').replace(/\//g, '-')}.pdf`);
+            pdf.save(`Currency_Report_${selectedYear}.pdf`);
         } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); }
         finally { setIsGeneratingPdf(false); }
     };
 
     const handleExportExcel = () => {
-        const headers = [
-            "ردیف", "شرح کالا", "شماره پرونده", "شماره ثبت سفارش", "نام شرکت", 
-            "ارز خریداری شده (دلار)", "ارز خریداری شده (اصل)", "نوع ارز", 
-            "تاریخ خرید", "ارز خریداری شده (ریال)", "محل ارسال (صرافی)", 
-            "بانک عامل", "کد رهگیری", "وضعیت", "ارز تحویل شده"
-        ];
-        
-        const csvRows = [headers.join(",")];
-        
+        // Simple CSV Export
+        const headers = ["ردیف", "شرح کالا", "شماره پرونده", "شرکت", "دلار معادل", "تاریخ"];
+        const rows = [headers.join(",")];
         processedRows.forEach((r, idx) => {
-            const row = [
-                idx + 1,
-                `"${r.goodsName}"`,
-                r.fileNumber,
-                r.registrationNumber || '-',
-                `"${r.company}"`,
-                r.usdAmount.toFixed(2),
-                r.originalAmount,
-                r.currencyType,
-                r.purchaseDate,
-                r.rialAmount,
-                `"${r.exchangeName}"`,
-                `"${r.bank || '-'}"`,
-                r.trackingCode,
-                r.isDelivered ? 'تحویل شده' : 'نزد صرافی',
-                r.deliveredAmount
-            ];
-            csvRows.push(row.join(","));
+            rows.push(`${idx+1},"${r.goodsName}","${r.fileNumber}","${r.company}",${r.usdAmount},${r.purchaseDate}`);
         });
-
-        const bom = "\uFEFF"; 
-        const blob = new Blob([bom + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `Currency_Report.csv`;
+        link.download = `Currency_Report_${selectedYear}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
+
+    const formatUSD = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-sm border h-full flex flex-col">
             {/* Controls */}
             <div className="bg-gray-100 p-3 rounded mb-4 border border-gray-200 no-print">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center flex-wrap">
+                        <div className="flex items-center gap-2 bg-white border rounded px-2 py-1">
+                            <span className="text-xs font-bold text-gray-600">سال مالی:</span>
+                            <select className="bg-transparent text-sm font-bold outline-none" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}>
+                                {years.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        </div>
                         <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm ${showFilters ? 'bg-blue-200 text-blue-800' : 'bg-white border text-gray-700'}`}>
                             <Filter size={16}/> فیلترها
                         </button>
@@ -266,7 +295,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     {/* Header */}
                     <div className="border border-black mb-1 text-center">
                         <div className="bg-gray-200 font-bold py-2 border-b border-black text-sm">
-                            {filters.bank ? `وضعیت خرید ارز های صورت گرفته از ${filters.bank}` : 'وضعیت کلی خرید ارز'}
+                            گزارش جامع خرید ارز - سال {selectedYear}
                         </div>
                         <div className="flex justify-between px-2 py-1 bg-white">
                             <span>تاریخ گزارش: {new Date().toLocaleDateString('fa-IR')}</span>
@@ -274,8 +303,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                         </div>
                     </div>
 
-                    {/* Table */}
-                    <table className="w-full border-collapse border border-black text-center">
+                    {/* Main Table */}
+                    <table className="w-full border-collapse border border-black text-center mb-4">
                         <thead>
                             <tr className="bg-gray-100">
                                 <th rowSpan={2} className="border border-black p-1 w-8">ردیف</th>
@@ -310,7 +339,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                     <td className="border border-black p-1 font-mono">{row.fileNumber}</td>
                                     <td className="border border-black p-1 font-mono">{row.registrationNumber || '-'}</td>
                                     <td className="border border-black p-1">{row.company}</td>
-                                    <td className="border border-black p-1 font-mono font-bold bg-blue-50/30">{formatNumberString(row.usdAmount.toFixed(2))}</td>
+                                    <td className="border border-black p-1 font-mono font-bold bg-blue-50/30">{formatUSD(row.usdAmount)}</td>
                                     <td className="border border-black p-1 font-mono">{formatNumberString(row.originalAmount)}</td>
                                     <td className="border border-black p-1">{row.currencyType}</td>
                                     <td className="border border-black p-1 dir-ltr">{row.purchaseDate}</td>
@@ -329,7 +358,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                             )}
                             <tr className="bg-gray-200 font-bold text-[9px]">
                                 <td colSpan={5} className="border border-black p-1 text-center">جمع کل</td>
-                                <td className="border border-black p-1 dir-ltr">{formatNumberString(totalUSD.toFixed(2))}</td>
+                                <td className="border border-black p-1 dir-ltr">{formatUSD(totalUSD)}</td>
                                 <td className="border border-black p-1 dir-ltr">{formatNumberString(totalOriginal)}</td>
                                 <td className="border border-black p-1">-</td>
                                 <td className="border border-black p-1">-</td>
@@ -338,6 +367,40 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                             </tr>
                         </tbody>
                     </table>
+
+                    {/* Summary Table */}
+                    <div className="border border-black mt-4 page-break-inside-avoid">
+                        <div className="bg-blue-100 font-bold py-1 border-b border-black text-center text-sm">
+                            خلاصه عملکرد شرکت‌ها در سال {selectedYear}
+                        </div>
+                        <table className="w-full border-collapse text-center">
+                            <thead>
+                                <tr className="bg-blue-50 text-[10px]">
+                                    <th className="border-b border-l border-black p-1">نام شرکت</th>
+                                    <th className="border-b border-l border-black p-1">جمع کل خرید (دلار)</th>
+                                    <th className="border-b border-black p-1">میانگین هفتگی (دلار)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {summaryByCompany.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-blue-50/50">
+                                        <td className="border-b border-l border-black p-1 font-bold">{item.name}</td>
+                                        <td className="border-b border-l border-black p-1 dir-ltr font-mono">{formatUSD(item.total)}</td>
+                                        <td className="border-b border-black p-1 dir-ltr font-mono text-blue-700">{formatUSD(item.weeklyAvg)}</td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-gray-200 font-black">
+                                    <td className="border-l border-black p-1">جمع کل</td>
+                                    <td className="border-l border-black p-1 dir-ltr">{formatUSD(totalUSD)}</td>
+                                    <td className="p-1 dir-ltr">{formatUSD(weeksPassed > 0 ? totalUSD / weeksPassed : 0)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div className="text-[9px] text-gray-500 p-1 text-center bg-gray-50 border-t border-black">
+                            تعداد هفته‌های سپری شده از سال: {Math.round(weeksPassed)}
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
