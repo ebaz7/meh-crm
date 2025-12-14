@@ -199,7 +199,20 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         if (!element) { setIsGeneratingPdf(false); return; }
         try {
             // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+            const canvas = await window.html2canvas(element, { 
+                scale: 2, 
+                backgroundColor: '#ffffff', 
+                useCORS: true,
+                // FORCE DESKTOP WIDTH SIMULATION FOR MOBILE
+                windowWidth: 1400,
+                onclone: (clonedDoc) => {
+                    const clonedElement = clonedDoc.getElementById('currency-report-print-area');
+                    if (clonedElement) {
+                        clonedElement.style.width = '297mm'; // Force fixed width
+                        clonedElement.style.margin = '0 auto';
+                    }
+                }
+            });
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;

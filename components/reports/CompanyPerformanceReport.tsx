@@ -134,7 +134,20 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
         if (!element) { setIsGeneratingPdf(false); return; }
         try {
             // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+            const canvas = await window.html2canvas(element, { 
+                scale: 2, 
+                backgroundColor: '#ffffff', 
+                useCORS: true,
+                // FORCE DESKTOP WIDTH
+                windowWidth: 1000, 
+                onclone: (clonedDoc) => {
+                    const clonedElement = clonedDoc.getElementById('performance-report-print-area');
+                    if (clonedElement) {
+                        clonedElement.style.width = '210mm'; // Force fixed width A4
+                        clonedElement.style.margin = '0 auto';
+                    }
+                }
+            });
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;

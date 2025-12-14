@@ -44,6 +44,8 @@ const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('fa-IR');
 };
 
+const formatCurrency = (val) => new Intl.NumberFormat('en-US').format(val);
+
 // --- NUMBERING LOGIC (Matches Server Logic) ---
 const findNextAvailableNumber = (arr, key, base) => {
     const startNum = base + 1;
@@ -93,6 +95,90 @@ const createBijakHtml = (tx, hidePrice = false) => {
 const createVoucherHtml = (order) => `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"/><link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet"/><style>body{font-family:'Vazirmatn';padding:20px;direction:rtl;width:209mm;margin:0 auto;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}th,td{border:1px solid #ccc;padding:5px;text-align:center}.box{background:#f9f9f9;padding:10px;border:1px solid #ddd;margin-bottom:10px}</style></head><body><div class="header"><h1>${order.payingCompany}</h1><div><h2>دستور پرداخت</h2><p>شماره: ${order.trackingNumber}</p><p>تاریخ: ${formatDate(order.date)}</p></div></div><div class="box"><div><b>ذینفع:</b> ${order.payee}</div><div><b>مبلغ:</b> ${fmt(order.totalAmount)} ریال</div><div><b>بابت:</b> ${order.description}</div></div><table><thead><tr><th>روش</th><th>مبلغ</th><th>بانک/چک</th></tr></thead><tbody>${order.paymentDetails.map(d=>`<tr><td>${d.method}</td><td>${fmt(d.amount)}</td><td>${d.bankName||d.chequeNumber||'-'}</td></tr>`).join('')}</tbody></table><div style="margin-top:40px;text-align:center;display:flex;justify-content:space-around"><div>درخواست کننده<br>${order.requester}</div><div>مدیر مالی<br>${order.approverFinancial||'-'}</div><div>مدیر عامل<br>${order.approverCeo||'-'}</div></div></body></html>`;
 
 const createAllocationReportHtml = (records) => { return createHtmlReport("گزارش تخصیص ارز", ["پرونده", "کالا", "مبلغ", "وضعیت"], records.map(r => [r.fileNumber, r.goodsName, fmt(r.items.reduce((a,b)=>a+b.totalPrice,0)), r.status])); }; 
+
+// --- NEW REPORT HTML GENERATORS ---
+
+const calculateCurrencyReportData = (records) => {
+    // Basic aggregation similar to frontend, using default rates
+    const rates = { eurToUsd: 1.08, aedToUsd: 0.272, cnyToUsd: 0.14, tryToUsd: 0.03 };
+    const selectedYear = 1404; // Default to current or relevant year
+    
+    const rows = [];
+    let idx = 1;
+    let totals = { usd: 0, original: 0, rial: 0 };
+
+    records.forEach(r => {
+        if (r.status === 'Completed' || r.isArchived) return; // Active only for now
+        const tranches = r.currencyPurchaseData?.tranches || [];
+        
+        tranches.forEach(t => {
+            if (!t.date || !t.date.startsWith(selectedYear.toString())) return;
+            
+            let usdRate = 1;
+            if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
+            else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
+            else if (t.currencyType === 'CNY') usdRate = rates.cnyToUsd;
+            else if (t.currencyType === 'TRY') usdRate = rates.tryToUsd;
+
+            const usdAmount = t.amount * usdRate;
+            
+            totals.usd += usdAmount;
+            totals.original += t.amount;
+            totals.rial += (t.amount * (t.rate || 0));
+
+            rows.push([
+                idx++,
+                r.goodsName,
+                r.fileNumber,
+                r.company,
+                formatCurrency(Math.round(usdAmount)),
+                formatCurrency(t.amount) + ' ' + t.currencyType,
+                t.purchaseDate,
+                formatCurrency(t.amount * (t.rate || 0)),
+                t.exchangeName,
+                t.isDelivered ? '✅' : '⏳'
+            ]);
+        });
+    });
+    return { rows, totals, year: selectedYear };
+};
+
+const createCurrencyReportHtml = (data) => {
+    const trs = data.rows.map(row => `<tr>${row.map(c => `<td>${c || '-'}</td>`).join('')}</tr>`).join('');
+    return `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet"/><style>body{font-family:'Vazirmatn';padding:20px;direction:rtl}h1{text-align:center;border-bottom:2px solid #333}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #ddd;padding:6px;text-align:center}th{background:#e5e7eb;font-weight:bold}.totals{font-weight:bold;background:#f3f4f6}</style></head><body><h1>گزارش خرید ارز (${data.year})</h1><table><thead><tr><th>ردیف</th><th>کالا</th><th>پرونده</th><th>شرکت</th><th>دلار معادل</th><th>مقدار ارز</th><th>تاریخ</th><th>ریالی</th><th>صرافی</th><th>وضعیت</th></tr></thead><tbody>${trs}<tr class="totals"><td colspan="4">جمع کل</td><td>${formatCurrency(Math.round(data.totals.usd))}</td><td>-</td><td>-</td><td>${formatCurrency(data.totals.rial)}</td><td>-</td><td>-</td></tr></tbody></table></body></html>`;
+};
+
+const calculatePerformanceData = (records) => {
+    const rates = { eurToUsd: 1.08, aedToUsd: 0.272, cnyToUsd: 0.14, tryToUsd: 0.03 };
+    const selectedYear = 1404;
+    const summary = {};
+    let totalAll = 0;
+
+    records.forEach(r => {
+        const tranches = r.currencyPurchaseData?.tranches || [];
+        tranches.forEach(t => {
+            if (!t.date || !t.date.startsWith(selectedYear.toString())) return;
+            let usdRate = 1;
+            if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
+            else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
+            else if (t.currencyType === 'CNY') usdRate = rates.cnyToUsd;
+            else if (t.currencyType === 'TRY') usdRate = rates.tryToUsd;
+
+            const usdAmount = t.amount * usdRate;
+            const comp = r.company || 'نامشخص';
+            summary[comp] = (summary[comp] || 0) + usdAmount;
+            totalAll += usdAmount;
+        });
+    });
+
+    const details = Object.entries(summary).map(([name, total]) => ({ name, total })).sort((a,b) => b.total - a.total);
+    return { details, totalAll, year: selectedYear };
+};
+
+const createPerformanceReportHtml = (data) => {
+    const trs = data.details.map(item => `<tr><td>${item.name}</td><td style="font-family:monospace;font-weight:bold">${formatCurrency(Math.round(item.total))}</td></tr>`).join('');
+    return `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet"/><style>body{font-family:'Vazirmatn';padding:20px;direction:rtl}h1{text-align:center;border-bottom:2px solid #333}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #000;padding:10px;text-align:center}th{background:#bfdbfe}</style></head><body><h1>عملکرد شرکت‌ها (${data.year})</h1><table><thead><tr><th>نام شرکت</th><th>جمع خرید (دلار)</th></tr></thead><tbody>${trs}<tr style="background:#1f2937;color:white;font-weight:bold"><td>جمع کل</td><td style="font-family:monospace">${formatCurrency(Math.round(data.totalAll))}</td></tr></tbody></table></body></html>`;
+};
 
 const generatePdf = async (htmlContent, options = {}) => {
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -422,7 +508,7 @@ export const initTelegram = (token) => {
             }
             if (text === '🌍 گزارشات بازرگانی') {
                 if (!user || (!['admin', 'ceo', 'manager'].includes(user.role) && !user.canManageTrade)) return bot.sendMessage(chatId, "⛔ عدم دسترسی");
-                const opts = { reply_markup: { inline_keyboard: [[{ text: '📄 لیست کلی پرونده‌ها', callback_data: 'trade_type_general' }], [{ text: '⏳ صف تخصیص ارز', callback_data: 'trade_type_queue' }], [{ text: '💰 وضعیت خرید ارز', callback_data: 'trade_type_currency' }], [{ text: '🏭 ترخیص و انبار', callback_data: 'trade_type_clearance' }]] } };
+                const opts = { reply_markup: { inline_keyboard: [[{ text: '📄 لیست کلی پرونده‌ها', callback_data: 'trade_type_general' }], [{ text: '⏳ صف تخصیص ارز', callback_data: 'trade_type_queue' }], [{ text: '💰 وضعیت خرید ارز', callback_data: 'trade_type_currency' }], [{ text: '📊 عملکرد شرکت‌ها', callback_data: 'trade_type_performance' }], [{ text: '🏭 ترخیص و انبار', callback_data: 'trade_type_clearance' }]] } };
                 return bot.sendMessage(chatId, "🌍 *منوی گزارشات بازرگانی*", { parse_mode: 'Markdown', ...opts });
             }
             if (text === '📦 گزارشات انبار') {
@@ -604,6 +690,28 @@ export const initTelegram = (token) => {
             // Trade Reports
             if (data.startsWith('trade_type_')) {
                 const rType = data.replace('trade_type_', '');
+                
+                // Direct PDF generation for reports that don't need filtering
+                if (rType === 'currency' || rType === 'performance') {
+                    bot.sendMessage(chatId, `⏳ در حال تولید گزارش ${rType === 'currency' ? 'خرید ارز' : 'عملکرد شرکت‌ها'}...`);
+                    try {
+                        let pdf;
+                        if (rType === 'currency') {
+                            const calc = calculateCurrencyReportData(db.tradeRecords || []);
+                            const html = createCurrencyReportHtml(calc);
+                            pdf = await generatePdf(html, { format: 'A4', landscape: true });
+                            await bot.sendDocument(chatId, pdf, {}, { filename: `Currency_Report_${calc.year}.pdf`, contentType: 'application/pdf' });
+                        } else {
+                            const calc = calculatePerformanceData(db.tradeRecords || []);
+                            const html = createPerformanceReportHtml(calc);
+                            pdf = await generatePdf(html, { format: 'A4', landscape: false });
+                            await bot.sendDocument(chatId, pdf, {}, { filename: `Performance_Report_${calc.year}.pdf`, contentType: 'application/pdf' });
+                        }
+                    } catch(e) { console.error(e); bot.sendMessage(chatId, 'خطا در تولید گزارش.'); }
+                    return bot.answerCallbackQuery(query.id);
+                }
+
+                // Filtering flow for other reports
                 userSessions.set(chatId, { context: 'trade', reportType: rType, step: 'WAITING_FILTER' });
                 const opts = { reply_markup: { inline_keyboard: [[{ text: 'نمایش همه', callback_data: 'trade_filter_all' }], [{ text: '🏢 فیلتر بر اساس شرکت', callback_data: 'trade_filter_company_select' }]] } };
                 return bot.editMessageText(`گزارش انتخابی: ${rType}\nفیلتر مورد نظر را انتخاب کنید:`, { chat_id: chatId, message_id: query.message.message_id, ...opts });
