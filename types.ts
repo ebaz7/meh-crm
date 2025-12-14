@@ -208,6 +208,7 @@ export interface SystemSettings {
   companies?: Company[]; 
   defaultCompany: string; 
   bankNames: string[]; 
+  operatingBankNames?: string[]; // Separate banks for Trade
   commodityGroups: string[]; 
   rolePermissions: Record<string, RolePermissions>; 
   savedContacts?: Contact[]; 
