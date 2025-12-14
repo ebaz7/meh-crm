@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem } from '../types';
 import { getTradeRecords, saveTradeRecord, updateTradeRecord, deleteTradeRecord, getSettings, uploadFile } from '../services/storageService';
 import { generateUUID, formatCurrency, formatNumberString, deformatNumberString, parsePersianDate, formatDate, calculateDaysDiff, getStatusLabel } from '../constants';
-import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2, Edit } from 'lucide-react';
+import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2, Edit, Undo2 } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import AllocationReport from './AllocationReport';
 import CurrencyReport from './reports/CurrencyReport';
 import CompanyPerformanceReport from './reports/CompanyPerformanceReport';
+import PrintFinalCostReport from './print/PrintFinalCostReport';
 
 interface TradeModuleProps {
     currentUser: User;
@@ -66,7 +68,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [uploadingStageFile, setUploadingStageFile] = useState(false);
 
     // Items State
-    const [newItem, setNewItem] = useState<Partial<TradeItem>>({ name: '', weight: 0, unitPrice: 0, totalPrice: 0 });
+    const [newItem, setNewItem] = useState<Partial<TradeItem>>({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' });
 
     // Insurance State
     const [insuranceForm, setInsuranceForm] = useState<NonNullable<TradeRecord['insuranceData']>>({ policyNumber: '', company: '', cost: 0, bank: '', endorsements: [] });
@@ -141,6 +143,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     // Final Calculation State
     const [calcExchangeRate, setCalcExchangeRate] = useState<number>(0);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [showFinalReportPrint, setShowFinalReportPrint] = useState(false);
 
     useEffect(() => {
         loadRecords();
@@ -183,7 +186,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
             setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '' });
             setEditingTrancheId(null);
-            setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0 });
+            setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' });
             setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' });
             setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 });
             setNewWarehouseReceipt({ number: '', part: '', issueDate: '' });
@@ -229,7 +232,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
     const handleDeleteRecord = async (id: string) => { if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
     const handleUpdateProforma = (field: keyof TradeRecord, value: string | number) => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, [field]: value }; updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
-    const handleAddItem = async () => { if (!selectedRecord || !newItem.name) return; const item: TradeItem = { id: generateUUID(), name: newItem.name, weight: Number(newItem.weight), unitPrice: Number(newItem.unitPrice), totalPrice: Number(newItem.totalPrice) || (Number(newItem.weight) * Number(newItem.unitPrice)) }; const updatedItems = [...selectedRecord.items, item]; const updatedRecord = { ...selectedRecord, items: updatedItems }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0 }); };
+    const handleAddItem = async () => { if (!selectedRecord || !newItem.name) return; const item: TradeItem = { id: generateUUID(), name: newItem.name, weight: Number(newItem.weight), unitPrice: Number(newItem.unitPrice), totalPrice: Number(newItem.totalPrice) || (Number(newItem.weight) * Number(newItem.unitPrice)), hsCode: newItem.hsCode }; const updatedItems = [...selectedRecord.items, item]; const updatedRecord = { ...selectedRecord, items: updatedItems }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' }); };
     const handleRemoveItem = async (id: string) => { if (!selectedRecord) return; const updatedItems = selectedRecord.items.filter(i => i.id !== id); const updatedRecord = { ...selectedRecord, items: updatedItems }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleAddLicenseTx = async () => { if (!selectedRecord || !newLicenseTx.amount) return; const tx: TradeTransaction = { id: generateUUID(), date: newLicenseTx.date || '', amount: Number(newLicenseTx.amount), bank: newLicenseTx.bank || '', description: newLicenseTx.description || '' }; const currentLicenseData = selectedRecord.licenseData || { transactions: [] }; const updatedTransactions = [...(currentLicenseData.transactions || []), tx]; const updatedRecord = { ...selectedRecord, licenseData: { ...currentLicenseData, transactions: updatedTransactions } }; const totalCost = updatedTransactions.reduce((acc, t) => acc + t.amount, 0); if (!updatedRecord.stages[TradeStage.LICENSES]) updatedRecord.stages[TradeStage.LICENSES] = getStageData(updatedRecord, TradeStage.LICENSES); updatedRecord.stages[TradeStage.LICENSES].costRial = totalCost; updatedRecord.stages[TradeStage.LICENSES].isCompleted = totalCost > 0; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' }); };
     const handleRemoveLicenseTx = async (id: string) => { if (!selectedRecord) return; const currentLicenseData = selectedRecord.licenseData || { transactions: [] }; const updatedTransactions = (currentLicenseData.transactions || []).filter(t => t.id !== id); const updatedRecord = { ...selectedRecord, licenseData: { ...currentLicenseData, transactions: updatedTransactions } }; const totalCost = updatedTransactions.reduce((acc, t) => acc + t.amount, 0); if (!updatedRecord.stages[TradeStage.LICENSES]) updatedRecord.stages[TradeStage.LICENSES] = getStageData(updatedRecord, TradeStage.LICENSES); updatedRecord.stages[TradeStage.LICENSES].costRial = totalCost; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -374,12 +377,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleDocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingDocFile(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const result = await uploadFile(file.name, base64); setShippingDocForm(prev => ({ ...prev, attachments: [...(prev.attachments || []), { fileName: result.fileName, url: result.url }] })); } catch (error) { alert('خطا در آپلود فایل'); } finally { setUploadingDocFile(false); } }; reader.readAsDataURL(file); e.target.value = ''; };
     const handleSaveShippingDoc = async () => { if (!selectedRecord || !shippingDocForm.documentNumber) return; let totalNet = shippingDocForm.netWeight; let totalGross = shippingDocForm.grossWeight; let totalPackages = shippingDocForm.packagesCount; if (activeShippingSubTab === 'Packing List' && shippingDocForm.packingItems && shippingDocForm.packingItems.length > 0) { totalNet = shippingDocForm.packingItems.reduce((acc, i) => acc + i.netWeight, 0); totalGross = shippingDocForm.packingItems.reduce((acc, i) => acc + i.grossWeight, 0); totalPackages = shippingDocForm.packingItems.reduce((acc, i) => acc + i.packageCount, 0); } const newDoc: ShippingDocument = { id: generateUUID(), type: activeShippingSubTab, status: shippingDocForm.status || 'Draft', documentNumber: shippingDocForm.documentNumber, documentDate: shippingDocForm.documentDate || '', createdAt: Date.now(), createdBy: currentUser.fullName, attachments: shippingDocForm.attachments || [], invoiceItems: activeShippingSubTab === 'Commercial Invoice' ? shippingDocForm.invoiceItems : undefined, packingItems: activeShippingSubTab === 'Packing List' ? shippingDocForm.packingItems : undefined, freightCost: activeShippingSubTab === 'Commercial Invoice' ? Number(shippingDocForm.freightCost) : undefined, currency: shippingDocForm.currency, netWeight: totalNet, grossWeight: totalGross, packagesCount: totalPackages, vesselName: shippingDocForm.vesselName, portOfLoading: shippingDocForm.portOfLoading, portOfDischarge: shippingDocForm.portOfDischarge, description: shippingDocForm.description }; const updatedDocs = [...(selectedRecord.shippingDocuments || []), newDoc]; const updatedRecord = { ...selectedRecord, shippingDocuments: updatedDocs }; if (!updatedRecord.stages[TradeStage.SHIPPING_DOCS]) updatedRecord.stages[TradeStage.SHIPPING_DOCS] = getStageData(updatedRecord, TradeStage.SHIPPING_DOCS); if (activeShippingSubTab === 'Commercial Invoice') { updatedRecord.stages[TradeStage.SHIPPING_DOCS].costCurrency = updatedDocs.filter(d => d.type === 'Commercial Invoice').reduce((acc, d) => acc + (d.invoiceItems?.reduce((sum, i) => sum + i.totalPrice, 0) || 0) + (d.freightCost || 0), 0); } await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setShippingDocForm({ status: 'Draft', documentNumber: '', documentDate: '', attachments: [], invoiceItems: [], packingItems: [], freightCost: 0 }); };
     const handleDeleteShippingDoc = async (id: string) => { if (!selectedRecord) return; const updatedDocs = (selectedRecord.shippingDocuments || []).filter(d => d.id !== id); const updatedRecord = { ...selectedRecord, shippingDocuments: updatedDocs }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
-    const handleSyncInvoiceToProforma = async () => { if (!selectedRecord) return; if (!confirm('آیا مطمئن هستید؟ این عملیات اقلام و هزینه حمل پروفرما را با مقادیر این اینویس جایگزین می‌کند. اقلام هم‌نام (از پارت‌های مختلف) تجمیع خواهند شد.')) return; const invoiceItems = shippingDocForm.invoiceItems || []; const aggregatedMap = new Map<string, { weight: number, totalPrice: number }>(); for (const item of invoiceItems) { const name = item.name.trim(); const current = aggregatedMap.get(name) || { weight: 0, totalPrice: 0 }; aggregatedMap.set(name, { weight: current.weight + item.weight, totalPrice: current.totalPrice + item.totalPrice }); } const newItems: TradeItem[] = []; aggregatedMap.forEach((val, name) => { newItems.push({ id: generateUUID(), name: name, weight: val.weight, unitPrice: val.weight > 0 ? val.totalPrice / val.weight : 0, totalPrice: val.totalPrice }); }); const updatedRecord = { ...selectedRecord, items: newItems, freightCost: Number(shippingDocForm.freightCost) || 0 }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert('پروفرما با موفقیت بروزرسانی شد (تجمیع بر اساس نام کالا).'); };
+    const handleSyncInvoiceToProforma = async () => { if (!selectedRecord) return; if (!confirm('آیا مطمئن هستید؟ این عملیات اقلام و هزینه حمل پروفرما را با مقادیر این اینویس جایگزین می‌کند. اقلام هم‌نام (از پارت‌های مختلف) تجمیع خواهند شد.')) return; const invoiceItems = shippingDocForm.invoiceItems || []; const aggregatedMap = new Map<string, { weight: number, totalPrice: number }>(); for (const item of invoiceItems) { const name = item.name.trim(); const current = aggregatedMap.get(name) || { weight: 0, totalPrice: 0 }; aggregatedMap.set(name, { weight: current.weight + item.weight, totalPrice: current.totalPrice + item.totalPrice }); } const newItems: TradeItem[] = []; aggregatedMap.forEach((val, name) => { newItems.push({ id: generateUUID(), name: name, weight: val.weight, unitPrice: val.weight > 0 ? val.totalPrice / val.weight : 0, totalPrice: val.totalPrice, hsCode: '' }); }); const updatedRecord = { ...selectedRecord, items: newItems, freightCost: Number(shippingDocForm.freightCost) || 0 }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert('پروفرما با موفقیت بروزرسانی شد (تجمیع بر اساس نام کالا).'); };
     const handleStageClick = (stage: TradeStage) => { const data = getStageData(selectedRecord, stage); setEditingStage(stage); setStageFormData(data); };
     const handleStageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingStageFile(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const result = await uploadFile(file.name, base64); setStageFormData(prev => ({ ...prev, attachments: [...(prev.attachments || []), { fileName: result.fileName, url: result.url }] })); } catch (error) { alert('خطا در آپلود'); } finally { setUploadingStageFile(false); } }; reader.readAsDataURL(file); e.target.value = ''; };
     const handleSaveStage = async () => { if (!selectedRecord || !editingStage) return; const updatedRecord = { ...selectedRecord }; updatedRecord.stages[editingStage] = { ...getStageData(selectedRecord, editingStage), ...stageFormData, updatedAt: Date.now(), updatedBy: currentUser.fullName }; if (editingStage === TradeStage.ALLOCATION_QUEUE && stageFormData.queueDate) { updatedRecord.stages[TradeStage.ALLOCATION_QUEUE].queueDate = stageFormData.queueDate; } if (editingStage === TradeStage.ALLOCATION_APPROVED) { updatedRecord.stages[TradeStage.ALLOCATION_APPROVED].allocationDate = stageFormData.allocationDate; updatedRecord.stages[TradeStage.ALLOCATION_APPROVED].allocationCode = stageFormData.allocationCode; updatedRecord.stages[TradeStage.ALLOCATION_APPROVED].allocationExpiry = stageFormData.allocationExpiry; } await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setEditingStage(null); };
     const toggleCommitment = async () => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, isCommitmentFulfilled: !selectedRecord.isCommitmentFulfilled }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleArchiveRecord = async () => { if (!selectedRecord) return; if (!confirm('آیا از انتقال این پرونده به بایگانی (ترخیص شده) اطمینان دارید؟')) return; const updatedRecord = { ...selectedRecord, isArchived: true, status: 'Completed' as const }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert('پرونده با موفقیت بایگانی شد.'); setViewMode('dashboard'); loadRecords(); };
+    const handleUnarchiveRecord = async () => { if (!selectedRecord) return; if (!confirm('آیا از بازگرداندن این پرونده به جریان کاری اطمینان دارید؟')) return; const updatedRecord = { ...selectedRecord, isArchived: false, status: 'Active' as const }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert('پرونده بازیابی شد.'); };
     const handleUpdateCalcRate = async (rate: number) => { setCalcExchangeRate(rate); if (selectedRecord) { const updated = { ...selectedRecord, exchangeRate: rate }; await updateTradeRecord(updated); setSelectedRecord(updated); } };
     const getAllGuarantees = () => { const list = []; if (selectedRecord && selectedRecord.currencyPurchaseData?.guaranteeCheque) { list.push({ id: 'currency_g', type: 'ارزی', number: selectedRecord.currencyPurchaseData.guaranteeCheque.chequeNumber, bank: selectedRecord.currencyPurchaseData.guaranteeCheque.bank, amount: selectedRecord.currencyPurchaseData.guaranteeCheque.amount, isDelivered: selectedRecord.currencyPurchaseData.guaranteeCheque.isDelivered, toggleFunc: handleToggleCurrencyGuaranteeDelivery }); } if (selectedRecord && selectedRecord.greenLeafData?.guarantees) { selectedRecord.greenLeafData.guarantees.forEach(g => { list.push({ id: g.id, type: 'گمرکی', number: g.guaranteeNumber + (g.chequeNumber ? ` / چک: ${g.chequeNumber}` : ''), bank: g.chequeBank, amount: g.chequeAmount, isDelivered: g.isDelivered, toggleFunc: () => handleToggleGuaranteeDelivery(g.id) }); }); } return list; };
 
@@ -419,9 +423,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         finally { setIsGeneratingPdf(false); }
     };
     
-    const handleDownloadFinalCalculationPDF = () => handleDownloadReportPDF('print-trade-final', `Final_Calculation_${selectedRecord?.fileNumber}`);
-
-    // Removed duplicate groupedData declaration here. The useMemo hook is already defined above.
+    // New PDF Generator for Final Report
+    const handleDownloadFinalReportPDF = () => {
+        setShowFinalReportPrint(true);
+    };
 
     // HANDLER FOR EDIT METADATA MODAL
     const openEditMetadata = () => {
@@ -452,8 +457,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
         setSelectedRecord(updatedRecord);
         setShowEditMetadataModal(false);
-        
-        // If company changed, the grouping logic in useMemo will auto-handle it if user goes back to dashboard.
     };
 
     // --- OPTIMIZED REPORT CONTENT (USE MEMO) ---
@@ -538,6 +541,18 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         return (
             <div className="flex flex-col h-[calc(100vh-100px)] animate-fade-in relative">
                 
+                {/* Final Cost Report Print Overlay */}
+                {showFinalReportPrint && (
+                    <PrintFinalCostReport 
+                        record={selectedRecord} 
+                        totalRial={totalRial}
+                        totalCurrency={totalCurrency}
+                        exchangeRate={exchangeRate}
+                        grandTotalRial={grandTotalRial}
+                        onClose={() => setShowFinalReportPrint(false)} 
+                    />
+                )}
+
                 {/* EDIT METADATA MODAL */}
                 {showEditMetadataModal && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
@@ -657,7 +672,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                 </div>
                                                 <div className="mt-3 flex gap-2 text-xs">
                                                     {data.costRial > 0 && <span className="bg-gray-100 px-2 py-1 rounded">هزینه ریالی: {formatCurrency(data.costRial)}</span>}
-                                                    {data.costCurrency > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded">هزینه ارزی: {formatCurrency(data.costCurrency)}</span>}
+                                                    {data.costCurrency > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded">هزینه ارزی: {formatNumberString(data.costCurrency)} {selectedRecord.mainCurrency}</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -679,8 +694,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">ارز پایه</label><select className="w-full border rounded p-2 text-sm" value={selectedRecord.mainCurrency} onChange={e => handleUpdateProforma('mainCurrency', e.target.value)}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ ثبت سفارش</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/01/01" value={selectedRecord.registrationDate || ''} onChange={e => handleUpdateProforma('registrationDate', e.target.value)}/></div>
                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ انقضا</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/06/01" value={selectedRecord.registrationExpiry || ''} onChange={e => handleUpdateProforma('registrationExpiry', e.target.value)}/></div>
+                                    
+                                    {/* Currency Origin & Type */}
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-700">منشا ارز (نوع ارز)</label>
+                                        <label className="text-xs font-bold text-gray-700">منشا ارز</label>
                                         <select 
                                             className="w-full border rounded p-2 text-sm" 
                                             value={selectedRecord.currencyAllocationType || ''} 
@@ -688,11 +705,24 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                         >
                                             <option value="">انتخاب کنید...</option>
                                             <option value="Bank">بانکی (نیمایی)</option>
-                                            <option value="Export">ارز حاصل از صادرات</option>
+                                            <option value="Export">ارز حاصل از صادرات خود</option>
                                             <option value="Free">آزاد / اشخاص</option>
-                                            <option value="Nima">سامانه نیما</option>
                                         </select>
                                     </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">نوع ارز (رتبه)</label>
+                                        <select 
+                                            className="w-full border rounded p-2 text-sm" 
+                                            value={selectedRecord.allocationCurrencyRank || ''} 
+                                            onChange={e => handleUpdateProforma('allocationCurrencyRank', e.target.value as any)}
+                                        >
+                                            <option value="">انتخاب کنید...</option>
+                                            <option value="Type1">نوع اول</option>
+                                            <option value="Type2">نوع دوم</option>
+                                        </select>
+                                    </div>
+
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-gray-700">بانک عامل</label>
                                         <select 
@@ -709,8 +739,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
                             <div className="bg-white p-6 rounded-xl shadow-sm border">
                                 <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">اقلام پروفرما</h3>
-                                <div className="flex gap-2 items-end mb-4 bg-gray-50 p-3 rounded-lg">
-                                    <div className="flex-1 space-y-1"><label className="text-xs text-gray-500">شرح کالا</label><input className="w-full border rounded p-2 text-sm" placeholder="نام کالا" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}/></div>
+                                <div className="flex gap-2 items-end mb-4 bg-gray-50 p-3 rounded-lg flex-wrap">
+                                    <div className="flex-1 min-w-[150px] space-y-1"><label className="text-xs text-gray-500">شرح کالا</label><input className="w-full border rounded p-2 text-sm" placeholder="نام کالا" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}/></div>
+                                    <div className="w-32 space-y-1"><label className="text-xs text-gray-500">HS Code</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="کد تعرفه" value={newItem.hsCode || ''} onChange={e => setNewItem({...newItem, hsCode: e.target.value})}/></div>
                                     <div className="w-24 space-y-1"><label className="text-xs text-gray-500">وزن (KG)</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.weight || ''} onChange={e => setNewItem({...newItem, weight: Number(e.target.value)})}/></div>
                                     <div className="w-28 space-y-1"><label className="text-xs text-gray-500">فی (Unit)</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.unitPrice || ''} onChange={e => setNewItem({...newItem, unitPrice: Number(e.target.value)})}/></div>
                                     <div className="w-32 space-y-1"><label className="text-xs text-gray-500">قیمت کل</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr bg-gray-100" placeholder="Auto" value={newItem.totalPrice || ((newItem.weight || 0) * (newItem.unitPrice || 0))} readOnly/></div>
@@ -718,26 +749,40 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">شرح</th><th className="p-3">وزن</th><th className="p-3">فی</th><th className="p-3">قیمت کل</th><th className="p-3">حذف</th></tr></thead>
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">شرح</th><th className="p-3">HS Code</th><th className="p-3">وزن</th><th className="p-3">فی</th><th className="p-3">قیمت کل</th><th className="p-3">حذف</th></tr></thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {selectedRecord.items.map((item) => (
                                                 <tr key={item.id}>
                                                     <td className="p-3">{item.name}</td>
+                                                    <td className="p-3 font-mono">{item.hsCode || '-'}</td>
                                                     <td className="p-3 font-mono">{formatNumberString(item.weight)}</td>
-                                                    <td className="p-3 font-mono">{formatCurrency(item.unitPrice)}</td>
-                                                    <td className="p-3 font-mono font-bold">{formatCurrency(item.totalPrice)}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(item.unitPrice)}</td>
+                                                    <td className="p-3 font-mono font-bold">{formatNumberString(item.totalPrice)}</td>
                                                     <td className="p-3"><button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                                                 </tr>
                                             ))}
                                             <tr className="bg-blue-50 font-bold">
                                                 <td className="p-3">جمع کل</td>
+                                                <td></td>
                                                 <td className="p-3 font-mono">{formatNumberString(selectedRecord.items.reduce((a,b)=>a+b.weight,0))}</td>
                                                 <td></td>
-                                                <td className="p-3 font-mono text-blue-700">{formatCurrency(selectedRecord.items.reduce((a,b)=>a+b.totalPrice,0))} {selectedRecord.mainCurrency}</td>
+                                                <td className="p-3 font-mono text-blue-700">{formatNumberString(selectedRecord.items.reduce((a,b)=>a+b.totalPrice,0))} {selectedRecord.mainCurrency}</td>
                                                 <td></td>
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <label className="text-xs font-bold text-gray-700 block mb-1">هزینه حمل کل (Freight)</label>
+                                    <div className="flex gap-2 items-center">
+                                        <input 
+                                            type="text" 
+                                            className="w-48 border rounded p-2 text-sm dir-ltr font-mono" 
+                                            value={formatNumberString(selectedRecord.freightCost)} 
+                                            onChange={e => handleUpdateProforma('freightCost', deformatNumberString(e.target.value))} 
+                                        />
+                                        <span className="text-sm font-bold text-gray-500">{selectedRecord.mainCurrency}</span>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -822,10 +867,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                 return (
                                                 <tr key={t.id} className="border-b hover:bg-gray-50">
                                                     <td className="p-3">{t.date}</td>
-                                                    <td className="p-3 font-mono font-bold text-blue-600">{formatCurrency(t.amount)} {t.currencyType}</td>
-                                                    <td className="p-3 font-mono">{formatCurrency(t.rate || 0)}</td>
+                                                    <td className="p-3 font-mono font-bold text-blue-600">{formatNumberString(t.amount)} {t.currencyType}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(t.rate || 0)}</td>
                                                     <td className="p-3 text-xs">{t.exchangeName} {t.brokerName ? `(${t.brokerName})` : ''}</td>
-                                                    <td className="p-3 text-xs text-red-600">{retAmt ? `${formatCurrency(retAmt)} (${retDate || '-'})` : '-'}</td>
+                                                    <td className="p-3 text-xs text-red-600">{retAmt ? `${formatNumberString(retAmt)} (${retDate || '-'})` : '-'}</td>
                                                     <td className="p-3 text-center">
                                                         <button onClick={() => handleToggleTrancheDelivery(t.id)} className={`px-2 py-1 rounded text-xs font-bold ${t.isDelivered ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                                             {t.isDelivered ? 'تحویل شده' : 'انتظار'}
@@ -839,8 +884,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                             )})}
                                             <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
                                                 <td className="p-3">جمع کل</td>
-                                                <td className="p-3 font-mono text-amber-800">{formatCurrency(currencyForm.purchasedAmount)} {selectedRecord.mainCurrency}</td>
-                                                <td colSpan={5} className="text-center text-xs text-amber-600">تحویل شده: {formatCurrency(currencyForm.deliveredAmount)}</td>
+                                                <td className="p-3 font-mono text-amber-800">{formatNumberString(currencyForm.purchasedAmount)} {selectedRecord.mainCurrency}</td>
+                                                <td colSpan={5} className="text-center text-xs text-amber-600">تحویل شده: {formatNumberString(currencyForm.deliveredAmount)}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -901,7 +946,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                             <input className="w-24 border rounded p-2 text-sm dir-ltr bg-gray-100" placeholder="قیمت کل" value={newInvoiceItem.totalPrice || ((newInvoiceItem.weight || 0) * (newInvoiceItem.unitPrice || 0))} readOnly />
                                             <button onClick={handleAddInvoiceItem} className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={16}/></button>
                                         </div>
-                                        <div className="space-y-1">{shippingDocForm.invoiceItems?.map(i => (<div key={i.id} className="flex justify-between bg-white p-2 rounded text-xs border"><span>{i.name}</span><div className="flex gap-2 items-center"><span className="bg-gray-100 px-1 rounded text-gray-500">Part: {i.part}</span><span className="font-mono">{i.weight} KG</span><span className="font-mono">@{i.unitPrice}</span><span className="font-mono font-bold">{formatCurrency(i.totalPrice)}</span><button onClick={()=>handleRemoveInvoiceItem(i.id)} className="text-red-500"><X size={14}/></button></div></div>))}</div>
+                                        <div className="space-y-1">{shippingDocForm.invoiceItems?.map(i => (<div key={i.id} className="flex justify-between bg-white p-2 rounded text-xs border"><span>{i.name}</span><div className="flex gap-2 items-center"><span className="bg-gray-100 px-1 rounded text-gray-500">Part: {i.part}</span><span className="font-mono">{i.weight} KG</span><span className="font-mono">@{i.unitPrice}</span><span className="font-mono font-bold">{formatNumberString(i.totalPrice)}</span><button onClick={()=>handleRemoveInvoiceItem(i.id)} className="text-red-500"><X size={14}/></button></div></div>))}</div>
                                         <div className="flex justify-between items-center pt-2 border-t border-blue-200"><span className="font-bold text-xs">هزینه حمل (Freight)</span><input className="w-32 border rounded p-1 text-sm dir-ltr" value={shippingDocForm.freightCost} onChange={e => setShippingDocForm({...shippingDocForm, freightCost: Number(e.target.value)})} type="number" /></div>
                                     </div>
                                 )}
@@ -1146,21 +1191,30 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 <div><h3 className="font-bold text-gray-800 text-lg mb-1">وضعیت نهایی پرونده</h3><p className="text-xs text-gray-500">مدیریت تعهدات و بایگانی پرونده</p></div>
                                 <div className="flex gap-2 flex-wrap justify-end">
                                     <button onClick={toggleCommitment} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 border transition-colors ${selectedRecord.isCommitmentFulfilled ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-green-50'}`}>{selectedRecord.isCommitmentFulfilled ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}{selectedRecord.isCommitmentFulfilled ? 'رفع تعهد شده' : 'رفع تعهد نشده'}</button>
-                                    <button onClick={handleArchiveRecord} disabled={selectedRecord.isArchived} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors ${selectedRecord.isArchived ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'}`}><Archive size={18}/> {selectedRecord.isArchived ? 'بایگانی شده (ترخیص شد)' : 'ترخیص شد (بایگانی)'}</button>
+                                    
+                                    {!selectedRecord.isArchived ? (
+                                        <button onClick={handleArchiveRecord} className="px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors bg-blue-600 text-white hover:bg-blue-700 shadow-md">
+                                            <Archive size={18}/> ترخیص شد (بایگانی)
+                                        </button>
+                                    ) : (
+                                        <button onClick={handleUnarchiveRecord} className="px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors bg-amber-500 text-white hover:bg-amber-600 shadow-md">
+                                            <Undo2 size={18}/> بازگشت به جریان
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             
                             {/* ACTIVATED PRINT/PDF BUTTONS */}
                             <div className="flex justify-end gap-2" data-html2canvas-ignore>
                                 <button onClick={handlePrintTrade} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm"><Printer size={16}/> چاپ گزارش</button>
-                                <button onClick={handleDownloadFinalCalculationPDF} disabled={isGeneratingPdf} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
+                                <button onClick={handleDownloadFinalReportPDF} disabled={isGeneratingPdf} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF (صورتحساب)</button>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="bg-white p-6 rounded-xl shadow-sm border h-fit"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Calculator size={20} className="text-rose-600"/> صورت کلی هزینه‌ها</h3><div className="overflow-hidden rounded-lg border"><table className="w-full text-sm text-right"><thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">شرح هزینه</th><th className="p-3">مبلغ ارزی</th><th className="p-3">مبلغ ریالی</th></tr></thead><tbody className="divide-y divide-gray-100">{STAGES.map(stage => { const data = selectedRecord.stages[stage]; if (!data || (data.costRial === 0 && data.costCurrency === 0)) return null; return (<tr key={stage}><td className="p-3 text-gray-600">{stage}</td><td className="p-3 font-mono">{data.costCurrency > 0 ? formatCurrency(data.costCurrency) : '-'}</td><td className="p-3 font-mono">{formatCurrency(data.costRial)}</td></tr>); })}<tr className="bg-rose-50 font-bold border-t-2 border-rose-200"><td className="p-3">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatCurrency(totalCurrency)} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono dir-ltr">{formatCurrency(totalRial)} IRR</td></tr></tbody></table></div><div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200"><label className="text-xs font-bold text-gray-600 block mb-2">نرخ ارز محاسباتی</label><div className="flex gap-2"><input className="flex-1 border rounded p-2 text-sm dir-ltr font-mono font-bold" value={formatNumberString(calcExchangeRate)} onChange={e => handleUpdateCalcRate(deformatNumberString(e.target.value))} placeholder="نرخ تبدیل..." /><div className="bg-gray-200 px-3 py-2 rounded text-sm font-bold flex items-center">ریال</div></div><div className="mt-3 pt-3 border-t border-gray-300 flex justify-between items-center"><span className="text-sm font-bold text-gray-700">قیمت نهایی کل (ریالی):</span><span className="text-lg font-black text-rose-700 dir-ltr">{formatCurrency(grandTotalRial)}</span></div><div className="mt-1 flex justify-between items-center"><span className="text-xs text-gray-500">میانگین قیمت هر کیلو:</span><span className="text-sm font-bold text-gray-700 dir-ltr">{formatCurrency(costPerKg)}</span></div></div></div>
+                                <div className="bg-white p-6 rounded-xl shadow-sm border h-fit"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Calculator size={20} className="text-rose-600"/> صورت کلی هزینه‌ها</h3><div className="overflow-hidden rounded-lg border"><table className="w-full text-sm text-right"><thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">شرح هزینه</th><th className="p-3">مبلغ ارزی</th><th className="p-3">مبلغ ریالی</th></tr></thead><tbody className="divide-y divide-gray-100">{STAGES.map(stage => { const data = selectedRecord.stages[stage]; if (!data || (data.costRial === 0 && data.costCurrency === 0)) return null; return (<tr key={stage}><td className="p-3 text-gray-600">{stage}</td><td className="p-3 font-mono">{data.costCurrency > 0 ? formatNumberString(data.costCurrency) : '-'}</td><td className="p-3 font-mono">{formatCurrency(data.costRial)}</td></tr>); })}<tr className="bg-rose-50 font-bold border-t-2 border-rose-200"><td className="p-3">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalCurrency)} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono dir-ltr">{formatCurrency(totalRial)}</td></tr></tbody></table></div><div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200"><label className="text-xs font-bold text-gray-600 block mb-2">نرخ ارز محاسباتی</label><div className="flex gap-2"><input className="flex-1 border rounded p-2 text-sm dir-ltr font-mono font-bold" value={formatNumberString(calcExchangeRate)} onChange={e => handleUpdateCalcRate(deformatNumberString(e.target.value))} placeholder="نرخ تبدیل..." /><div className="bg-gray-200 px-3 py-2 rounded text-sm font-bold flex items-center">ریال</div></div><div className="mt-3 pt-3 border-t border-gray-300 flex justify-between items-center"><span className="text-sm font-bold text-gray-700">قیمت نهایی کل (ریالی):</span><span className="text-lg font-black text-rose-700 dir-ltr">{formatCurrency(grandTotalRial)}</span></div><div className="mt-1 flex justify-between items-center"><span className="text-xs text-gray-500">میانگین قیمت هر کیلو:</span><span className="text-sm font-bold text-gray-700 dir-ltr">{formatCurrency(costPerKg)}</span></div></div></div>
                                 <div className="bg-white p-6 rounded-xl shadow-sm border h-fit"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><ShieldCheck size={20} className="text-blue-600"/> لیست چک‌های ضمانت</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">نوع</th><th className="p-3">شماره / بانک</th><th className="p-3">مبلغ</th><th className="p-3">وضعیت</th></tr></thead><tbody className="divide-y divide-gray-100">{getAllGuarantees().map((g) => (<tr key={g.id}><td className="p-3"><span className={`text-[10px] px-2 py-0.5 rounded ${g.type === 'ارزی' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>{g.type}</span></td><td className="p-3"><div className="font-mono text-xs">{g.number}</div><div className="text-[10px] text-gray-500">{g.bank}</div></td><td className="p-3 font-mono">{formatCurrency(Number(g.amount))}</td><td className="p-3 text-center"><button onClick={g.toggleFunc} className={`text-xs px-2 py-1 rounded font-bold transition-colors ${g.isDelivered ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>{g.isDelivered ? 'عودت شد' : 'نزد سازمان'}</button></td></tr>))}{getAllGuarantees().length === 0 && (<tr><td colSpan={4} className="p-4 text-center text-gray-400">هیچ ضمانت‌نامه‌ای ثبت نشده است</td></tr>)}</tbody></table></div></div>
                             </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Scale size={20} className="text-emerald-600"/> قیمت تمام شده کالاها (به تفکیک)</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-emerald-50 text-emerald-800"><tr><th className="p-3 rounded-r-lg">ردیف</th><th className="p-3">شرح کالا</th><th className="p-3">وزن (KG)</th><th className="p-3">قیمت خرید (ارزی)</th><th className="p-3">سهم از هزینه‌ها (ریال)</th><th className="p-3">قیمت تمام شده نهایی (ریال)</th><th className="p-3 rounded-l-lg">قیمت تمام شده هر کیلو</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedRecord.items.map((item, idx) => { const totalPurchasePriceCurrency = selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0); const totalPurchasePriceRial = totalPurchasePriceCurrency * exchangeRate; const totalOverheadRial = grandTotalRial - totalPurchasePriceRial; const weightShare = totalWeight > 0 ? item.weight / totalWeight : 0; const allocatedOverhead = totalOverheadRial * weightShare; const itemPurchasePriceRial = item.totalPrice * exchangeRate; const finalItemCost = itemPurchasePriceRial + allocatedOverhead; const finalItemCostPerKg = item.weight > 0 ? finalItemCost / item.weight : 0; return (<tr key={item.id} className="hover:bg-gray-50"><td className="p-3 text-center">{idx + 1}</td><td className="p-3 font-bold">{item.name}</td><td className="p-3 font-mono">{formatNumberString(item.weight)}</td><td className="p-3 font-mono">{formatCurrency(item.totalPrice)} {selectedRecord.mainCurrency}</td><td className="p-3 text-gray-500 font-mono text-xs">{formatCurrency(allocatedOverhead)}</td><td className="p-3 font-mono font-bold text-emerald-700">{formatCurrency(finalItemCost)}</td><td className="p-3 font-mono font-bold text-blue-700 bg-blue-50">{formatCurrency(finalItemCostPerKg)}</td></tr>); })}<tr className="bg-gray-100 font-bold border-t-2 border-emerald-200"><td colSpan={2} className="p-3 text-center">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalWeight)} KG</td><td className="p-3 font-mono dir-ltr">{formatCurrency(selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0))} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono dir-ltr">{formatCurrency(grandTotalRial - (selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0) * exchangeRate))}</td><td className="p-3 font-mono dir-ltr text-emerald-800">{formatCurrency(grandTotalRial)}</td><td></td></tr></tbody></table></div></div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Scale size={20} className="text-emerald-600"/> قیمت تمام شده کالاها (به تفکیک)</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-emerald-50 text-emerald-800"><tr><th className="p-3 rounded-r-lg">ردیف</th><th className="p-3">شرح کالا</th><th className="p-3">HS Code</th><th className="p-3">وزن (KG)</th><th className="p-3">قیمت خرید (ارزی)</th><th className="p-3">سهم از هزینه‌ها (ریال)</th><th className="p-3">قیمت تمام شده نهایی (ریال)</th><th className="p-3 rounded-l-lg">قیمت تمام شده هر کیلو</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedRecord.items.map((item, idx) => { const totalPurchasePriceCurrency = selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0); const totalPurchasePriceRial = totalPurchasePriceCurrency * exchangeRate; const totalOverheadRial = grandTotalRial - totalPurchasePriceRial; const weightShare = totalWeight > 0 ? item.weight / totalWeight : 0; const allocatedOverhead = totalOverheadRial * weightShare; const itemPurchasePriceRial = item.totalPrice * exchangeRate; const finalItemCost = itemPurchasePriceRial + allocatedOverhead; const finalItemCostPerKg = item.weight > 0 ? finalItemCost / item.weight : 0; return (<tr key={item.id} className="hover:bg-gray-50"><td className="p-3 text-center">{idx + 1}</td><td className="p-3 font-bold">{item.name}</td><td className="p-3 font-mono">{item.hsCode || '-'}</td><td className="p-3 font-mono">{formatNumberString(item.weight)}</td><td className="p-3 font-mono">{formatNumberString(item.totalPrice)} {selectedRecord.mainCurrency}</td><td className="p-3 text-gray-500 font-mono text-xs">{formatCurrency(allocatedOverhead)}</td><td className="p-3 font-mono font-bold text-emerald-700">{formatCurrency(finalItemCost)}</td><td className="p-3 font-mono font-bold text-blue-700 bg-blue-50">{formatCurrency(finalItemCostPerKg)}</td></tr>); })}<tr className="bg-gray-100 font-bold border-t-2 border-emerald-200"><td colSpan={3} className="p-3 text-center">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalWeight)} KG</td><td className="p-3 font-mono dir-ltr">{formatNumberString(selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0))} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono dir-ltr">{formatCurrency(grandTotalRial - (selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0) * exchangeRate))}</td><td className="p-3 font-mono dir-ltr text-emerald-800">{formatCurrency(grandTotalRial)}</td><td></td></tr></tbody></table></div></div>
                         </div>
                     )}
                 </div>
@@ -1239,7 +1293,12 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                         <Search className="absolute right-3 top-3 text-gray-400" size={20}/>
                         <input className="w-full pl-4 pr-12 py-3 border rounded-xl shadow-sm focus:ring-2 focus:ring-blue-100 outline-none transition-all" placeholder="جستجو در پرونده‌ها..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
                     </div>
-                    {records.filter(r => (r.company === selectedCompany) && (r.commodityGroup === selectedGroup) && (!showArchived ? !r.isArchived : true) && (r.goodsName.includes(searchTerm) || r.fileNumber.includes(searchTerm))).map(record => {
+                    {records.filter(r => (
+                        // Search Logic: If search term exists, search everything. If not, respect filters.
+                        (searchTerm ? true : (r.company === selectedCompany && r.commodityGroup === selectedGroup)) && 
+                        (!searchTerm && !showArchived ? !r.isArchived : true) && 
+                        (r.goodsName.includes(searchTerm) || r.fileNumber.includes(searchTerm))
+                    )).map(record => {
                         const currentStage = STAGES.slice().reverse().find(s => record.stages[s]?.isCompleted) || 'شروع نشده';
                         return (
                             <div key={record.id} className="bg-white p-4 rounded-xl border border-gray-200 hover:border-blue-300 transition-all shadow-sm flex flex-col md:flex-row items-center gap-4 group">
@@ -1250,6 +1309,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                         <span className="bg-gray-50 px-2 py-0.5 rounded border">پرونده: {record.fileNumber}</span>
                                         <span className="bg-gray-50 px-2 py-0.5 rounded border">فروشنده: {record.sellerName}</span>
                                         <span className="bg-gray-50 px-2 py-0.5 rounded border">ارز: {record.mainCurrency}</span>
+                                        {record.isArchived && <span className="bg-gray-800 text-white px-2 py-0.5 rounded text-xs">بایگانی شده</span>}
                                     </div>
                                 </div>
                                 <div className="text-center md:text-left min-w-[150px]">

@@ -1,4 +1,5 @@
 
+
 export enum PaymentMethod {
   CASH = 'نقد',
   CHEQUE = 'چک',
@@ -326,6 +327,7 @@ export interface TradeItem {
     weight: number; 
     unitPrice: number;
     totalPrice: number;
+    hsCode?: string; // Added HS Code
 }
 
 export interface InsuranceEndorsement {
