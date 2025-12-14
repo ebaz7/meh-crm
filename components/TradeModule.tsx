@@ -275,7 +275,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             isDelivered: newCurrencyTranche.isDelivered, 
             deliveryDate: newCurrencyTranche.deliveryDate,
             // ADDED FIELDS:
-            returnAmount: newCurrencyTranche.returnAmount ? Number(newCurrencyTranche.returnAmount) : undefined,
+            returnAmount: newCurrencyTranche.returnAmount ? deformatNumberString(newCurrencyTranche.returnAmount.toString()) : undefined,
             returnDate: newCurrencyTranche.returnDate
         }; 
 
@@ -329,7 +329,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             isDelivered: tranche.isDelivered,
             deliveryDate: tranche.deliveryDate,
             rate: tranche.rate,
-            returnAmount: tranche.returnAmount ? String(tranche.returnAmount) : '',
+            returnAmount: tranche.returnAmount ? formatNumberString(tranche.returnAmount) : '',
             returnDate: tranche.returnDate
         });
         setEditingTrancheId(tranche.id);
