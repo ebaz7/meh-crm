@@ -487,6 +487,9 @@ export interface CurrencyTranche {
     exchangeName?: string;
     isDelivered?: boolean;
     deliveryDate?: string;
+    returnAmount?: number;
+    returnDate?: string;
+    receivedAmount?: number; // Added Received Amount
 }
 
 export interface CurrencyPurchaseData {

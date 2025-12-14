@@ -69,7 +69,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [uploadingStageFile, setUploadingStageFile] = useState(false);
 
     // Items State
-    const [newItem, setNewItem] = useState<Partial<TradeItem>>({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' });
+    const [newItem, setNewItem] = useState<Partial<TradeItem> & { weightStr?: string, unitPriceStr?: string }>({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' });
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
     // Insurance State
@@ -111,8 +111,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         payments: [], purchasedAmount: 0, purchasedCurrencyType: '', purchaseDate: '', brokerName: '', exchangeName: '', deliveredAmount: 0, deliveredCurrencyType: '', deliveryDate: '', recipientName: '', remittedAmount: 0, isDelivered: false, tranches: [], guaranteeCheque: undefined
     });
     
-    // EXTENDED STATE FOR RETURN AMOUNT
-    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string, amountStr?: string, rateStr?: string }>({ 
+    // EXTENDED STATE FOR RETURN AMOUNT AND RECEIVED AMOUNT
+    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string, amountStr?: string, rateStr?: string, receivedAmountStr?: string }>({ 
         amount: 0, 
         currencyType: 'EUR', 
         date: '', 
@@ -122,8 +122,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         deliveryDate: '',
         returnAmount: '',
         returnDate: '',
+        receivedAmount: 0,
         amountStr: '',
-        rateStr: ''
+        rateStr: '',
+        receivedAmountStr: ''
     });
     const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null);
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
@@ -189,9 +191,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             }
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
-            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', amountStr: '', rateStr: '' });
+            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' });
             setEditingTrancheId(null);
-            setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' });
+            setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' });
             setEditingItemId(null);
             setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' });
             setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 });
@@ -237,18 +239,35 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
     const handleDeleteRecord = async (id: string) => { if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
-    const handleUpdateProforma = (field: keyof TradeRecord, value: string | number) => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, [field]: value }; updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
+    
+    // UPDATED: Sync to state list to handle persistence on back
+    const handleUpdateProforma = async (field: keyof TradeRecord, value: string | number) => { 
+        if (!selectedRecord) return; 
+        const updatedRecord = { ...selectedRecord, [field]: value }; 
+        
+        // 1. Update UI immediately
+        setSelectedRecord(updatedRecord);
+        
+        // 2. Persist to DB
+        await updateTradeRecord(updatedRecord); 
+        
+        // 3. Update parent list to prevent stale data on back navigation
+        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+    };
     
     // ITEM MANAGEMENT
     const handleAddItem = async () => { 
         if (!selectedRecord || !newItem.name) return; 
         
+        const weightVal = newItem.weightStr ? deformatNumberString(newItem.weightStr) : 0;
+        const unitPriceVal = newItem.unitPriceStr ? deformatNumberString(newItem.unitPriceStr) : 0;
+
         const item: TradeItem = { 
             id: editingItemId || generateUUID(), 
             name: newItem.name, 
-            weight: Number(newItem.weight), 
-            unitPrice: Number(newItem.unitPrice), 
-            totalPrice: Number(newItem.totalPrice) || (Number(newItem.weight) * Number(newItem.unitPrice)), 
+            weight: weightVal, 
+            unitPrice: unitPriceVal, 
+            totalPrice: newItem.totalPrice || (weightVal * unitPriceVal), 
             hsCode: newItem.hsCode 
         }; 
 
@@ -262,7 +281,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const updatedRecord = { ...selectedRecord, items: updatedItems }; 
         await updateTradeRecord(updatedRecord); 
         setSelectedRecord(updatedRecord); 
-        setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' }); 
+        // Sync parent
+        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+
+        setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' }); 
         setEditingItemId(null);
     };
 
@@ -270,7 +292,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setNewItem({
             name: item.name,
             weight: item.weight,
+            weightStr: formatNumberString(item.weight),
             unitPrice: item.unitPrice,
+            unitPriceStr: formatNumberString(item.unitPrice),
             totalPrice: item.totalPrice,
             hsCode: item.hsCode || ''
         });
@@ -316,6 +340,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         
         const rawAmount = parseFloat(newCurrencyTranche.amountStr);
         const rawRate = newCurrencyTranche.rateStr ? parseFloat(newCurrencyTranche.rateStr.replace(/[^0-9.]/g, '')) : 0;
+        const rawReceived = newCurrencyTranche.receivedAmountStr ? parseFloat(newCurrencyTranche.receivedAmountStr) : 0;
 
         const trancheData: any = { 
             date: newCurrencyTranche.date || '', 
@@ -327,7 +352,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             isDelivered: newCurrencyTranche.isDelivered, 
             deliveryDate: newCurrencyTranche.deliveryDate,
             returnAmount: newCurrencyTranche.returnAmount ? deformatNumberString(newCurrencyTranche.returnAmount.toString()) : undefined,
-            returnDate: newCurrencyTranche.returnDate
+            returnDate: newCurrencyTranche.returnDate,
+            receivedAmount: rawReceived // Add Received Amount
         }; 
 
         if (editingTrancheId) {
@@ -339,7 +365,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         }
         
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
-        const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); 
+        // Delivered now based on Received Amount if set, else Amount if isDelivered is true
+        const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0);
         
         const totalReturned = updatedTranches.reduce((acc, t: any) => acc + (t.returnAmount || 0), 0);
 
@@ -363,7 +390,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setSelectedRecord(updatedRecord); 
         
         // Reset Inputs
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', amountStr: '', rateStr: '' }); 
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' }); 
         setEditingTrancheId(null);
     };
 
@@ -380,13 +407,15 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             rate: tranche.rate,
             rateStr: formatNumberString(tranche.rate),
             returnAmount: tranche.returnAmount ? formatNumberString(tranche.returnAmount) : '',
-            returnDate: tranche.returnDate
+            returnDate: tranche.returnDate,
+            receivedAmount: tranche.receivedAmount,
+            receivedAmountStr: tranche.receivedAmount ? tranche.receivedAmount.toString() : ''
         });
         setEditingTrancheId(tranche.id);
     };
 
     const handleCancelEditTranche = () => {
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', amountStr: '', rateStr: '' });
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' });
         setEditingTrancheId(null);
     };
 
@@ -396,7 +425,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         
         const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); 
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
-        const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); 
+        const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); 
         const totalReturned = updatedTranches.reduce((acc, t: any) => acc + (t.returnAmount || 0), 0);
 
         const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
@@ -412,7 +441,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setSelectedRecord(updatedRecord); 
     };
 
-    const handleToggleTrancheDelivery = async (id: string) => { if (!selectedRecord) return; const updatedTranches = (currencyForm.tranches || []).map(t => { if (t.id === id) return { ...t, isDelivered: !t.isDelivered }; return t; }); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.filter(t => t.isDelivered).reduce((acc, t) => acc + t.amount, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
+    const handleToggleTrancheDelivery = async (id: string) => { if (!selectedRecord) return; const updatedTranches = (currencyForm.tranches || []).map(t => { if (t.id === id) return { ...t, isDelivered: !t.isDelivered }; return t; }); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleSaveCurrencyGuarantee = async () => { if (!selectedRecord) return; const gCheck = { amount: deformatNumberString(currencyGuarantee.amount), bank: currencyGuarantee.bank, chequeNumber: currencyGuarantee.number, dueDate: currencyGuarantee.date, isDelivered: currencyGuarantee.isDelivered }; const updatedForm = { ...currencyForm, guaranteeCheque: gCheck }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert("اطلاعات چک ضمانت ارزی ذخیره شد."); };
     const handleToggleCurrencyGuaranteeDelivery = async () => { if (!selectedRecord || !selectedRecord.currencyPurchaseData?.guaranteeCheque) return; const currentStatus = selectedRecord.currencyPurchaseData.guaranteeCheque.isDelivered || false; setCurrencyGuarantee(prev => ({ ...prev, isDelivered: !currentStatus })); const updatedForm = { ...currencyForm, guaranteeCheque: { ...currencyForm.guaranteeCheque!, isDelivered: !currentStatus } }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleAddInvoiceItem = () => { if (!newInvoiceItem.name) return; const newItem: InvoiceItem = { id: generateUUID(), name: newInvoiceItem.name, weight: Number(newInvoiceItem.weight), unitPrice: Number(newInvoiceItem.unitPrice), totalPrice: Number(newInvoiceItem.totalPrice) || (Number(newInvoiceItem.weight) * Number(newInvoiceItem.unitPrice)), part: newInvoiceItem.part || '' }; setShippingDocForm(prev => ({ ...prev, invoiceItems: [...(prev.invoiceItems || []), newItem] })); setNewInvoiceItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, part: '' }); };
@@ -788,11 +817,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 <div className="flex gap-2 items-end mb-4 bg-gray-50 p-3 rounded-lg flex-wrap">
                                     <div className="flex-1 min-w-[150px] space-y-1"><label className="text-xs text-gray-500">شرح کالا</label><input className="w-full border rounded p-2 text-sm" placeholder="نام کالا" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}/></div>
                                     <div className="w-32 space-y-1"><label className="text-xs text-gray-500">HS Code</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="کد تعرفه" value={newItem.hsCode || ''} onChange={e => setNewItem({...newItem, hsCode: e.target.value})}/></div>
-                                    <div className="w-24 space-y-1"><label className="text-xs text-gray-500">وزن (KG)</label><input type="number" step="0.001" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.weight || ''} onChange={e => setNewItem({...newItem, weight: parseFloat(e.target.value) || 0})}/></div>
-                                    <div className="w-28 space-y-1"><label className="text-xs text-gray-500">فی (Unit)</label><input type="number" step="0.01" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.unitPrice || ''} onChange={e => setNewItem({...newItem, unitPrice: parseFloat(e.target.value) || 0})}/></div>
+                                    <div className="w-24 space-y-1"><label className="text-xs text-gray-500">وزن (KG)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.weightStr} onChange={e => setNewItem({...newItem, weightStr: e.target.value, weight: parseFloat(e.target.value) || 0})}/></div>
+                                    <div className="w-28 space-y-1"><label className="text-xs text-gray-500">فی (Unit)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.unitPriceStr} onChange={e => setNewItem({...newItem, unitPriceStr: e.target.value, unitPrice: parseFloat(e.target.value) || 0})}/></div>
                                     <div className="w-32 space-y-1"><label className="text-xs text-gray-500">قیمت کل</label><input type="number" step="0.01" className="w-full border rounded p-2 text-sm dir-ltr bg-gray-100" placeholder="Auto" value={newItem.totalPrice || (Number(newItem.weight) * Number(newItem.unitPrice))} readOnly/></div>
                                     <button onClick={handleAddItem} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 h-[38px] min-w-[40px] flex items-center justify-center">{editingItemId ? <Save size={18}/> : <Plus size={18}/>}</button>
-                                    {editingItemId && <button onClick={() => { setEditingItemId(null); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '' }); }} className="bg-gray-200 text-gray-700 p-2 rounded-lg hover:bg-gray-300 h-[38px]"><X size={18}/></button>}
+                                    {editingItemId && <button onClick={() => { setEditingItemId(null); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' }); }} className="bg-gray-200 text-gray-700 p-2 rounded-lg hover:bg-gray-300 h-[38px]"><X size={18}/></button>}
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
@@ -922,16 +951,18 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ خرید</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/01/01" value={newCurrencyTranche.date} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, date: e.target.value})} /></div>
                                     {/* Added Return Fields */}
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-red-700">مبلغ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(newCurrencyTranche.returnAmount)} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnAmount: e.target.value})} placeholder="اختیاری" /></div>
-                                    <div className="col-span-5 md:col-span-1"><label className="text-xs font-bold text-red-700">تاریخ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={newCurrencyTranche.returnDate || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnDate: e.target.value})} placeholder="1403/..." /></div>
+                                    <div className="col-span-2 space-y-1"><label className="text-xs font-bold text-red-700">تاریخ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={newCurrencyTranche.returnDate || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnDate: e.target.value})} placeholder="1403/..." /></div>
                                     
-                                    <div className="col-span-1 md:col-span-6 flex justify-end mt-2 gap-2">
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-green-700">مقدار تحویلی</label><input className="w-full border rounded p-2 text-sm dir-ltr font-bold text-green-700" value={newCurrencyTranche.receivedAmountStr || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, receivedAmountStr: e.target.value})} placeholder="اختیاری" /></div>
+
+                                    <div className="col-span-2 flex justify-end mt-2 gap-2">
                                         {editingTrancheId && <button onClick={handleCancelEditTranche} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-300">انصراف</button>}
                                         <button onClick={handleAddCurrencyTranche} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 flex items-center gap-1"><Plus size={16} /> {editingTrancheId ? 'ویرایش و ذخیره' : 'افزودن پارت'}</button>
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3">عودت (مقدار/تاریخ)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">عملیات</th></tr></thead>
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3 text-green-700">تحویل شده</th><th className="p-3 text-red-700">عودت</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">عملیات</th></tr></thead>
                                         <tbody>
                                             {currencyForm.tranches?.map((t) => {
                                                 // Check for return amount field, handle if missing in type definition (runtime check)
@@ -939,6 +970,8 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                 const retAmt = t.returnAmount;
                                                 // @ts-ignore
                                                 const retDate = t.returnDate;
+                                                // @ts-ignore
+                                                const recvAmt = t.receivedAmount;
                                                 
                                                 return (
                                                 <tr key={t.id} className="border-b hover:bg-gray-50">
@@ -946,10 +979,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                     <td className="p-3 font-mono font-bold text-blue-600">{formatNumberString(t.amount)} {t.currencyType}</td>
                                                     <td className="p-3 font-mono">{formatNumberString(t.rate || 0)}</td>
                                                     <td className="p-3 text-xs">{t.exchangeName} {t.brokerName ? `(${t.brokerName})` : ''}</td>
-                                                    <td className="p-3 text-xs text-red-600">{retAmt ? `${formatNumberString(retAmt)} (${retDate || '-'})` : '-'}</td>
+                                                    <td className="p-3 text-xs font-bold text-green-600 font-mono">{recvAmt ? formatNumberString(recvAmt) : '-'}</td>
+                                                    <td className="p-3 text-xs text-red-600 font-mono">{retAmt ? `${formatNumberString(retAmt)} (${retDate || '-'})` : '-'}</td>
                                                     <td className="p-3 text-center">
                                                         <button onClick={() => handleToggleTrancheDelivery(t.id)} className={`px-2 py-1 rounded text-xs font-bold ${t.isDelivered ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                            {t.isDelivered ? 'تحویل شده' : 'انتظار'}
+                                                            {t.isDelivered ? 'تکمیل' : 'ناقص'}
                                                         </button>
                                                     </td>
                                                     <td className="p-3 flex gap-1">
@@ -961,7 +995,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                             <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
                                                 <td className="p-3">جمع کل</td>
                                                 <td className="p-3 font-mono text-amber-800">{formatNumberString(currencyForm.purchasedAmount)}</td>
-                                                <td colSpan={5} className="text-center text-xs text-amber-600">تحویل شده: {formatNumberString(currencyForm.deliveredAmount)}</td>
+                                                <td colSpan={2}></td>
+                                                <td className="p-3 font-mono text-green-800">{formatNumberString(currencyForm.deliveredAmount)}</td>
+                                                <td colSpan={3}></td>
                                             </tr>
                                         </tbody>
                                     </table>

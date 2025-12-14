@@ -20,14 +20,24 @@ export const normalizeInputNumber = (str: string): string => {
 export const formatNumberString = (value: string | number | undefined): string => {
   if (value === undefined || value === null || value === '') return '';
   const str = value.toString();
-  const normalized = normalizeInputNumber(str).replace(/[^0-9]/g, '');
+  // Allow numbers and dots, remove everything else
+  const normalized = normalizeInputNumber(str).replace(/[^0-9.]/g, '');
   if (!normalized) return '';
-  return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  
+  // Split integer and decimal parts
+  const parts = normalized.split('.');
+  const integerPart = parts[0];
+  // Reconstruct with at most one decimal point
+  const decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+  
+  return integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + decimalPart;
 };
 
 export const deformatNumberString = (value: string): number => {
-  const normalized = normalizeInputNumber(value).replace(/[^0-9]/g, '');
-  return Number(normalized);
+  if (!value) return 0;
+  // Keep digits and dots
+  const normalized = normalizeInputNumber(value).replace(/[^0-9.]/g, '');
+  return parseFloat(normalized) || 0;
 };
 
 export const INITIAL_ORDERS: PaymentOrder[] = [];
