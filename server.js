@@ -9,6 +9,17 @@ import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import cron from 'node-cron';
 
+// *** CRASH PREVENTION HANDLERS (MUST BE AT THE VERY TOP) ***
+process.on('uncaughtException', (err) => {
+    console.error('>>> CRITICAL ERROR (Uncaught Exception):', err.message);
+    // Prevent process exit
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('>>> CRITICAL ERROR (Unhandled Rejection):', reason instanceof Error ? reason.message : reason);
+    // Prevent process exit
+});
+
 // --- IMPORT DEDICATED MODULES ---
 import { initTelegram, sendDocument as sendTelegramDoc, sendMessage as sendTelegramMsg, notifyNewBijak } from './backend/telegram.js';
 import { initWhatsApp, sendMessage as sendWhatsAppMessage, getStatus as getWhatsAppStatus, logout as logoutWhatsApp, getGroups as getWhatsAppGroups } from './backend/whatsapp.js';
@@ -70,7 +81,11 @@ const db = getDb();
 
 // 1. Telegram
 if (db.settings?.telegramBotToken) {
-    initTelegram(db.settings.telegramBotToken);
+    try {
+        initTelegram(db.settings.telegramBotToken);
+    } catch (e) {
+        console.error("Failed to init Telegram:", e.message);
+    }
 }
 
 // 2. WhatsApp
