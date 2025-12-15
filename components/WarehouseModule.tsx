@@ -8,6 +8,7 @@ import PrintBijak from './PrintBijak';
 import PrintStockReport from './print/PrintStockReport'; 
 import WarehouseKardexReport from './reports/WarehouseKardexReport'; // NEW IMPORT
 import { apiCall } from '../services/apiService';
+import { getUsers } from '../services/authService';
 
 interface Props { 
     currentUser: User; 
@@ -55,8 +56,9 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     // Print Report State
     const [showPrintStockReport, setShowPrintStockReport] = useState(false); 
 
-    // Auto Send on Approval
+    // Auto Send on Approval/Edit
     const [approvedTxForAutoSend, setApprovedTxForAutoSend] = useState<WarehouseTransaction | null>(null);
+    const [editedBijakForAutoSend, setEditedBijakForAutoSend] = useState<WarehouseTransaction | null>(null);
 
     useEffect(() => { loadData(); }, []);
     useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
@@ -133,6 +135,10 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
         if (!confirm('آیا تایید می‌کنید؟ پس از تایید، بیجک به صورت خودکار برای انبار و مدیریت ارسال می‌شود.')) return;
         
         try {
+            // Check if this is a Correction (Edited) by comparing updatedAt and createdAt
+            const isCorrection = tx.updatedAt && tx.updatedAt > (tx.createdAt + 60000); // 1 minute buffer
+            const titleSuffix = isCorrection ? ' (اصلاحیه)' : '';
+
             // 1. Update Status
             const updatedTx = { ...tx, status: 'APPROVED' as const, approvedBy: currentUser.fullName };
             await updateWarehouseTransaction(updatedTx);
@@ -164,7 +170,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                             // @ts-ignore
                             const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff' });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
-                            const managerCaption = `🏭 *شرکت: ${updatedTx.company}*\n📑 *حواله خروج (تایید شده - نسخه مدیریت)*\n${commonDetails}`;
+                            const managerCaption = `🏭 *شرکت: ${updatedTx.company}*\n📑 *حواله خروج - تایید شده${titleSuffix}*\n${commonDetails}`;
                             
                             await apiCall('/send-whatsapp', 'POST', { 
                                 number: managerNumber, 
@@ -178,7 +184,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                             // @ts-ignore
                             const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff' });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
-                            const warehouseCaption = `🏭 *شرکت: ${updatedTx.company}*\n📦 *حواله خروج (تایید شده - نسخه انبار)*\n${commonDetails}`;
+                            const warehouseCaption = `🏭 *شرکت: ${updatedTx.company}*\n📦 *حواله خروج - نسخه انبار${titleSuffix}*\n${commonDetails}`;
 
                             await apiCall('/send-whatsapp', 'POST', { 
                                 number: groupNumber, 
@@ -201,8 +207,50 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     
     // ... (Edit handlers same) ...
     const handleEditBijakSave = async (updatedTx: WarehouseTransaction) => {
-        try { await updateWarehouseTransaction(updatedTx); setEditingBijak(null); loadData(); alert('بیجک با موفقیت ویرایش شد.'); } catch (e) { console.error(e); alert('خطا در ویرایش بیجک.'); }
+        try { 
+            // Reset status to PENDING on edit to re-trigger approval workflow
+            updatedTx.status = 'PENDING';
+            updatedTx.updatedAt = Date.now();
+            
+            await updateWarehouseTransaction(updatedTx); 
+            setEditingBijak(null); 
+            
+            // Auto Send Notification to CEO for re-approval
+            setEditedBijakForAutoSend(updatedTx);
+
+            setTimeout(async () => {
+                 const element = document.getElementById(`print-bijak-edit-${updatedTx.id}`);
+                 if (element) {
+                     try {
+                         const users = await getUsers();
+                         const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                         if (ceo) {
+                             // @ts-ignore
+                            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                            const base64 = canvas.toDataURL('image/png').split(',')[1];
+                            
+                            let caption = `📝 *اصلاحیه بیجک (جهت تایید مجدد)*\n`;
+                            caption += `شماره: ${updatedTx.number}\n`;
+                            caption += `گیرنده: ${updatedTx.recipientName}\n`;
+                            caption += `ویرایش توسط: ${currentUser.fullName}\n\n`;
+                            caption += `لطفا بررسی نمایید.`;
+
+                            await apiCall('/send-whatsapp', 'POST', { 
+                                number: ceo.phoneNumber, 
+                                message: caption, 
+                                mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_Edit_${updatedTx.number}.png` } 
+                            });
+                         }
+                     } catch(e) { console.error(e); }
+                 }
+                 setEditedBijakForAutoSend(null);
+                 loadData(); 
+                 alert('بیجک ویرایش و جهت تایید مجدد به مدیریت ارسال شد.'); 
+            }, 1500);
+
+        } catch (e) { console.error(e); alert('خطا در ویرایش بیجک.'); }
     };
+
     const handleEditReceiptSave = async (updatedTx: WarehouseTransaction) => {
         try { await updateWarehouseTransaction(updatedTx); setEditingReceipt(null); loadData(); alert('رسید با موفقیت ویرایش شد.'); } catch (e) { console.error(e); alert('خطا در ویرایش رسید.'); }
     };
@@ -261,6 +309,9 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-price`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-noprice`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
                     </>
+                )}
+                {editedBijakForAutoSend && (
+                     <div id={`print-bijak-edit-${editedBijakForAutoSend.id}`}><PrintBijak tx={editedBijakForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                 )}
             </div>
 
@@ -473,7 +524,7 @@ const EditBijakForm: React.FC<{ bijak: WarehouseTransaction, items: WarehouseIte
     const addItem = () => setFormData({ ...formData, items: [...formData.items, { itemId: '', itemName: '', quantity: 0, weight: 0, unitPrice: 0 }] });
     const removeItem = (idx: number) => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) });
     const years = Array.from({length:10},(_,i)=>1400+i); const months = Array.from({length:12},(_,i)=>i+1); const days = Array.from({length:31},(_,i)=>i+1);
-    return (<div className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold block mb-1">تاریخ</label><div className="flex gap-1"><select className="border rounded p-1 w-full" value={dateParts.day} onChange={e=>setDateParts({...dateParts, day: +e.target.value})}>{days.map(d=><option key={d} value={d}>{d}</option>)}</select><select className="border rounded p-1 w-full" value={dateParts.month} onChange={e=>setDateParts({...dateParts, month: +e.target.value})}>{months.map(m=><option key={m} value={m}>{m}</option>)}</select><select className="border rounded p-1 w-full" value={dateParts.year} onChange={e=>setDateParts({...dateParts, year: +e.target.value})}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select></div></div><div><label className="text-xs font-bold block mb-1">شرکت فرستنده</label><select className="w-full border rounded p-2 bg-white" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})}>{companyList.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="text-xs font-bold block mb-1">گیرنده</label><input className="w-full border rounded p-2" value={formData.recipientName || ''} onChange={e=>setFormData({...formData, recipientName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">راننده</label><input className="w-full border rounded p-2" value={formData.driverName || ''} onChange={e=>setFormData({...formData, driverName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">پلاک</label><input className="w-full border rounded p-2 dir-ltr" value={formData.plateNumber || ''} onChange={e=>setFormData({...formData, plateNumber: e.target.value})}/></div><div className="col-span-2"><label className="text-xs font-bold block mb-1">مقصد</label><input className="w-full border rounded p-2" value={formData.destination || ''} onChange={e=>setFormData({...formData, destination: e.target.value})}/></div></div><div className="bg-gray-50 p-4 rounded border"><h4 className="font-bold text-sm mb-2">اقلام</h4>{formData.items.map((item, idx) => (<div key={idx} className="flex gap-2 mb-2 items-end"><div className="flex-1"><select className="w-full border rounded p-1 text-sm" value={item.itemId} onChange={e=>updateItem(idx, 'itemId', e.target.value)}><option value="">انتخاب...</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="w-20"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.quantity} onChange={e=>updateItem(idx, 'quantity', e.target.value)} placeholder="تعداد"/></div><div className="w-24"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.weight} onChange={e=>updateItem(idx, 'weight', e.target.value)} placeholder="وزن"/></div><div className="w-28"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.unitPrice} onChange={e=>updateItem(idx, 'unitPrice', e.target.value)} placeholder="قیمت"/></div><button onClick={()=>removeItem(idx)} className="text-red-500"><Trash2 size={16}/></button></div>))}<button onClick={addItem} className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-2"><Plus size={14}/> افزودن سطر</button></div><div className="flex justify-end gap-2 pt-4 border-t"><button onClick={onCancel} className="px-4 py-2 border rounded text-gray-600">انصراف</button><button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">ذخیره تغییرات</button></div></div>);
+    return (<div className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold block mb-1">تاریخ</label><div className="flex gap-1"><select className="border rounded p-1 w-full" value={dateParts.day} onChange={e=>setDateParts({...dateParts, day: +e.target.value})}>{days.map(d=><option key={d} value={d}>{d}</option>)}</select><select className="border rounded p-1 w-full" value={dateParts.month} onChange={e=>setDateParts({...dateParts, month: +e.target.value})}>{months.map(m=><option key={m} value={m}>{m}</option>)}</select><select className="border rounded p-1 w-full" value={dateParts.year} onChange={e=>setDateParts({...dateParts, year: +e.target.value})}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select></div></div><div><label className="text-xs font-bold block mb-1">شرکت فرستنده</label><select className="w-full border rounded p-2 bg-white" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})}>{companyList.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="text-xs font-bold block mb-1">گیرنده</label><input className="w-full border rounded p-2" value={formData.recipientName || ''} onChange={e=>setFormData({...formData, recipientName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">راننده</label><input className="w-full border rounded p-2" value={formData.driverName || ''} onChange={e=>setFormData({...formData, driverName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">پلاک</label><input className="w-full border rounded p-2 dir-ltr" value={formData.plateNumber || ''} onChange={e=>setFormData({...formData, plateNumber: e.target.value})}/></div><div className="col-span-2"><label className="text-xs font-bold block mb-1">مقصد</label><input className="w-full border rounded p-2" value={formData.destination || ''} onChange={e=>setFormData({...formData, destination: e.target.value})}/></div></div><div className="bg-gray-50 p-4 rounded border"><h4 className="font-bold text-sm mb-2">اقلام</h4>{formData.items.map((item, idx) => (<div key={idx} className="flex gap-2 mb-2 items-end"><div className="flex-1"><select className="w-full border rounded p-1 text-sm" value={item.itemId} onChange={e=>updateItem(idx, 'itemId', e.target.value)}><option value="">انتخاب...</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="w-20"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.quantity} onChange={e=>updateItem(idx, 'quantity', e.target.value)} placeholder="تعداد"/></div><div className="w-24"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.weight} onChange={e=>updateItem(idx, 'weight', e.target.value)} placeholder="وزن"/></div><div className="w-28"><input type="number" className="w-full border rounded p-1 text-sm text-center" value={item.unitPrice} onChange={e=>updateItem(idx, 'unitPrice', e.target.value)} placeholder="قیمت"/></div><button onClick={()=>removeItem(idx)} className="text-red-500"><Trash2 size={16}/></button></div>))}<button onClick={addItem} className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-2"><Plus size={14}/> افزودن سطر</button></div><div className="flex justify-end gap-2 pt-4 border-t"><button onClick={onCancel} className="px-4 py-2 border rounded text-gray-600">انصراف</button><button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">ذخیره و ارسال جهت تایید</button></div></div>);
 }
 
 const EditReceiptForm: React.FC<{ receipt: WarehouseTransaction, items: WarehouseItem[], companyList: string[], onSave: (tx: WarehouseTransaction) => void, onCancel: () => void }> = ({ receipt, items, companyList, onSave, onCancel }) => {

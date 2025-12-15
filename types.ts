@@ -159,6 +159,7 @@ export interface WarehouseTransaction {
     
     createdAt: number;
     createdBy: string;
+    updatedAt?: number;
 }
 
 export interface RolePermissions {

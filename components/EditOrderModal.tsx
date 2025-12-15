@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus } from '../types';
+import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus, UserRole } from '../types';
 import { editOrder, uploadFile, getSettings, saveSettings } from '../services/storageService';
 import { enhanceDescription } from '../services/geminiService';
 import { jalaliToGregorian, getShamsiDateFromIso, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../constants';
 import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle } from 'lucide-react';
+import PrintVoucher from './PrintVoucher';
+import { getUsers } from '../services/authService';
+import { apiCall } from '../services/apiService';
 
 interface EditOrderModalProps {
   order: PaymentOrder;
@@ -35,6 +38,9 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  // Auto Send Logic State
+  const [tempOrderForCapture, setTempOrderForCapture] = useState<PaymentOrder | null>(null);
 
   useEffect(() => { 
       getSettings().then((settings: SystemSettings) => { 
@@ -121,19 +127,19 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
     if (remaining !== 0) { alert("جمع اقلام پرداخت با مبلغ کل سفارش برابر نیست!"); return; }
     if (!formData.trackingNumber) { alert("شماره دستور پرداخت الزامی است."); return; }
     
-    let updates: Partial<PaymentOrder> = {};
-    if (order.status === OrderStatus.REJECTED) {
-        updates = { 
-            status: OrderStatus.PENDING, 
-            rejectionReason: undefined, 
-            rejectedBy: undefined,
-            approverFinancial: undefined, 
-            approverManager: undefined, 
-            approverCeo: undefined 
-        };
-    }
-    
     setIsSubmitting(true);
+
+    // Reset status to PENDING on Edit (Trigger Workflow Again)
+    const updates: Partial<PaymentOrder> = { 
+        status: OrderStatus.PENDING, 
+        rejectionReason: undefined, 
+        rejectedBy: undefined,
+        approverFinancial: undefined, 
+        approverManager: undefined, 
+        approverCeo: undefined,
+        updatedAt: Date.now()
+    };
+    
     const updatedOrder: PaymentOrder = { 
         ...order, 
         ...updates,
@@ -146,7 +152,46 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
         attachments: attachments, 
         payingCompany: payingCompany 
     };
-    try { await editOrder(updatedOrder); onSave(); onClose(); } catch (error) { alert("خطا در ذخیره تغییرات"); } finally { setIsSubmitting(false); }
+
+    try { 
+        await editOrder(updatedOrder); 
+        
+        // --- AUTO SEND CORRECTION TO FINANCIAL MANAGER ---
+        setTempOrderForCapture(updatedOrder);
+
+        setTimeout(async () => {
+             const element = document.getElementById(`print-voucher-edit-${updatedOrder.id}`);
+             if (element) {
+                 try {
+                     const users = await getUsers();
+                     const finUser = users.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
+                     if (finUser) {
+                        // @ts-ignore
+                        const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                        const base64 = canvas.toDataURL('image/png').split(',')[1];
+                        
+                        let caption = `📢 *اصلاحیه دستور پرداخت*\n`;
+                        caption += `شماره: ${updatedOrder.trackingNumber}\n`;
+                        caption += `مبلغ: ${formatCurrency(updatedOrder.totalAmount)}\n`;
+                        caption += `وضعیت: بازگشت به صف بررسی\n\n`;
+                        caption += `لطفا مجدداً بررسی نمایید.`;
+
+                        await apiCall('/send-whatsapp', 'POST', { 
+                            number: finUser.phoneNumber, 
+                            message: caption, 
+                            mediaData: { data: base64, mimeType: 'image/png', filename: `Order_Edit_${updatedOrder.trackingNumber}.png` } 
+                        });
+                     }
+                 } catch (err) { console.error("Auto send edit failed", err); }
+             }
+             onSave(); 
+             onClose(); 
+        }, 1500);
+
+    } catch (error) { 
+        alert("خطا در ذخیره تغییرات"); 
+        setIsSubmitting(false);
+    }
   };
 
   const years = Array.from({ length: 11 }, (_, i) => 1400 + i);
@@ -154,6 +199,15 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        {/* Hidden Render for Auto Send */}
+        {tempOrderForCapture && (
+            <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                <div id={`print-voucher-edit-${tempOrderForCapture.id}`}>
+                    <PrintVoucher order={tempOrderForCapture} embed />
+                </div>
+            </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10"><div className="flex items-center gap-3"><div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Save size={20} /></div><h2 className="text-xl font-bold text-gray-800">ویرایش دستور پرداخت</h2></div><button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button></div>
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -201,7 +255,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                 </div>
                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200"><label className="text-sm font-medium text-gray-700 mb-2 block flex items-center gap-2"><Paperclip size={16} />مدیریت ضمیمه‌ها</label><div className="flex items-center gap-4"><input type="file" id="attachment-edit" className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} /><label htmlFor="attachment-edit" className={`bg-white border text-gray-700 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-100 text-sm ${uploading ? 'opacity-50 cursor-wait' : ''}`}>{uploading ? 'در حال آپلود...' : 'افزودن فایل جدید'}</label></div>{attachments.length > 0 && <div className="mt-3 space-y-2">{attachments.map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 text-sm"><span className="text-blue-600 truncate max-w-[200px]">{file.fileName}</span><button type="button" onClick={() => removeAttachment(idx)} className="text-red-500 hover:text-red-700"><X size={16} /></button></div>))}</div>}</div>
                 <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-sm font-medium text-gray-700">شرح پرداخت</label><button type="button" onClick={handleEnhance} disabled={isEnhancing || !formData.description} className="text-xs flex items-center gap-1.5 text-purple-600 bg-purple-50 px-3 py-1.5 rounded-lg disabled:opacity-50">{isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}هوش مصنوعی</button></div><textarea required rows={4} className="w-full border rounded-xl px-4 py-3 bg-gray-50 resize-none" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} /></div>
-                <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 font-medium">انصراف</button><button type="submit" disabled={isSubmitting || remaining !== 0 || uploading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 disabled:opacity-70">{isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}ذخیره تغییرات</button></div>
+                <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 font-medium">انصراف</button><button type="submit" disabled={isSubmitting || remaining !== 0 || uploading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 disabled:opacity-70">{isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}ذخیره و ارسال جهت تایید مجدد</button></div>
             </form>
         </div>
     </div>
