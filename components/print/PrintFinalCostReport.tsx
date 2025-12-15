@@ -25,6 +25,7 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   }, []);
 
   const totalWeight = record.items.reduce((sum, item) => sum + item.weight, 0);
+  const totalFreightCurrency = record.freightCost || 0;
   
   // Calculate Net Currency Cost for Display in Expenses
   const tranches = record.currencyPurchaseData?.tranches || [];
@@ -66,13 +67,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
 
   const costPerKg = totalWeight > 0 ? grandTotalRial / totalWeight : 0;
   
-  // Calculate Overhead Per KG for Distribution
-  // Base Cost = Item Price * CalcRate
-  // Overhead = GrandTotal - (TotalItemsPrice * CalcRate)
-  const totalItemsCurrency = record.items.reduce((a, b) => a + b.totalPrice, 0);
-  const totalBaseCostRial = totalItemsCurrency * exchangeRate;
-  const totalOverheadRial = grandTotalRial - totalBaseCostRial;
-  const overheadPerKg = totalWeight > 0 ? totalOverheadRial / totalWeight : 0;
+  // Freight Per KG (Currency)
+  const freightPerKgCurrency = totalWeight > 0 ? totalFreightCurrency / totalWeight : 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
@@ -108,7 +104,7 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     <div><span className="font-bold text-gray-600">شرح کالا:</span> {record.goodsName}</div>
                     <div><span className="font-bold text-gray-600">فروشنده:</span> {record.sellerName}</div>
                     <div><span className="font-bold text-gray-600">ارز پایه:</span> {record.mainCurrency}</div>
-                    <div><span className="font-bold text-gray-600">نرخ ارز محاسباتی:</span> {formatCurrency(exchangeRate)}</div>
+                    <div><span className="font-bold text-gray-600">نرخ ریالی هر واحد ارز:</span> {formatCurrency(exchangeRate)}</div>
                     <div><span className="font-bold text-gray-600">کل وزن:</span> {formatNumberString(totalWeight)} KG</div>
                     <div><span className="font-bold text-gray-600">شماره سفارش:</span> {record.orderNumber || '-'}</div>
                 </div>
@@ -146,8 +142,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                         <span className="font-mono dir-ltr font-bold">{formatNumberString(totalCurrency)} {record.mainCurrency}</span>
                     </div>
                     <div className="flex justify-between mb-2 border-b border-gray-300 pb-2">
-                        <span>هزینه سربار هر کیلو (سرشکن شده):</span>
-                        <span className="font-mono dir-ltr font-bold">{formatCurrency(overheadPerKg)}</span>
+                        <span>هزینه حمل ارزی هر کیلو:</span>
+                        <span className="font-mono dir-ltr font-bold">{formatNumberString(freightPerKgCurrency)} {record.mainCurrency}</span>
                     </div>
                     <div className="flex justify-between mt-2 text-sm bg-gray-100 p-2 rounded">
                         <span className="font-black">قیمت تمام شده نهایی (کل پروژه):</span>
@@ -163,25 +159,36 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                             <th className="border border-black p-2 w-10">ردیف</th>
                             <th className="border border-black p-2">شرح کالا</th>
                             <th className="border border-black p-2">وزن (KG)</th>
-                            <th className="border border-black p-2">قیمت خرید (ارز)</th>
+                            <th className="border border-black p-2">فی ارزی (خرید)</th>
+                            <th className="border border-black p-2">فی ارزی نهایی (با حمل)</th>
                             <th className="border border-black p-2">قیمت تمام شده (ریال)</th>
                             <th className="border border-black p-2">فی تمام شده (هر کیلو)</th>
                         </tr>
                     </thead>
                     <tbody>
                         {record.items.map((item, idx) => {
-                            // Logic: Base Cost (Price*Rate) + Overhead (Weight * OverheadPerKg)
-                            const itemBaseRial = item.totalPrice * exchangeRate;
-                            const itemOverhead = item.weight * overheadPerKg;
-                            const itemFinalCostRial = itemBaseRial + itemOverhead;
+                            // 1. Calculate Item Share of Freight in Currency based on weight
+                            const itemFreightShareCurrency = item.weight * freightPerKgCurrency;
+                            
+                            // 2. Adjusted Item Total Price in Currency
+                            const itemAdjustedTotalPriceCurrency = item.totalPrice + itemFreightShareCurrency;
+                            
+                            // 3. Final Cost in Rial = Adjusted Currency Total * Effective Rate
+                            const itemFinalCostRial = itemAdjustedTotalPriceCurrency * exchangeRate;
+                            
+                            // 4. Per Kg
                             const itemFinalCostPerKg = item.weight > 0 ? itemFinalCostRial / item.weight : 0;
                             
+                            // Display: Unit Price Adjusted
+                            const itemAdjustedUnitPriceCurrency = item.weight > 0 ? itemAdjustedTotalPriceCurrency / item.weight : 0;
+
                             return (
                                 <tr key={item.id}>
                                     <td className="border border-black p-2">{idx + 1}</td>
                                     <td className="border border-black p-2 font-bold">{item.name}</td>
                                     <td className="border border-black p-2 font-mono">{formatNumberString(item.weight)}</td>
-                                    <td className="border border-black p-2 font-mono">{formatNumberString(item.totalPrice)}</td>
+                                    <td className="border border-black p-2 font-mono">{formatNumberString(item.unitPrice)}</td>
+                                    <td className="border border-black p-2 font-mono text-blue-800">{formatNumberString(itemAdjustedUnitPriceCurrency)}</td>
                                     <td className="border border-black p-2 font-mono font-bold">{formatCurrency(itemFinalCostRial)}</td>
                                     <td className="border border-black p-2 font-mono font-bold bg-gray-100">{formatCurrency(itemFinalCostPerKg)}</td>
                                 </tr>

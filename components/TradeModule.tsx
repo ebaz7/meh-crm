@@ -625,7 +625,16 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         // 4. Grand Total Rial Cost (The "Real" cost of the project)
         const grandTotalRialProject = netCurrencyRialCost + totalOverheadsRial;
 
+        // 5. Total Weight
         const totalWeight = selectedRecord.items.reduce((sum, item) => sum + item.weight, 0);
+
+        // 6. Effective Rate (Feat 1 Unit of Currency)
+        // Formula: Total Project Cost (Rial) / Total Proforma Amount (Currency)
+        const effectiveRate = totalProformaCurrency > 0 ? grandTotalRialProject / totalProformaCurrency : 0;
+
+        // 7. Freight Per Weight (Currency)
+        const freightPerKgCurrency = totalWeight > 0 ? totalFreightCurrency / totalWeight : 0;
+
         const costPerKg = totalWeight > 0 ? grandTotalRialProject / totalWeight : 0;
 
         return (
@@ -637,7 +646,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                         record={selectedRecord} 
                         totalRial={totalOverheadsRial} // Show overheads as Rial expenses
                         totalCurrency={totalProformaCurrency} // Show full currency amount
-                        exchangeRate={calcExchangeRate} // Pass Calc Rate as requested
+                        exchangeRate={effectiveRate} // Pass Calculated Effective Rate
                         grandTotalRial={grandTotalRialProject}
                         onClose={() => setShowFinalReportPrint(false)} 
                     />
@@ -1338,7 +1347,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 <button onClick={handleDownloadFinalReportPDF} disabled={isGeneratingPdf} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 text-sm">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF (صورتحساب)</button>
                             </div>
 
-                            {/* --- NEW CALCULATION LOGIC IMPLEMENTATION (WEIGHT BASED) --- */}
+                            {/* --- NEW CALCULATION LOGIC IMPLEMENTATION (WEIGHT BASED + EFFECTIVE RATE) --- */}
                             {(() => {
                                 // 1. Calculate Total Proforma Currency (Items + Freight)
                                 const totalItemsCurrency = selectedRecord.items.reduce((a, b) => a + b.totalPrice, 0);
@@ -1362,23 +1371,19 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 const totalOverheadsRial = overheadStages.reduce((sum, stage) => 
                                     sum + (selectedRecord.stages[stage]?.costRial || 0), 0);
 
-                                // 4. Grand Total Rial Cost (The "Real" cost of the project)
+                                // 4. Grand Total Rial Cost (Total Project Cost)
                                 const grandTotalRialProject = netCurrencyRialCost + totalOverheadsRial;
 
                                 // 5. Total Weight
                                 const totalWeight = selectedRecord.items.reduce((sum, item) => sum + item.weight, 0);
 
-                                // 6. Calculation Core: Distributed Overhead
-                                // Base Cost = Item Price * CalcRate
-                                // Overhead = GrandTotal - (Total Items Price * CalcRate)  <-- Note: Freight is implicitly part of overhead here if we subtract Items only
-                                // OR Overhead = GrandTotal - (Total Proforma * CalcRate) <-- If Freight is Base Cost
-                                // User said: "Fee of one unit... plus ratio of cost fee divided by kilo... distributed into each row"
-                                // Let's treat (Item Price * CalcRate) as the Base Cost of the Item.
-                                // Everything else (including Freight converted to Rial, Net Currency Cost Difference, All Overheads) is "Overhead".
+                                // 6. Calculation Core:
+                                // Effective Rate = Total Project Cost (Rial) / Total Proforma Currency (Items + Freight)
+                                const effectiveRate = totalProformaCurrency > 0 ? grandTotalRialProject / totalProformaCurrency : 0;
                                 
-                                const totalBaseRial = totalItemsCurrency * calcExchangeRate;
-                                const totalOverheadRial = grandTotalRialProject - totalBaseRial;
-                                const overheadPerKg = totalWeight > 0 ? totalOverheadRial / totalWeight : 0;
+                                // Freight per KG (Currency) = Total Freight (Currency) / Total Weight
+                                const freightPerKgCurrency = totalWeight > 0 ? totalFreightCurrency / totalWeight : 0;
+
                                 const costPerKg = totalWeight > 0 ? grandTotalRialProject / totalWeight : 0;
 
                                 return (
@@ -1410,18 +1415,21 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                 </div>
                                                 
                                                 <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                                    <label className="text-xs font-bold text-gray-600 block mb-2">نرخ ارز محاسباتی (جهت تسهیم هزینه)</label>
-                                                    <div className="flex gap-2 mb-3">
-                                                        <input className="flex-1 border rounded p-2 text-sm dir-ltr font-mono font-bold" value={formatNumberString(calcExchangeRate)} onChange={e => handleUpdateCalcRate(deformatNumberString(e.target.value))} placeholder="نرخ تبدیل..." />
-                                                        <div className="bg-gray-200 px-3 py-2 rounded text-sm font-bold flex items-center">ریال</div>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-gray-600">مبلغ کل پروفرما (کالا + حمل):</span>
+                                                        <span className="text-sm font-bold text-blue-700 dir-ltr font-mono">{formatNumberString(totalProformaCurrency)} {selectedRecord.mainCurrency}</span>
                                                     </div>
                                                     
                                                     <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                                                        <span className="text-sm font-bold text-gray-700">هزینه سربار هر کیلو (ریال):</span>
-                                                        <span className="text-lg font-black text-rose-700 dir-ltr">{formatCurrency(overheadPerKg)}</span>
+                                                        <span className="text-sm font-bold text-gray-700">نرخ ریالی هر واحد ارز (فی ارز):</span>
+                                                        <span className="text-lg font-black text-rose-700 dir-ltr">{formatCurrency(effectiveRate)}</span>
                                                     </div>
-                                                    <div className="mt-1 flex justify-between items-center">
-                                                        <span className="text-xs text-gray-500">میانگین قیمت هر کیلو:</span>
+                                                    <div className="flex justify-between items-center mt-1">
+                                                        <span className="text-xs font-bold text-gray-500">هزینه حمل ارزی هر کیلو:</span>
+                                                        <span className="text-sm font-bold text-gray-700 dir-ltr">{formatNumberString(freightPerKgCurrency)} {selectedRecord.mainCurrency}</span>
+                                                    </div>
+                                                    <div className="mt-1 flex justify-between items-center border-t border-gray-200 pt-1">
+                                                        <span className="text-xs text-gray-500">میانگین قیمت هر کیلو (ریال):</span>
                                                         <span className="text-sm font-bold text-gray-700 dir-ltr">{formatCurrency(costPerKg)}</span>
                                                     </div>
                                                 </div>
@@ -1430,15 +1438,24 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                             <div className="bg-white p-6 rounded-xl shadow-sm border h-fit"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><ShieldCheck size={20} className="text-blue-600"/> لیست چک‌های ضمانت</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">نوع</th><th className="p-3">شماره / بانک</th><th className="p-3">مبلغ</th><th className="p-3">وضعیت</th></tr></thead><tbody className="divide-y divide-gray-100">{getAllGuarantees().map((g) => (<tr key={g.id}><td className="p-3"><span className={`text-[10px] px-2 py-0.5 rounded ${g.type === 'ارزی' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>{g.type}</span></td><td className="p-3"><div className="font-mono text-xs">{g.number}</div><div className="text-[10px] text-gray-500">{g.bank}</div></td><td className="p-3 font-mono">{formatCurrency(Number(g.amount))}</td><td className="p-3 text-center"><button onClick={g.toggleFunc} className={`text-xs px-2 py-1 rounded font-bold transition-colors ${g.isDelivered ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>{g.isDelivered ? 'عودت شد' : 'نزد سازمان'}</button></td></tr>))}{getAllGuarantees().length === 0 && (<tr><td colSpan={4} className="p-4 text-center text-gray-400">هیچ ضمانت‌نامه‌ای ثبت نشده است</td></tr>)}</tbody></table></div></div>
                                         </div>
 
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Scale size={20} className="text-emerald-600"/> قیمت تمام شده کالاها (به تفکیک)</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-emerald-50 text-emerald-800"><tr><th className="p-3 rounded-r-lg">ردیف</th><th className="p-3">شرح کالا</th><th className="p-3">HS Code</th><th className="p-3">وزن (KG)</th><th className="p-3">قیمت خرید (ارزی)</th><th className="p-3">قیمت تمام شده نهایی (ریال)</th><th className="p-3 rounded-l-lg">قیمت تمام شده هر کیلو</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedRecord.items.map((item, idx) => { 
-                                            // New Calculation Logic Per Item: Base + Distributed Overhead
-                                            const itemBaseRial = item.totalPrice * calcExchangeRate;
-                                            const itemOverhead = item.weight * overheadPerKg;
-                                            const itemFinalCostRial = itemBaseRial + itemOverhead;
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border"><h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Scale size={20} className="text-emerald-600"/> قیمت تمام شده کالاها (به تفکیک)</h3><div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-emerald-50 text-emerald-800"><tr><th className="p-3 rounded-r-lg">ردیف</th><th className="p-3">شرح کالا</th><th className="p-3">HS Code</th><th className="p-3">وزن (KG)</th><th className="p-3">فی ارزی (خرید)</th><th className="p-3">فی ارزی نهایی (با حمل)</th><th className="p-3">قیمت تمام شده (ریال)</th><th className="p-3 rounded-l-lg">فی تمام شده هر کیلو</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedRecord.items.map((item, idx) => { 
+                                            // 1. Calculate Item Share of Freight in Currency based on weight
+                                            const itemFreightShareCurrency = item.weight * freightPerKgCurrency;
+                                            
+                                            // 2. Adjusted Item Total Price in Currency
+                                            const itemAdjustedTotalPriceCurrency = item.totalPrice + itemFreightShareCurrency;
+                                            
+                                            // 3. Final Cost in Rial = Adjusted Currency Total * Effective Rate
+                                            const itemFinalCostRial = itemAdjustedTotalPriceCurrency * effectiveRate;
+                                            
+                                            // 4. Per Kg
                                             const itemFinalCostPerKg = item.weight > 0 ? itemFinalCostRial / item.weight : 0;
+                                            
+                                            // Display: Unit Price Adjusted
+                                            const itemAdjustedUnitPriceCurrency = item.weight > 0 ? itemAdjustedTotalPriceCurrency / item.weight : 0;
 
-                                            return (<tr key={item.id} className="hover:bg-gray-50"><td className="p-3 text-center">{idx + 1}</td><td className="p-3 font-bold">{item.name}</td><td className="p-3 font-mono">{item.hsCode || '-'}</td><td className="p-3 font-mono">{formatNumberString(item.weight)}</td><td className="p-3 font-mono">{formatNumberString(item.totalPrice)} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono font-bold text-emerald-700">{formatCurrency(itemFinalCostRial)}</td><td className="p-3 font-mono font-bold text-blue-700 bg-blue-50">{formatCurrency(itemFinalCostPerKg)}</td></tr>); 
-                                        })}<tr className="bg-gray-100 font-bold border-t-2 border-emerald-200"><td colSpan={3} className="p-3 text-center">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalWeight)} KG</td><td className="p-3 font-mono dir-ltr">{formatNumberString(selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0))} {selectedRecord.mainCurrency}</td><td className="p-3 font-mono dir-ltr text-emerald-800">{formatCurrency(grandTotalRialProject)}</td><td></td></tr></tbody></table></div></div>
+                                            return (<tr key={item.id} className="hover:bg-gray-50"><td className="p-3 text-center">{idx + 1}</td><td className="p-3 font-bold">{item.name}</td><td className="p-3 font-mono">{item.hsCode || '-'}</td><td className="p-3 font-mono">{formatNumberString(item.weight)}</td><td className="p-3 font-mono">{formatNumberString(item.unitPrice)}</td><td className="p-3 font-mono text-purple-700">{formatNumberString(itemAdjustedUnitPriceCurrency)}</td><td className="p-3 font-mono font-bold text-emerald-700">{formatCurrency(itemFinalCostRial)}</td><td className="p-3 font-mono font-bold text-blue-700 bg-blue-50">{formatCurrency(itemFinalCostPerKg)}</td></tr>); 
+                                        })}<tr className="bg-gray-100 font-bold border-t-2 border-emerald-200"><td colSpan={3} className="p-3 text-center">جمع کل</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalWeight)} KG</td><td className="p-3 font-mono dir-ltr">{formatNumberString(selectedRecord.items.reduce((acc, i) => acc + i.totalPrice, 0))}</td><td className="p-3 font-mono dir-ltr">{formatNumberString(totalProformaCurrency)}</td><td className="p-3 font-mono dir-ltr text-emerald-800">{formatCurrency(grandTotalRialProject)}</td><td></td></tr></tbody></table></div></div>
                                     </>
                                 );
                             })()}
