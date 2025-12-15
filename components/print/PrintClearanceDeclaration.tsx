@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { TradeRecord, SystemSettings, ShippingDocument } from '../../types';
+import { TradeRecord, SystemSettings } from '../../types';
 import { X, Printer, Loader2 } from 'lucide-react';
-import { formatDate, formatNumberString } from '../../constants';
+import { formatNumberString } from '../../constants';
 
 interface Props {
   record: TradeRecord;
@@ -13,7 +13,7 @@ interface Props {
 const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose }) => {
   const [processing, setProcessing] = useState(false);
   
-  // Local state for editable fields that might not be in the record
+  // Local state for editable fields
   const [formData, setFormData] = useState({
       brokerName: 'جناب آقای محمد محمودیان',
       transportMode: 'Land' as 'Rail' | 'Land' | 'Sea',
@@ -89,10 +89,10 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose 
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     backgroundRepeat: 'no-repeat',
-                    padding: '40mm 20mm 20mm 20mm' // Adjust padding to avoid header/footer of letterhead
+                    padding: '40mm 20mm 20mm 20mm'
                 }}>
                 
-                {/* Header Info (Usually on Letterhead, but we allow overlay if needed) */}
+                {/* Header Info Overlay */}
                 <div className="absolute top-[40mm] left-[20mm] text-left text-sm font-bold space-y-1 w-48">
                     <div className="flex justify-between items-center">
                         <span>تاریخ:</span>
