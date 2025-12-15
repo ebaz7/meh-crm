@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { X, Printer, Loader2 } from 'lucide-react';
 import { TradeRecord, TradeStage } from '../../types';
@@ -24,21 +25,25 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   }, []);
 
   const totalWeight = record.items.reduce((sum, item) => sum + item.weight, 0);
-  const totalBaseCostRial = record.items.reduce((acc, i) => acc + i.totalPrice, 0) * exchangeRate;
-  const totalExpensesRial = grandTotalRial - totalBaseCostRial;
+  
+  // Calculate Net Currency Cost for Display in Expenses
+  const tranches = record.currencyPurchaseData?.tranches || [];
+  const netCurrencyRialCost = tranches.reduce((acc, t) => {
+      const cost = t.amount * (t.rate || 0);
+      const ret = (t.returnAmount || 0) * (t.rate || 0);
+      return acc + (cost - ret);
+  }, 0);
 
   // Gather Expenses for Bill Table
   const expenses = [
+      { name: 'هزینه خرید ارز (خالص ریالی)', amount: netCurrencyRialCost },
       { name: 'هزینه‌های ثبت سفارش و بانکی', amount: record.stages[TradeStage.LICENSES]?.costRial || 0 },
       { name: 'هزینه بیمه باربری', amount: record.stages[TradeStage.INSURANCE]?.costRial || 0 },
       { name: 'هزینه بازرسی (COI)', amount: record.stages[TradeStage.INSPECTION]?.costRial || 0 },
-      { name: 'هزینه حمل بین‌المللی (Freight) - تبدیل شده', amount: (record.freightCost || 0) * exchangeRate },
       { name: 'هزینه‌های ترخیصیه و انبارداری', amount: record.stages[TradeStage.CLEARANCE_DOCS]?.costRial || 0 },
       { name: 'حقوق و عوارض گمرکی', amount: record.stages[TradeStage.GREEN_LEAF]?.costRial || 0 },
       { name: 'هزینه حمل داخلی', amount: record.stages[TradeStage.INTERNAL_SHIPPING]?.costRial || 0 },
       { name: 'کارمزد و هزینه‌های ترخیص', amount: record.stages[TradeStage.AGENT_FEES]?.costRial || 0 },
-      // Any other miscellaneous rial costs accumulated not covered above?
-      { name: 'سایر هزینه‌های متفرقه', amount: totalExpensesRial - ((record.freightCost || 0) * exchangeRate) - (record.stages[TradeStage.LICENSES]?.costRial||0) - (record.stages[TradeStage.INSURANCE]?.costRial||0) - (record.stages[TradeStage.INSPECTION]?.costRial||0) - (record.stages[TradeStage.CLEARANCE_DOCS]?.costRial||0) - (record.stages[TradeStage.GREEN_LEAF]?.costRial||0) - (record.stages[TradeStage.INTERNAL_SHIPPING]?.costRial||0) - (record.stages[TradeStage.AGENT_FEES]?.costRial||0) }
   ].filter(e => e.amount > 0);
 
   const handleDownloadPDF = async () => {
@@ -58,6 +63,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
           pdf.save(`Cost_Report_${record.fileNumber}.pdf`);
       } catch (e) { alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
   };
+
+  const costPerKg = totalWeight > 0 ? grandTotalRial / totalWeight : 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
@@ -93,13 +100,13 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     <div><span className="font-bold text-gray-600">شرح کالا:</span> {record.goodsName}</div>
                     <div><span className="font-bold text-gray-600">فروشنده:</span> {record.sellerName}</div>
                     <div><span className="font-bold text-gray-600">ارز پایه:</span> {record.mainCurrency}</div>
-                    <div><span className="font-bold text-gray-600">نرخ ارز محاسباتی:</span> {formatNumberString(exchangeRate)} ریال</div>
+                    <div><span className="font-bold text-gray-600">فی تمام شده هر واحد ارز:</span> {formatCurrency(exchangeRate)}</div>
                     <div><span className="font-bold text-gray-600">کل وزن:</span> {formatNumberString(totalWeight)} KG</div>
                     <div><span className="font-bold text-gray-600">شماره سفارش:</span> {record.orderNumber || '-'}</div>
                 </div>
 
                 {/* 1. BILL OF EXPENSES */}
-                <h3 className="font-black text-sm mb-2 border-b border-black pb-1 mt-4">الف) ریز هزینه‌های انجام شده (سربار)</h3>
+                <h3 className="font-black text-sm mb-2 border-b border-black pb-1 mt-4">الف) ریز هزینه‌های انجام شده</h3>
                 <table className="w-full text-xs border-collapse border border-black mb-6 text-center">
                     <thead>
                         <tr className="bg-gray-200">
@@ -117,8 +124,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                             </tr>
                         ))}
                         <tr className="bg-gray-100 font-bold">
-                            <td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل هزینه‌ها (سربار)</td>
-                            <td className="border border-black p-2 font-mono dir-ltr">{formatCurrency(totalExpensesRial)}</td>
+                            <td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل هزینه‌های ریالی پروژه</td>
+                            <td className="border border-black p-2 font-mono dir-ltr">{formatCurrency(grandTotalRial)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -127,16 +134,12 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                 <h3 className="font-black text-sm mb-2 border-b border-black pb-1 mt-4">ب) محاسبه قیمت تمام شده</h3>
                 <div className="border border-black p-4 rounded mb-6 text-xs">
                     <div className="flex justify-between mb-2">
-                        <span>مبلغ خرید کالا (ارزی):</span>
-                        <span className="font-mono dir-ltr font-bold">{formatNumberString(record.items.reduce((acc, i) => acc + i.totalPrice, 0))} {record.mainCurrency}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                        <span>مبلغ خرید کالا (ریالی - با نرخ {formatNumberString(exchangeRate)}):</span>
-                        <span className="font-mono dir-ltr font-bold">{formatCurrency(totalBaseCostRial)}</span>
+                        <span>مبلغ کل پروفرما (کالا + حمل) ارزی:</span>
+                        <span className="font-mono dir-ltr font-bold">{formatNumberString(totalCurrency)} {record.mainCurrency}</span>
                     </div>
                     <div className="flex justify-between mb-2 border-b border-gray-300 pb-2">
-                        <span>جمع کل هزینه‌های سربار (از جدول بالا):</span>
-                        <span className="font-mono dir-ltr font-bold">{formatCurrency(totalExpensesRial)}</span>
+                        <span>جمع کل هزینه‌های ریالی (شامل خرید ارز و سایر هزینه‌ها):</span>
+                        <span className="font-mono dir-ltr font-bold">{formatCurrency(grandTotalRial)}</span>
                     </div>
                     <div className="flex justify-between mt-2 text-sm bg-gray-100 p-2 rounded">
                         <span className="font-black">قیمت تمام شده نهایی (کل پروژه):</span>
@@ -159,11 +162,9 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     </thead>
                     <tbody>
                         {record.items.map((item, idx) => {
-                            const weightShare = totalWeight > 0 ? item.weight / totalWeight : 0;
-                            const allocatedOverhead = totalExpensesRial * weightShare;
-                            const itemPurchasePriceRial = item.totalPrice * exchangeRate;
-                            const finalItemCost = itemPurchasePriceRial + allocatedOverhead;
-                            const finalItemCostPerKg = item.weight > 0 ? finalItemCost / item.weight : 0;
+                            // New Calculation Logic based on Effective Rate
+                            const itemFinalCostRial = item.totalPrice * exchangeRate;
+                            const itemFinalCostPerKg = item.weight > 0 ? itemFinalCostRial / item.weight : 0;
                             
                             return (
                                 <tr key={item.id}>
@@ -171,8 +172,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                                     <td className="border border-black p-2 font-bold">{item.name}</td>
                                     <td className="border border-black p-2 font-mono">{formatNumberString(item.weight)}</td>
                                     <td className="border border-black p-2 font-mono">{formatNumberString(item.totalPrice)}</td>
-                                    <td className="border border-black p-2 font-mono font-bold">{formatCurrency(finalItemCost)}</td>
-                                    <td className="border border-black p-2 font-mono font-bold bg-gray-100">{formatCurrency(finalItemCostPerKg)}</td>
+                                    <td className="border border-black p-2 font-mono font-bold">{formatCurrency(itemFinalCostRial)}</td>
+                                    <td className="border border-black p-2 font-mono font-bold bg-gray-100">{formatCurrency(itemFinalCostPerKg)}</td>
                                 </tr>
                             );
                         })}
