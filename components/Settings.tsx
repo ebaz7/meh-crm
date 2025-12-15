@@ -19,7 +19,7 @@ const Settings: React.FC = () => {
       bankNames: [], 
       operatingBankNames: [], 
       commodityGroups: [], 
-      rolePermissions: {} as any, 
+      rolePermissions: {}, 
       savedContacts: [], 
       pwaIcon: '', 
       telegramBotToken: '', 
@@ -403,16 +403,28 @@ const Settings: React.FC = () => {
 
                                 {/* Letterhead Upload */}
                                 <div className="mb-4">
-                                    <label className="text-xs font-bold block mb-1 text-gray-500 flex items-center gap-1"><FileText size={14}/> سربرگ شرکت (جهت چاپ فرم‌ها)</label>
+                                    <label className="text-xs font-bold block mb-1 text-gray-500 flex items-center gap-1">
+                                        <FileText size={14}/> تصویر کامل سربرگ A4 (زمینه نامه)
+                                    </label>
+                                    <p className="text-[10px] text-gray-400 mb-2">
+                                        لطفا تصویر کامل یک صفحه A4 (شامل هدر، فوتر، حاشیه‌ها و پس‌زمینه) را آپلود کنید. این تصویر به عنوان زمینه کل صفحه در چاپ‌ها استفاده می‌شود.
+                                    </p>
                                     <div className="flex items-center gap-2">
                                         <input type="file" ref={companyLetterheadInputRef} className="hidden" accept="image/*" onChange={handleLetterheadUpload} />
                                         <button type="button" onClick={() => companyLetterheadInputRef.current?.click()} className="bg-white border text-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-100 flex items-center gap-2" disabled={isUploadingLetterhead}>
                                             {isUploadingLetterhead ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14}/>}
-                                            {newCompanyLetterhead ? 'تغییر فایل سربرگ' : 'آپلود تصویر سربرگ (JPG/PNG)'}
+                                            {newCompanyLetterhead ? 'تغییر فایل سربرگ' : 'آپلود تصویر کامل A4 (JPG/PNG)'}
                                         </button>
                                         {newCompanyLetterhead && <span className="text-xs text-green-600 font-bold flex items-center gap-1"><Check size={14}/> آپلود شد</span>}
                                     </div>
-                                    {newCompanyLetterhead && <div className="mt-2 h-20 w-full bg-gray-200 rounded overflow-hidden border relative"><img src={newCompanyLetterhead} className="w-full h-full object-cover opacity-50"/><div className="absolute inset-0 flex items-center justify-center text-gray-600 font-bold text-xs">پیش‌نمایش سربرگ</div></div>}
+                                    {newCompanyLetterhead && (
+                                        <div className="mt-4 w-40 aspect-[210/297] bg-white border border-gray-300 shadow-md mx-auto relative group overflow-hidden rounded-sm">
+                                            <img src={newCompanyLetterhead} className="w-full h-full object-cover"/>
+                                            <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <span className="bg-white/90 text-gray-800 text-[10px] px-2 py-1 rounded shadow">پیش‌نمایش A4</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Bank Management for this Company */}
