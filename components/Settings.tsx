@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
-import { SystemSettings, UserRole, RolePermissions, Company, Contact } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase } from 'lucide-react';
+import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank } from '../types';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
 import { getUsers } from '../services/authService';
@@ -38,19 +38,29 @@ const Settings: React.FC = () => {
   const [message, setMessage] = useState('');
   const [restoring, setRestoring] = useState(false);
   
+  // Company Editing State
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyLogo, setNewCompanyLogo] = useState('');
   const [newCompanyShowInWarehouse, setNewCompanyShowInWarehouse] = useState(true);
+  const [newCompanyBanks, setNewCompanyBanks] = useState<CompanyBank[]>([]);
+  const [newCompanyLetterhead, setNewCompanyLetterhead] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  
+  // Local states for adding banks to a company
+  const [tempBankName, setTempBankName] = useState('');
+  const [tempAccountNum, setTempAccountNum] = useState('');
+
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingLetterhead, setIsUploadingLetterhead] = useState(false);
   const companyLogoInputRef = useRef<HTMLInputElement>(null);
+  const companyLetterheadInputRef = useRef<HTMLInputElement>(null);
+
   const [whatsappStatus, setWhatsappStatus] = useState<{ready: boolean, qr: string | null, user: string | null} | null>(null);
   const [refreshingWA, setRefreshingWA] = useState(false);
   const [contactName, setContactName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [isGroupContact, setIsGroupContact] = useState(false);
   const [fetchingGroups, setFetchingGroups] = useState(false);
-  const [newBank, setNewBank] = useState('');
   const [newOperatingBank, setNewOperatingBank] = useState('');
   const [newCommodity, setNewCommodity] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,7 +87,7 @@ const Settings: React.FC = () => {
           safeData.companies = safeData.companies || [];
           safeData.operatingBankNames = safeData.operatingBankNames || [];
           if (safeData.companyNames?.length > 0 && safeData.companies.length === 0) {
-              safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true }));
+              safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true, banks: [] }));
           }
           if(!safeData.warehouseSequences) safeData.warehouseSequences = {};
           if(!safeData.companyNotifications) safeData.companyNotifications = {};
@@ -148,7 +158,14 @@ const Settings: React.FC = () => {
               if (editingCompanyId) {
                   currentCompanies = currentCompanies.map(c =>
                       c.id === editingCompanyId
-                          ? { ...c, name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse }
+                          ? { 
+                              ...c, 
+                              name: newCompanyName.trim(), 
+                              logo: newCompanyLogo, 
+                              showInWarehouse: newCompanyShowInWarehouse,
+                              banks: newCompanyBanks,
+                              letterhead: newCompanyLetterhead
+                            }
                           : c
                   );
               } else if (newCompanyName.trim()) {
@@ -156,14 +173,13 @@ const Settings: React.FC = () => {
                       id: generateUUID(),
                       name: newCompanyName.trim(),
                       logo: newCompanyLogo,
-                      showInWarehouse: newCompanyShowInWarehouse
+                      showInWarehouse: newCompanyShowInWarehouse,
+                      banks: newCompanyBanks,
+                      letterhead: newCompanyLetterhead
                   }];
               }
               // Clear form
-              setNewCompanyName(''); 
-              setNewCompanyLogo(''); 
-              setNewCompanyShowInWarehouse(true);
-              setEditingCompanyId(null);
+              resetCompanyForm();
           }
 
           // 2. Prepare Settings Object
@@ -181,34 +197,65 @@ const Settings: React.FC = () => {
 
   const handleAddContact = () => { if (!contactName.trim() || !contactNumber.trim()) return; const newContact: Contact = { id: generateUUID(), name: contactName.trim(), number: contactNumber.trim(), isGroup: isGroupContact }; setSettings({ ...settings, savedContacts: [...(settings.savedContacts || []), newContact] }); setContactName(''); setContactNumber(''); setIsGroupContact(false); };
   const handleDeleteContact = (id: string) => { setSettings({ ...settings, savedContacts: (settings.savedContacts || []).filter(c => c.id !== id) }); };
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setIsUploadingLogo(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const result = await uploadFile(file.name, ev.target?.result as string); setNewCompanyLogo(result.url); } catch (error) { alert('خطا در آپلود'); } finally { setIsUploadingLogo(false); } }; reader.readAsDataURL(file); };
   
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setIsUploadingLogo(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const result = await uploadFile(file.name, ev.target?.result as string); setNewCompanyLogo(result.url); } catch (error) { alert('خطا در آپلود'); } finally { setIsUploadingLogo(false); } }; reader.readAsDataURL(file); };
+  const handleLetterheadUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setIsUploadingLetterhead(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const result = await uploadFile(file.name, ev.target?.result as string); setNewCompanyLetterhead(result.url); } catch (error) { alert('خطا در آپلود'); } finally { setIsUploadingLetterhead(false); } }; reader.readAsDataURL(file); };
+
   const handleSaveCompany = () => { 
       if (!newCompanyName.trim()) return; 
       let updatedCompanies = settings.companies || []; 
+      const companyData = { 
+          id: editingCompanyId || generateUUID(), 
+          name: newCompanyName.trim(), 
+          logo: newCompanyLogo, 
+          showInWarehouse: newCompanyShowInWarehouse,
+          banks: newCompanyBanks,
+          letterhead: newCompanyLetterhead
+      };
+
       if (editingCompanyId) {
-          updatedCompanies = updatedCompanies.map(c => c.id === editingCompanyId ? { ...c, name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse } : c); 
+          updatedCompanies = updatedCompanies.map(c => c.id === editingCompanyId ? companyData : c); 
       } else {
-          updatedCompanies = [...updatedCompanies, { id: generateUUID(), name: newCompanyName.trim(), logo: newCompanyLogo, showInWarehouse: newCompanyShowInWarehouse }]; 
+          updatedCompanies = [...updatedCompanies, companyData]; 
       }
       setSettings({ ...settings, companies: updatedCompanies, companyNames: updatedCompanies.map(c => c.name) }); 
-      setNewCompanyName(''); 
-      setNewCompanyLogo(''); 
-      setNewCompanyShowInWarehouse(true);
-      setEditingCompanyId(null); 
+      resetCompanyForm();
   };
 
   const handleEditCompany = (c: Company) => { 
       setNewCompanyName(c.name); 
       setNewCompanyLogo(c.logo || ''); 
       setNewCompanyShowInWarehouse(c.showInWarehouse !== false);
+      setNewCompanyBanks(c.banks || []);
+      setNewCompanyLetterhead(c.letterhead || '');
       setEditingCompanyId(c.id); 
   };
 
+  const resetCompanyForm = () => {
+      setNewCompanyName(''); 
+      setNewCompanyLogo(''); 
+      setNewCompanyShowInWarehouse(true);
+      setNewCompanyBanks([]);
+      setNewCompanyLetterhead('');
+      setEditingCompanyId(null); 
+      setTempBankName('');
+      setTempAccountNum('');
+  };
+
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
-  const handleAddBank = () => { if (newBank.trim() && !settings.bankNames.includes(newBank.trim())) { setSettings({ ...settings, bankNames: [...settings.bankNames, newBank.trim()] }); setNewBank(''); } };
-  const handleRemoveBank = (name: string) => { setSettings({ ...settings, bankNames: settings.bankNames.filter(b => b !== name) }); };
   
+  // Company Bank Management
+  const addCompanyBank = () => {
+      if (!tempBankName) return;
+      const newBank: CompanyBank = { id: generateUUID(), bankName: tempBankName, accountNumber: tempAccountNum };
+      setNewCompanyBanks([...newCompanyBanks, newBank]);
+      setTempBankName('');
+      setTempAccountNum('');
+  };
+  const removeCompanyBank = (id: string) => {
+      setNewCompanyBanks(newCompanyBanks.filter(b => b.id !== id));
+  };
+
   // Operating Banks
   const handleAddOperatingBank = () => { if (newOperatingBank.trim() && !(settings.operatingBankNames || []).includes(newOperatingBank.trim())) { setSettings({ ...settings, operatingBankNames: [...(settings.operatingBankNames || []), newOperatingBank.trim()] }); setNewOperatingBank(''); } };
   const handleRemoveOperatingBank = (name: string) => { setSettings({ ...settings, operatingBankNames: (settings.operatingBankNames || []).filter(b => b !== name) }); };
@@ -341,31 +388,90 @@ const Settings: React.FC = () => {
                 {activeCategory === 'data' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
-                            <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Building size={20}/> مدیریت شرکت‌ها</h3>
+                            <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Building size={20}/> مدیریت شرکت‌ها و بانک‌ها</h3>
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <div className="flex gap-2 items-end mb-4 flex-wrap">
-                                    <div className="flex-1 min-w-[200px]"><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="نام شرکت..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} /></div>
-                                    <div className={`flex items-center gap-2 bg-white px-2 py-2 rounded border cursor-pointer ${newCompanyShowInWarehouse ? 'border-green-200 bg-green-50 text-green-700' : ''}`} onClick={() => setNewCompanyShowInWarehouse(!newCompanyShowInWarehouse)}><input type="checkbox" checked={newCompanyShowInWarehouse} onChange={e => setNewCompanyShowInWarehouse(e.target.checked)} className="w-4 h-4"/><span className="text-xs font-bold select-none">نمایش در انبار</span></div>
-                                    <div className="w-10 h-10 border rounded bg-white flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => companyLogoInputRef.current?.click()}>{newCompanyLogo ? <img src={newCompanyLogo} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="text-gray-300"/>}</div>
-                                    <input type="file" ref={companyLogoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload}/>
-                                    <button type="button" onClick={handleSaveCompany} className={`text-white px-4 py-2 rounded-lg text-sm h-10 font-bold shadow-sm ${editingCompanyId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{editingCompanyId ? 'ذخیره تغییرات شرکت' : 'افزودن شرکت'}</button>
+                                
+                                {/* Company Inputs */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">نام شرکت</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="نام شرکت..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} /></div>
+                                    <div className="flex items-end gap-2">
+                                        <div className="w-10 h-10 border rounded bg-white flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => companyLogoInputRef.current?.click()} title="لوگو">{newCompanyLogo ? <img src={newCompanyLogo} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="text-gray-300"/>}</div>
+                                        <div className={`flex items-center gap-2 bg-white px-2 py-2 rounded border cursor-pointer flex-1 h-[42px] ${newCompanyShowInWarehouse ? 'border-green-200 bg-green-50 text-green-700' : ''}`} onClick={() => setNewCompanyShowInWarehouse(!newCompanyShowInWarehouse)}><input type="checkbox" checked={newCompanyShowInWarehouse} onChange={e => setNewCompanyShowInWarehouse(e.target.checked)} className="w-4 h-4"/><span className="text-xs font-bold select-none">نمایش در انبار</span></div>
+                                        <input type="file" ref={companyLogoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload}/>
+                                    </div>
                                 </div>
-                                <div className="space-y-2 max-h-48 overflow-y-auto">{settings.companies?.map(c => (<div key={c.id} className="flex justify-between items-center bg-white p-2 rounded border shadow-sm"><div className="flex items-center gap-2">{c.logo && <img src={c.logo} className="w-6 h-6 object-contain"/>}<span className="text-sm font-bold">{c.name}</span>{c.showInWarehouse === false && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold border border-red-200">مخفی در انبار</span>}</div><div className="flex gap-1"><button type="button" onClick={() => handleEditCompany(c)} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button type="button" onClick={() => handleRemoveCompany(c.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div></div>))}</div>
+
+                                {/* Letterhead Upload */}
+                                <div className="mb-4">
+                                    <label className="text-xs font-bold block mb-1 text-gray-500 flex items-center gap-1"><FileText size={14}/> سربرگ شرکت (جهت چاپ فرم‌ها)</label>
+                                    <div className="flex items-center gap-2">
+                                        <input type="file" ref={companyLetterheadInputRef} className="hidden" accept="image/*" onChange={handleLetterheadUpload} />
+                                        <button type="button" onClick={() => companyLetterheadInputRef.current?.click()} className="bg-white border text-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-100 flex items-center gap-2" disabled={isUploadingLetterhead}>
+                                            {isUploadingLetterhead ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14}/>}
+                                            {newCompanyLetterhead ? 'تغییر فایل سربرگ' : 'آپلود تصویر سربرگ (JPG/PNG)'}
+                                        </button>
+                                        {newCompanyLetterhead && <span className="text-xs text-green-600 font-bold flex items-center gap-1"><Check size={14}/> آپلود شد</span>}
+                                    </div>
+                                    {newCompanyLetterhead && <div className="mt-2 h-20 w-full bg-gray-200 rounded overflow-hidden border relative"><img src={newCompanyLetterhead} className="w-full h-full object-cover opacity-50"/><div className="absolute inset-0 flex items-center justify-center text-gray-600 font-bold text-xs">پیش‌نمایش سربرگ</div></div>}
+                                </div>
+
+                                {/* Bank Management for this Company */}
+                                <div className="bg-white border rounded-xl p-3 mb-4">
+                                    <label className="text-xs font-bold block mb-2 text-blue-600 flex items-center gap-1"><Landmark size={14}/> تعریف بانک‌های این شرکت</label>
+                                    <div className="flex gap-2 mb-2 items-end">
+                                        <input className="flex-1 border rounded p-1.5 text-sm" placeholder="نام بانک" value={tempBankName} onChange={e => setTempBankName(e.target.value)} />
+                                        <input className="flex-1 border rounded p-1.5 text-sm dir-ltr text-left" placeholder="شماره حساب/کارت" value={tempAccountNum} onChange={e => setTempAccountNum(e.target.value)} />
+                                        <button type="button" onClick={addCompanyBank} className="bg-blue-50 text-blue-600 p-1.5 rounded border border-blue-100 hover:bg-blue-100"><Plus size={18}/></button>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {newCompanyBanks.map((bank, idx) => (
+                                            <div key={bank.id || idx} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-xs border">
+                                                <span>{bank.bankName} - <span className="font-mono">{bank.accountNumber}</span></span>
+                                                <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
+                                            </div>
+                                        ))}
+                                        {newCompanyBanks.length === 0 && <div className="text-xs text-gray-400 text-center py-2">هنوز بانکی تعریف نشده است</div>}
+                                    </div>
+                                </div>
+
+                                <button type="button" onClick={handleSaveCompany} className={`w-full text-white px-4 py-2 rounded-lg text-sm h-10 font-bold shadow-sm ${editingCompanyId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{editingCompanyId ? 'ذخیره تغییرات شرکت' : 'افزودن شرکت'}</button>
+                                
+                                {editingCompanyId && <button type="button" onClick={resetCompanyForm} className="w-full mt-2 text-gray-600 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg text-sm font-bold">انصراف</button>}
+
+                                <div className="space-y-2 mt-6 max-h-64 overflow-y-auto border-t pt-4">
+                                    <h4 className="text-xs font-bold text-gray-500 mb-2">لیست شرکت‌های تعریف شده:</h4>
+                                    {settings.companies?.map(c => (
+                                        <div key={c.id} className="flex flex-col bg-white p-3 rounded border shadow-sm gap-2">
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    {c.logo && <img src={c.logo} className="w-6 h-6 object-contain"/>}
+                                                    <span className="text-sm font-bold">{c.name}</span>
+                                                    {c.showInWarehouse === false && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold border border-red-200">مخفی در انبار</span>}
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button type="button" onClick={() => handleEditCompany(c)} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Pencil size={14}/></button>
+                                                    <button type="button" onClick={() => handleRemoveCompany(c.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+                                                </div>
+                                            </div>
+                                            {(c.banks && c.banks.length > 0) && (
+                                                <div className="text-[10px] text-gray-500 flex flex-wrap gap-1">
+                                                    <span className="font-bold">بانک‌ها:</span> 
+                                                    {c.banks.map(b => <span key={b.id} className="bg-gray-100 px-1 rounded">{b.bankName}</span>)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Landmark size={18}/> بانک‌های پرداخت (امور مالی)</h3>
-                                <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام بانک..." value={newBank} onChange={(e) => setNewBank(e.target.value)} /><button type="button" onClick={handleAddBank} className="bg-emerald-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
-                                <div className="flex flex-wrap gap-2">{settings.bankNames.map((bank, idx) => (<div key={idx} className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-emerald-100"><span>{bank}</span><button type="button" onClick={() => handleRemoveBank(bank)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
-                            </div>
-                            <div className="space-y-2">
                                 <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Briefcase size={18}/> بانک‌های عامل (بازرگانی)</h3>
                                 <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام بانک عامل..." value={newOperatingBank} onChange={(e) => setNewOperatingBank(e.target.value)} /><button type="button" onClick={handleAddOperatingBank} className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
                                 <div className="flex flex-wrap gap-2">{(settings.operatingBankNames || []).map((bank, idx) => (<div key={idx} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-blue-100"><span>{bank}</span><button type="button" onClick={() => handleRemoveOperatingBank(bank)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
                             </div>
-                            <div className="space-y-2 md:col-span-2">
+                            <div className="space-y-2">
                                 <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Package size={18}/> گروه‌های کالایی</h3>
                                 <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام گروه..." value={newCommodity} onChange={(e) => setNewCommodity(e.target.value)} /><button type="button" onClick={handleAddCommodity} className="bg-amber-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
                                 <div className="flex flex-wrap gap-2">{settings.commodityGroups.map((group, idx) => (<div key={idx} className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-amber-100"><span>{group}</span><button type="button" onClick={() => handleRemoveCommodity(group)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>

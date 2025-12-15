@@ -59,6 +59,10 @@ export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> 
     return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit);
 };
 
+export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => {
+    return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit);
+};
+
 export const updateExitPermitStatus = async (id: string, status: ExitPermitStatus, approverUser: User, rejectionReason?: string): Promise<ExitPermit[]> => {
     const permits = await getExitPermits();
     const permit = permits.find(p => p.id === id);

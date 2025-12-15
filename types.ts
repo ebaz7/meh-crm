@@ -188,11 +188,19 @@ export interface RolePermissions {
     canApproveBijak?: boolean; // New Permission for Bijak Approval
 }
 
+export interface CompanyBank {
+    id: string;
+    bankName: string;
+    accountNumber: string;
+}
+
 export interface Company {
     id: string;
     name: string;
     logo?: string;
     showInWarehouse?: boolean; // Toggle for warehouse module visibility
+    banks?: CompanyBank[]; // NEW: Banks specific to this company
+    letterhead?: string; // NEW: URL to letterhead image
 }
 
 export interface Contact {
@@ -208,7 +216,7 @@ export interface SystemSettings {
   companyNames: string[]; 
   companies?: Company[]; 
   defaultCompany: string; 
-  bankNames: string[]; 
+  bankNames: string[]; // Deprecated (Global) - kept for legacy
   operatingBankNames?: string[]; // Separate banks for Trade
   commodityGroups: string[]; 
   rolePermissions: Record<string, RolePermissions>; 

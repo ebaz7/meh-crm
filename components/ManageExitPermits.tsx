@@ -4,19 +4,21 @@ import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '..
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
-import { Eye, Trash2, Search, CheckCircle, Truck, AlertCircle, XCircle, Archive, ListChecks, X } from 'lucide-react';
+import { Eye, Trash2, Search, CheckCircle, Truck, AlertCircle, XCircle, Archive, ListChecks, X, Edit } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
+import EditExitPermitModal from './EditExitPermitModal';
 import { apiCall } from '../services/apiService'; 
 
 interface Props {
   currentUser: User;
   settings?: SystemSettings;
-  statusFilter?: 'pending' | null; // NEW PROP
+  statusFilter?: 'pending' | null;
 }
 
 const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilter }) => {
   const [permits, setPermits] = useState<ExitPermit[]>([]);
   const [viewPermit, setViewPermit] = useState<ExitPermit | null>(null);
+  const [editingPermit, setEditingPermit] = useState<ExitPermit | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'current' | 'archive'>('current');
   const [activeStatusFilter, setActiveStatusFilter] = useState<'pending' | null>(statusFilter || null);
@@ -50,6 +52,17 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return canApprove(p);
   };
 
+  const canEdit = (p: ExitPermit) => {
+      if (currentUser.role === UserRole.ADMIN) return true;
+      if (p.status === ExitPermitStatus.EXITED) return false; // Usually finalized shouldn't be edited by users
+      if (currentUser.role === UserRole.USER) {
+          return permissions.canEditOwn && p.requester === currentUser.fullName;
+      }
+      if (permissions.canEditAll) return true;
+      if (permissions.canEditOwn && p.requester === currentUser.fullName) return true;
+      return false;
+  };
+
   const handleApprove = async (id: string, currentStatus: ExitPermitStatus) => {
       let nextStatus = currentStatus;
       if (currentStatus === ExitPermitStatus.PENDING_CEO) nextStatus = ExitPermitStatus.PENDING_FACTORY;
@@ -74,6 +87,10 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               updatedPermitMock.approverFactory = currentUser.fullName; 
           }
 
+          // Check if this is a Correction
+          const isCorrection = permitToApprove.updatedAt && permitToApprove.createdAt && permitToApprove.updatedAt > (permitToApprove.createdAt + 60000);
+          const suffix = isCorrection ? ' (اصلاحیه)' : '';
+
           // 3. Trigger Render & Send Process
           setPermitForAutoSend(updatedPermitMock);
 
@@ -86,7 +103,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
                           targetRole = UserRole.FACTORY_MANAGER;
-                          caption = `🏭 *مجوز خروج تایید شد (جهت اقدام)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n✍️ تایید کننده: ${currentUser.fullName}\n\nلطفا نسبت به خروج بار اقدام نمایید.`;
+                          caption = `🏭 *مجوز خروج تایید شد${suffix} (جهت اقدام)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n✍️ تایید کننده: ${currentUser.fullName}\n\nلطفا نسبت به خروج بار اقدام نمایید.`;
                       } else if (nextStatus === ExitPermitStatus.EXITED) {
                           targetRole = UserRole.CEO;
                           caption = `✅ *بار از کارخانه خارج شد (بایگانی)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n🏭 تایید خروج: ${currentUser.fullName}\n\nفرآیند این مجوز تکمیل شد.`;
@@ -119,6 +136,11 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   };
 
   const handleDelete = async (id: string) => { if(confirm('حذف شود؟')) { await deleteExitPermit(id); loadData(); } };
+
+  const handleEditSave = () => {
+      setEditingPermit(null);
+      loadData();
+  };
 
   const getSearchString = (p: ExitPermit) => {
       const legacyGoods = p.goodsName || '';
@@ -229,8 +251,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                 <td className="p-4">{renderStats(p)}</td>
                                 <td className="p-4">{getStatusBadge(p.status)}</td>
                                 <td className="p-4 text-center flex justify-center gap-2">
-                                    <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200"><Eye size={16}/></button>
+                                    <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
+                                    
+                                    {canEdit(p) && (
+                                        <button onClick={() => setEditingPermit(p)} className="bg-amber-100 text-amber-600 p-2 rounded-lg hover:bg-amber-200" title="ویرایش">
+                                            <Edit size={16}/>
+                                        </button>
+                                    )}
+
                                     {(currentUser.role === UserRole.ADMIN || (activeTab === 'current' && p.status === ExitPermitStatus.PENDING_CEO && p.requester === currentUser.fullName)) && <button onClick={() => handleDelete(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
+                                    
                                     {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید سریع"><CheckCircle size={16}/></button>}
                                 </td>
                             </tr>
@@ -239,6 +269,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 </tbody>
             </table>
         </div>
+        
         {viewPermit && (
             <PrintExitPermit 
                 permit={viewPermit} 
@@ -246,6 +277,14 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 onApprove={canApprove(viewPermit) ? () => handleApprove(viewPermit.id, viewPermit.status) : undefined}
                 onReject={canReject(viewPermit) ? () => handleReject(viewPermit.id) : undefined}
                 settings={settings}
+            />
+        )}
+
+        {editingPermit && (
+            <EditExitPermitModal
+                permit={editingPermit}
+                onClose={() => setEditingPermit(null)}
+                onSave={handleEditSave}
             />
         )}
     </div>

@@ -41,14 +41,38 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   
   // Auto Send Logic State
   const [tempOrderForCapture, setTempOrderForCapture] = useState<PaymentOrder | null>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
 
   useEffect(() => { 
-      getSettings().then((settings: SystemSettings) => { 
-          const names = settings.companies?.map(c => c.name) || settings.companyNames || [];
+      getSettings().then((s: SystemSettings) => { 
+          setSettings(s);
+          const names = s.companies?.map(c => c.name) || s.companyNames || [];
           setAvailableCompanies(names); 
-          setAvailableBanks(settings.bankNames || []); 
+          
+          if (order.payingCompany) {
+              updateBanksForCompany(order.payingCompany, s);
+          } else {
+              setAvailableBanks(s.bankNames || []);
+          }
       }); 
   }, []);
+
+  const updateBanksForCompany = (companyName: string, currentSettings: SystemSettings) => {
+      const company = currentSettings.companies?.find(c => c.name === companyName);
+      if (company && company.banks && company.banks.length > 0) {
+          // Format: "BankName - AccountNum"
+          setAvailableBanks(company.banks.map(b => `${b.bankName} - ${b.accountNumber}`));
+      } else {
+          // Fallback to global bank names (legacy support)
+          setAvailableBanks(currentSettings.bankNames || []);
+      }
+  };
+
+  const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newVal = e.target.value;
+      setPayingCompany(newVal);
+      if (settings) updateBanksForCompany(newVal, settings);
+  };
 
   const getIsoDate = () => { try { const date = jalaliToGregorian(shamsiDate.year, shamsiDate.month, shamsiDate.day); const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; } catch (e) { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; } };
   const handleEnhance = async () => { if (!formData.description) return; setIsEnhancing(true); const improved = await enhanceDescription(formData.description); setFormData(prev => ({ ...prev, description: improved })); setIsEnhancing(false); };
@@ -107,19 +131,6 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   const sumPaymentLines = paymentLines.reduce((acc, curr) => acc + curr.amount, 0);
   const totalRequired = deformatNumberString(formData.totalAmount) || 0;
   const remaining = totalRequired - sumPaymentLines;
-
-  const handleAddBank = async () => {
-      const newBank = window.prompt("نام بانک جدید را وارد کنید:");
-      if (!newBank || !newBank.trim()) return;
-      try {
-          const currentSettings = await getSettings();
-          const updatedBanks = [...(currentSettings.bankNames || []), newBank.trim()];
-          const uniqueBanks = Array.from(new Set(updatedBanks));
-          await saveSettings({ ...currentSettings, bankNames: uniqueBanks });
-          setAvailableBanks(uniqueBanks);
-          setNewLine(prev => ({ ...prev, bankName: newBank.trim() }));
-      } catch (e) { alert("خطا در ذخیره بانک جدید"); }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,7 +238,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Hash size={16}/> شماره دستور پرداخت</label><input required type="number" className="w-full border rounded-xl px-4 py-3 bg-white font-mono font-bold text-blue-600 dir-ltr text-left" value={formData.trackingNumber} onChange={e => setFormData({ ...formData, trackingNumber: e.target.value })} /></div>
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700">گیرنده وجه</label><input required type="text" className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} /></div>
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700">مبلغ کل (ریال)</label><input required type="text" inputMode="numeric" className="w-full border rounded-xl px-4 py-3 bg-gray-50 text-left dir-ltr font-mono" value={formatNumberString(formData.totalAmount)} onChange={e => setFormData({ ...formData, totalAmount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700">شرکت پرداخت کننده</label><select className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={payingCompany} onChange={e => setPayingCompany(e.target.value)}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                <div className="space-y-2"><label className="text-sm font-medium text-gray-700">شرکت پرداخت کننده</label><select className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={payingCompany} onChange={handleCompanyChange}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Calendar size={16} />تاریخ پرداخت (شمسی)</label><div className="grid grid-cols-3 gap-2"><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -235,7 +246,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-4 border-b border-gray-200 pb-4">
                         <div className="space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                         <div className="space-y-1"><label className="text-xs text-gray-500">مبلغ</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })}/></div>
-                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })}/></div>}<div className="space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب بانک --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select><button type="button" onClick={handleAddBank} className="bg-blue-100 text-blue-600 px-2 rounded-lg hover:bg-blue-200" title="افزودن بانک جدید"><Plus size={16}/></button></div></div></>) : <div className="md:block hidden"></div>}
+                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })}/></div>}<div className="space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب بانک --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select></div></div></>) : <div className="md:block hidden"></div>}
                         <div className="space-y-1 md:col-span-3"><label className="text-xs text-gray-500">شرح (اختیاری)</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="توضیحات این بخش..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })}/></div>
                         
                         {newLine.method === PaymentMethod.CHEQUE && (
