@@ -112,7 +112,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     });
     
     // EXTENDED STATE FOR RETURN AMOUNT AND RECEIVED AMOUNT
-    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string, amountStr?: string, rateStr?: string, receivedAmountStr?: string }>({ 
+    const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string, amountStr?: string, rialAmountStr?: string, receivedAmountStr?: string, currencyFeeStr?: string }>({ 
         amount: 0, 
         currencyType: 'EUR', 
         date: '', 
@@ -124,8 +124,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         returnDate: '',
         receivedAmount: 0,
         amountStr: '',
-        rateStr: '',
-        receivedAmountStr: ''
+        rialAmountStr: '',
+        receivedAmountStr: '',
+        currencyFeeStr: ''
     });
     const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null);
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
@@ -191,7 +192,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             }
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
-            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' });
+            
+            // Currency Tranche Reset
+            setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' });
+            
             setEditingTrancheId(null);
             setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' });
             setEditingItemId(null);
@@ -334,12 +338,15 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     
     // --- UPDATED CURRENCY TRANCHE HANDLER (FIX) ---
     const handleAddCurrencyTranche = async () => { 
-        if (!selectedRecord || !newCurrencyTranche.amountStr) return; 
+        if (!selectedRecord || !newCurrencyTranche.amountStr || !newCurrencyTranche.rialAmountStr) return; // REQUIRE RIAL AMOUNT
         
         let updatedTranches = [...(currencyForm.tranches || [])];
         
         const rawAmount = parseFloat(newCurrencyTranche.amountStr);
-        const rawRate = newCurrencyTranche.rateStr ? parseFloat(newCurrencyTranche.rateStr.replace(/[^0-9.]/g, '')) : 0;
+        // OLD: const rawRate = newCurrencyTranche.rateStr ? parseFloat(newCurrencyTranche.rateStr.replace(/[^0-9.]/g, '')) : 0;
+        // NEW: rawRialAmount replaces rate calculation
+        const rawRialAmount = deformatNumberString(newCurrencyTranche.rialAmountStr);
+        const rawCurrencyFee = newCurrencyTranche.currencyFeeStr ? parseFloat(newCurrencyTranche.currencyFeeStr) : 0;
         const rawReceived = newCurrencyTranche.receivedAmountStr ? parseFloat(newCurrencyTranche.receivedAmountStr) : 0;
 
         const trancheData: any = { 
@@ -348,7 +355,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             currencyType: newCurrencyTranche.currencyType || selectedRecord.mainCurrency || 'EUR', 
             brokerName: newCurrencyTranche.brokerName || '', 
             exchangeName: newCurrencyTranche.exchangeName || '', 
-            rate: rawRate, 
+            rate: 0, // Legacy support, set to 0 or calculate implied rate if needed
+            rialAmount: rawRialAmount, // NEW FIELD
+            currencyFee: rawCurrencyFee, // NEW FIELD
             isDelivered: newCurrencyTranche.isDelivered, 
             deliveryDate: newCurrencyTranche.deliveryDate,
             returnAmount: newCurrencyTranche.returnAmount ? deformatNumberString(newCurrencyTranche.returnAmount.toString()) : undefined,
@@ -365,12 +374,12 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         }
         
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
-        // Delivered now based on Received Amount if set, else Amount if isDelivered is true
         const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0);
         
-        // Calculate Total Net Rial Cost (Amount * Rate) - ReturnAmount (Rial)
+        // UPDATED CALCULATION: Total Net Rial Cost = Sum(Rial Paid - Return Amount)
+        // Ignoring Rate field now.
         const totalRialCost = updatedTranches.reduce((acc, t) => {
-            return acc + ((t.amount * (t.rate || 0)) - (t.returnAmount || 0));
+            return acc + ((t.rialAmount || 0) - (t.returnAmount || 0));
         }, 0);
 
         const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
@@ -392,7 +401,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         setSelectedRecord(updatedRecord); 
         
         // Reset Inputs
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' }); 
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' }); 
         setEditingTrancheId(null);
     };
 
@@ -406,8 +415,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             brokerName: tranche.brokerName,
             isDelivered: tranche.isDelivered,
             deliveryDate: tranche.deliveryDate,
-            rate: tranche.rate,
-            rateStr: formatNumberString(tranche.rate),
+            rate: tranche.rate, // Keep legacy
+            rialAmountStr: formatNumberString(tranche.rialAmount || 0), // Pre-fill rial amount
+            currencyFeeStr: tranche.currencyFee ? tranche.currencyFee.toString() : '',
             returnAmount: tranche.returnAmount ? formatNumberString(tranche.returnAmount) : '',
             returnDate: tranche.returnDate,
             receivedAmount: tranche.receivedAmount,
@@ -417,7 +427,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     };
 
     const handleCancelEditTranche = () => {
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rateStr: '', receivedAmountStr: '' });
+        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' });
         setEditingTrancheId(null);
     };
 
@@ -429,9 +439,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
         const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); 
         
-        // Recalculate Rial Cost
+        // Recalculate Rial Cost (Net)
         const totalRialCost = updatedTranches.reduce((acc, t) => {
-            return acc + ((t.amount * (t.rate || 0)) - (t.returnAmount || 0));
+            return acc + ((t.rialAmount || 0) - (t.returnAmount || 0));
         }, 0);
 
         const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
@@ -619,13 +629,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const totalFreightCurrency = selectedRecord.freightCost || 0;
         const totalProformaCurrency = totalItemsCurrency + totalFreightCurrency;
 
-        // 2. Calculate Net Rial Cost of Currency Purchase (Buy - Return)
-        // BUG FIX: Return Amount is already in Rial, do not multiply by rate.
+        // 2. Calculate Net Rial Cost of Currency Purchase (Rial Paid - Return)
+        // REPLACED OLD RATE LOGIC
         const currencyTranches = selectedRecord.currencyPurchaseData?.tranches || [];
         const netCurrencyRialCost = currencyTranches.reduce((acc, t) => {
-            const cost = t.amount * (t.rate || 0);
-            const ret = t.returnAmount || 0; // Fixed: Do not multiply by rate again
-            return acc + (cost - ret);
+            const paid = t.rialAmount || 0;
+            const ret = t.returnAmount || 0;
+            return acc + (paid - ret);
         }, 0);
 
         // 3. Calculate Other Rial Overheads
@@ -979,11 +989,21 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                         />
                                     </div>
                                     <div className="col-span-1 space-y-1">
-                                        <label className="text-xs font-bold text-gray-700">نرخ (ریال)</label>
+                                        <label className="text-xs font-bold text-gray-700">مبلغ کل پرداختی (ریال)</label>
                                         <input 
                                             className="w-full border rounded p-2 text-sm dir-ltr" 
-                                            value={newCurrencyTranche.rateStr || ''} 
-                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, rateStr: formatNumberString(deformatNumberString(e.target.value))})} 
+                                            value={newCurrencyTranche.rialAmountStr || ''} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, rialAmountStr: formatNumberString(deformatNumberString(e.target.value))})} 
+                                            placeholder="مبلغ پرداختی..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1 space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">کارمزد ارزی</label>
+                                        <input 
+                                            className="w-full border rounded p-2 text-sm dir-ltr" 
+                                            value={newCurrencyTranche.currencyFeeStr || ''} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, currencyFeeStr: e.target.value})} 
+                                            placeholder="اختیاری..."
                                         />
                                     </div>
                                     <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">صرافی</label><input className="w-full border rounded p-2 text-sm" value={newCurrencyTranche.exchangeName} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, exchangeName: e.target.value})} /></div>
@@ -1002,7 +1022,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-right">
-                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">نرخ (ریال)</th><th className="p-3">صرافی / کارگزار</th><th className="p-3 text-green-700">تحویل شده</th><th className="p-3 text-red-700">عودت (ریال)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3">عملیات</th></tr></thead>
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">کل پرداختی (ریال)</th><th className="p-3">کارمزد ارزی</th><th className="p-3">صرافی / کارگزار</th><th className="p-3 text-green-700">تحویل شده</th><th className="p-3 text-red-700">عودت (ریال)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3 bg-indigo-50 text-indigo-800">نرخ تمام شده</th><th className="p-3">عملیات</th></tr></thead>
                                         <tbody>
                                             {currencyForm.tranches?.map((t) => {
                                                 // Check for return amount field, handle if missing in type definition (runtime check)
@@ -1013,11 +1033,17 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                 // @ts-ignore
                                                 const recvAmt = t.receivedAmount;
                                                 
+                                                // Calculate Effective Rate for Display: (Paid - Return) / Delivered
+                                                const netPaid = (t.rialAmount || 0) - (retAmt || 0);
+                                                const actualDelivered = recvAmt || (t.isDelivered ? t.amount : 0);
+                                                const effectiveRateDisplay = actualDelivered > 0 ? netPaid / actualDelivered : 0;
+                                                
                                                 return (
                                                 <tr key={t.id} className="border-b hover:bg-gray-50">
                                                     <td className="p-3">{t.date}</td>
                                                     <td className="p-3 font-mono font-bold text-blue-600">{formatNumberString(t.amount)} {t.currencyType}</td>
-                                                    <td className="p-3 font-mono">{formatNumberString(t.rate || 0)}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(t.rialAmount || 0)}</td>
+                                                    <td className="p-3 font-mono">{t.currencyFee ? t.currencyFee : '-'}</td>
                                                     <td className="p-3 text-xs">{t.exchangeName} {t.brokerName ? `(${t.brokerName})` : ''}</td>
                                                     <td className="p-3 text-xs font-bold text-green-600 font-mono">{recvAmt ? formatNumberString(recvAmt) : '-'}</td>
                                                     <td className="p-3 text-xs text-red-600 font-mono">{retAmt ? `${formatNumberString(retAmt)} (${retDate || '-'})` : '-'}</td>
@@ -1026,19 +1052,34 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                                             {t.isDelivered ? 'تکمیل' : 'ناقص'}
                                                         </button>
                                                     </td>
+                                                    <td className="p-3 font-mono font-bold text-indigo-700 bg-indigo-50">{effectiveRateDisplay > 0 ? formatCurrency(effectiveRateDisplay) : '-'}</td>
                                                     <td className="p-3 flex gap-1">
                                                         <button onClick={() => handleEditTranche(t)} className="text-amber-500 hover:text-amber-700 p-1"><Edit2 size={16}/></button>
                                                         <button onClick={() => handleRemoveTranche(t.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 size={16}/></button>
                                                     </td>
                                                 </tr>
                                             )})}
-                                            <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
-                                                <td className="p-3">جمع کل</td>
-                                                <td className="p-3 font-mono text-amber-800">{formatNumberString(currencyForm.purchasedAmount)}</td>
-                                                <td colSpan={2}></td>
-                                                <td className="p-3 font-mono text-green-800">{formatNumberString(currencyForm.deliveredAmount)}</td>
-                                                <td colSpan={3}></td>
-                                            </tr>
+                                            {(() => {
+                                                const totalPaid = currencyForm.tranches?.reduce((acc, t) => acc + (t.rialAmount || 0), 0) || 0;
+                                                const totalReturn = currencyForm.tranches?.reduce((acc, t:any) => acc + (t.returnAmount || 0), 0) || 0;
+                                                const totalNet = totalPaid - totalReturn;
+                                                const totalDelivered = currencyForm.deliveredAmount || 0;
+                                                const avgRate = totalDelivered > 0 ? totalNet / totalDelivered : 0;
+
+                                                return (
+                                                    <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
+                                                        <td className="p-3">جمع کل</td>
+                                                        <td className="p-3 font-mono text-amber-800">{formatNumberString(currencyForm.purchasedAmount)}</td>
+                                                        <td className="p-3 font-mono">{formatNumberString(totalPaid)}</td>
+                                                        <td colSpan={2}></td>
+                                                        <td className="p-3 font-mono text-green-800">{formatNumberString(currencyForm.deliveredAmount)}</td>
+                                                        <td className="p-3 font-mono text-red-800">{formatNumberString(totalReturn)}</td>
+                                                        <td></td>
+                                                        <td className="p-3 font-mono text-indigo-800 text-sm bg-indigo-100">{formatCurrency(avgRate)}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                );
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1369,13 +1410,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 const totalFreightCurrency = selectedRecord.freightCost || 0;
                                 const totalProformaCurrency = totalItemsCurrency + totalFreightCurrency;
 
-                                // 2. Calculate Net Rial Cost of Currency Purchase (Buy - Return)
-                                // FIXED: Return Amount is already Rial, do not multiply by rate again.
+                                // 2. Calculate Net Rial Cost of Currency Purchase (Rial Paid - Return)
+                                // REPLACED OLD RATE LOGIC
                                 const currencyTranches = selectedRecord.currencyPurchaseData?.tranches || [];
                                 const netCurrencyRialCost = currencyTranches.reduce((acc, t) => {
-                                    const cost = t.amount * (t.rate || 0);
-                                    const ret = t.returnAmount || 0; // Fix applied here
-                                    return acc + (cost - ret);
+                                    const paid = t.rialAmount || 0;
+                                    const ret = t.returnAmount || 0;
+                                    return acc + (paid - ret);
                                 }, 0);
 
                                 // 3. Calculate Other Rial Overheads

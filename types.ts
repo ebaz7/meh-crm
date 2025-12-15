@@ -491,14 +491,16 @@ export interface CurrencyTranche {
     date: string;
     amount: number; 
     currencyType: string;
-    rate?: number; 
+    rate?: number; // Kept for legacy, but now we prefer rialAmount
+    rialAmount?: number; // NEW: Manual Rial Payment
+    currencyFee?: number; // NEW: Currency Fee (Display)
     brokerName?: string;
     exchangeName?: string;
     isDelivered?: boolean;
     deliveryDate?: string;
     returnAmount?: number;
     returnDate?: string;
-    receivedAmount?: number; // Added Received Amount
+    receivedAmount?: number; 
 }
 
 export interface CurrencyPurchaseData {

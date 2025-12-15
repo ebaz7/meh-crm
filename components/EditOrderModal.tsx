@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus, UserRole } from '../types';
+import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus, UserRole, CompanyBank } from '../types';
 import { editOrder, uploadFile, getSettings, saveSettings } from '../services/storageService';
 import { enhanceDescription } from '../services/geminiService';
 import { jalaliToGregorian, getShamsiDateFromIso, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../constants';
@@ -52,7 +52,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
           if (order.payingCompany) {
               updateBanksForCompany(order.payingCompany, s);
           } else {
-              setAvailableBanks(s.bankNames || []);
+              setAvailableBanks([]); // Default empty
           }
       }); 
   }, []);
@@ -61,10 +61,9 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       const company = currentSettings.companies?.find(c => c.name === companyName);
       if (company && company.banks && company.banks.length > 0) {
           // Format: "BankName - AccountNum"
-          setAvailableBanks(company.banks.map(b => `${b.bankName} - ${b.accountNumber}`));
+          setAvailableBanks(company.banks.map(b => `${b.bankName}${b.accountNumber ? ` - ${b.accountNumber}` : ''}`));
       } else {
-          // Fallback to global bank names (legacy support)
-          setAvailableBanks(currentSettings.bankNames || []);
+          setAvailableBanks([]);
       }
   };
 
@@ -72,6 +71,37 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       const newVal = e.target.value;
       setPayingCompany(newVal);
       if (settings) updateBanksForCompany(newVal, settings);
+  };
+
+  const handleAddBank = async () => {
+      if (!payingCompany) return alert('لطفا ابتدا شرکت پرداخت کننده را انتخاب کنید.');
+      if (!settings) return;
+
+      const bankName = prompt('نام بانک جدید:');
+      if (!bankName) return;
+      const accountNum = prompt('شماره حساب/کارت (اختیاری):') || '';
+
+      const newBankObj: CompanyBank = { id: generateUUID(), bankName: bankName, accountNumber: accountNum };
+      const comboName = `${bankName}${accountNum ? ` - ${accountNum}` : ''}`;
+
+      // Update Settings structure
+      const updatedCompanies = (settings.companies || []).map(c => {
+          if (c.name === payingCompany) {
+              return { ...c, banks: [...(c.banks || []), newBankObj] };
+          }
+          return c;
+      });
+
+      const newSettings = { ...settings, companies: updatedCompanies };
+      
+      try {
+          await saveSettings(newSettings);
+          setSettings(newSettings);
+          setAvailableBanks(prev => [...prev, comboName]);
+          setNewLine(prev => ({ ...prev, bankName: comboName }));
+      } catch (e) {
+          alert('خطا در ذخیره بانک جدید');
+      }
   };
 
   const getIsoDate = () => { try { const date = jalaliToGregorian(shamsiDate.year, shamsiDate.month, shamsiDate.day); const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; } catch (e) { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; } };
@@ -136,71 +166,67 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
     e.preventDefault();
     if (paymentLines.length === 0) { alert("لطفا حداقل یک روش پرداخت اضافه کنید."); return; }
     if (remaining !== 0) { alert("جمع اقلام پرداخت با مبلغ کل سفارش برابر نیست!"); return; }
-    if (!formData.trackingNumber) { alert("شماره دستور پرداخت الزامی است."); return; }
-    
+
     setIsSubmitting(true);
+    try {
+        const updatedOrder: PaymentOrder = {
+            ...order,
+            trackingNumber: Number(formData.trackingNumber),
+            date: getIsoDate(),
+            payee: formData.payee,
+            totalAmount: sumPaymentLines,
+            description: formData.description,
+            payingCompany: payingCompany,
+            paymentDetails: paymentLines,
+            attachments: attachments,
+            updatedAt: Date.now(),
+            // Reset approvals if sensitive data changed? For now keep them unless logic says otherwise.
+            // Usually editing resets approvals, but let's assume simple edit.
+            // If we want to reset status:
+            status: OrderStatus.PENDING, 
+            approverFinancial: undefined,
+            approverManager: undefined,
+            approverCeo: undefined,
+            rejectionReason: undefined,
+            rejectedBy: undefined
+        };
 
-    // Reset status to PENDING on Edit (Trigger Workflow Again)
-    const updates: Partial<PaymentOrder> = { 
-        status: OrderStatus.PENDING, 
-        rejectionReason: undefined, 
-        rejectedBy: undefined,
-        approverFinancial: undefined, 
-        approverManager: undefined, 
-        approverCeo: undefined,
-        updatedAt: Date.now()
-    };
-    
-    const updatedOrder: PaymentOrder = { 
-        ...order, 
-        ...updates,
-        trackingNumber: Number(formData.trackingNumber), 
-        date: getIsoDate(), 
-        payee: formData.payee, 
-        totalAmount: totalRequired, 
-        description: formData.description, 
-        paymentDetails: paymentLines, 
-        attachments: attachments, 
-        payingCompany: payingCompany 
-    };
-
-    try { 
-        await editOrder(updatedOrder); 
+        await editOrder(updatedOrder);
         
-        // --- AUTO SEND CORRECTION TO FINANCIAL MANAGER ---
+        // Auto-Send Edit Notification (similar to CreateOrder but maybe with "Edit" flag)
         setTempOrderForCapture(updatedOrder);
-
+        
         setTimeout(async () => {
-             const element = document.getElementById(`print-voucher-edit-${updatedOrder.id}`);
-             if (element) {
-                 try {
-                     const users = await getUsers();
-                     const finUser = users.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
-                     if (finUser) {
+            const element = document.getElementById(`print-voucher-${updatedOrder.id}`);
+            if (element) {
+                try {
+                    const users = await getUsers();
+                    const finUser = users.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
+                    if (finUser) {
                         // @ts-ignore
                         const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                         const base64 = canvas.toDataURL('image/png').split(',')[1];
                         
-                        let caption = `📢 *اصلاحیه دستور پرداخت*\n`;
+                        let caption = `✏️ *دستور پرداخت ویرایش شد*\n`;
                         caption += `شماره: ${updatedOrder.trackingNumber}\n`;
                         caption += `مبلغ: ${formatCurrency(updatedOrder.totalAmount)}\n`;
-                        caption += `وضعیت: بازگشت به صف بررسی\n\n`;
-                        caption += `لطفا مجدداً بررسی نمایید.`;
+                        caption += `ویرایش کننده: ${order.requester}\n\n`;
+                        caption += `جهت بررسی مجدد.`;
 
                         await apiCall('/send-whatsapp', 'POST', { 
                             number: finUser.phoneNumber, 
                             message: caption, 
                             mediaData: { data: base64, mimeType: 'image/png', filename: `Order_Edit_${updatedOrder.trackingNumber}.png` } 
                         });
-                     }
-                 } catch (err) { console.error("Auto send edit failed", err); }
-             }
-             onSave(); 
-             onClose(); 
+                    }
+                } catch(e) { console.error("Auto send error", e); }
+            }
+            onSave();
+            onClose();
         }, 1500);
 
-    } catch (error) { 
-        alert("خطا در ذخیره تغییرات"); 
+    } catch (e) {
+        alert("خطا در ویرایش دستور پرداخت");
         setIsSubmitting(false);
     }
   };
@@ -212,16 +238,21 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         {/* Hidden Render for Auto Send */}
         {tempOrderForCapture && (
-            <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-                <div id={`print-voucher-edit-${tempOrderForCapture.id}`}>
-                    <PrintVoucher order={tempOrderForCapture} embed />
-                </div>
+            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px'}}>
+                <PrintVoucher order={tempOrderForCapture} embed settings={settings || undefined} />
             </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10"><div className="flex items-center gap-3"><div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Save size={20} /></div><h2 className="text-xl font-bold text-gray-800">ویرایش دستور پرداخت</h2></div><button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button></div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Save size={20} /></div>
+                    <h2 className="text-xl font-bold text-gray-800">ویرایش دستور پرداخت</h2>
+                </div>
+                <button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={24}/></button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="p-6 space-y-8">
                 
                 {order.status === OrderStatus.REJECTED && order.rejectionReason && (
                     <div className="bg-red-50 border-r-4 border-red-500 p-4 rounded-lg flex gap-3 animate-fade-in">
@@ -229,47 +260,57 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                         <div>
                             <h4 className="text-red-800 font-bold text-sm mb-1">این درخواست رد شده است</h4>
                             <p className="text-red-700 text-sm leading-relaxed"><span className="font-bold">دلیل رد شدن: </span>{order.rejectionReason}</p>
-                            <p className="text-red-500 text-xs mt-2">با ذخیره تغییرات، درخواست مجدداً به وضعیت «در انتظار بررسی» تغییر خواهد کرد و از لیست رد شده‌ها خارج می‌شود.</p>
+                            <p className="text-red-500 text-xs mt-2">با ذخیره تغییرات، درخواست مجدداً به وضعیت «در انتظار بررسی» تغییر خواهد کرد.</p>
                         </div>
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Hash size={16}/> شماره دستور پرداخت</label><input required type="number" className="w-full border rounded-xl px-4 py-3 bg-white font-mono font-bold text-blue-600 dir-ltr text-left" value={formData.trackingNumber} onChange={e => setFormData({ ...formData, trackingNumber: e.target.value })} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700">گیرنده وجه</label><input required type="text" className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700">مبلغ کل (ریال)</label><input required type="text" inputMode="numeric" className="w-full border rounded-xl px-4 py-3 bg-gray-50 text-left dir-ltr font-mono" value={formatNumberString(formData.totalAmount)} onChange={e => setFormData({ ...formData, totalAmount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700">شرکت پرداخت کننده</label><select className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={payingCompany} onChange={handleCompanyChange}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Calendar size={16} />تاریخ پرداخت (شمسی)</label><div className="grid grid-cols-3 gap-2"><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded-xl px-2 py-3 bg-white" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
+                    <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Hash size={16}/> شماره دستور پرداخت</label><input required type="number" className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-gray-50 font-mono font-bold text-blue-600 dir-ltr text-left" value={formData.trackingNumber} onChange={e => setFormData({...formData, trackingNumber: e.target.value})} /></div>
+                    <div className="space-y-2"><label className="text-sm font-medium text-gray-700">گیرنده وجه (ذینفع)</label><input required type="text" className="w-full border border-gray-300 rounded-xl px-4 py-3" placeholder="نام شخص یا شرکت..." value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} /></div>
+                    <div className="space-y-2"><label className="text-sm font-medium text-gray-700">شرکت پرداخت کننده</label><select className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white" value={payingCompany} onChange={handleCompanyChange}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                    <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Calendar size={16} />تاریخ پرداخت (شمسی)</label><div className="grid grid-cols-3 gap-2"><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="font-bold text-gray-700 mb-3 flex justify-between"><span>جزئیات پرداخت</span><span className={`text-sm ${remaining === 0 ? 'text-green-600' : 'text-red-500'}`}>باقیمانده: {formatCurrency(remaining)}</span></h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-4 border-b border-gray-200 pb-4">
-                        <div className="space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
-                        <div className="space-y-1"><label className="text-xs text-gray-500">مبلغ</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })}/></div>
-                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })}/></div>}<div className="space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب بانک --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select></div></div></>) : <div className="md:block hidden"></div>}
-                        <div className="space-y-1 md:col-span-3"><label className="text-xs text-gray-500">شرح (اختیاری)</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="توضیحات این بخش..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })}/></div>
-                        
-                        {newLine.method === PaymentMethod.CHEQUE && (
-                            <div className="space-y-1 md:col-span-4 bg-yellow-50 p-2 rounded border border-yellow-200 mt-2">
-                                <label className="text-xs font-bold text-gray-700 flex items-center gap-1"><Calendar size={14}/> تاریخ سررسید چک:</label>
-                                <div className="flex gap-2">
-                                    <select className="border rounded px-2 py-1 text-sm bg-white" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                                    <select className="border rounded px-2 py-1 text-sm bg-white" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select>
-                                    <select className="border rounded px-2 py-1 text-sm bg-white" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select>
-                                </div>
-                            </div>
-                        )}
+                
+                <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-sm font-bold text-gray-700">شرح پرداخت</label><button type="button" onClick={handleEnhance} disabled={isEnhancing || !formData.description} className="text-xs flex items-center gap-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">{isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}بهبود متن</button></div><textarea required rows={4} className="w-full border border-gray-300 rounded-xl px-4 py-3 resize-none" placeholder="توضیحات کامل..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} /></div>
 
-                        <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1 text-sm"><Plus size={16} /> افزودن</button></div>
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                    <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-700">روش‌های پرداخت</h3><div className={`text-sm px-3 py-1 rounded-lg border ${remaining !== 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>جمع کل: <span className="font-bold font-mono">{formatCurrency(sumPaymentLines)}</span></div></div>
+                    
+                    {/* Add Line Form */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                        <div className="md:col-span-3 space-y-1"><label className="text-xs text-gray-500">مبلغ (ریال)</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left font-mono font-bold" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>
+                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm font-mono" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>}<div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select><button type="button" onClick={handleAddBank} className="bg-blue-100 text-blue-600 rounded-lg px-2 hover:bg-blue-200" title="افزودن بانک جدید"><Plus size={16}/></button></div></div></>) : <div className="md:col-span-4 hidden md:block"></div>}
+                        <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شرح (اختیاری)</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })} /></div>
+                        {newLine.method === PaymentMethod.CHEQUE && (<div className="md:col-span-12 bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-1 flex items-center gap-4"><label className="text-xs font-bold text-gray-700 flex items-center gap-1 min-w-fit"><Calendar size={14}/> تاریخ سررسید چک:</label><div className="flex gap-2 flex-1"><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>)}
+                        <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center"><Plus size={20} /></button></div>
                     </div>
-                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-3 rounded border border-gray-100 shadow-sm"><div className="flex gap-3 text-sm flex-wrap items-center"><span className="font-bold text-gray-800">{line.method}</span><span className="text-gray-600">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-500 text-xs bg-yellow-50 px-2 py-0.5 rounded">چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-blue-500 text-xs bg-blue-50 px-2 py-0.5 rounded">{line.bankName}</span>}{line.description && <span className="text-gray-500 text-xs italic border-r pr-2 mr-1">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button></div>))}</div>
+
+                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div>))}</div>
                 </div>
-                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200"><label className="text-sm font-medium text-gray-700 mb-2 block flex items-center gap-2"><Paperclip size={16} />مدیریت ضمیمه‌ها</label><div className="flex items-center gap-4"><input type="file" id="attachment-edit" className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} /><label htmlFor="attachment-edit" className={`bg-white border text-gray-700 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-100 text-sm ${uploading ? 'opacity-50 cursor-wait' : ''}`}>{uploading ? 'در حال آپلود...' : 'افزودن فایل جدید'}</label></div>{attachments.length > 0 && <div className="mt-3 space-y-2">{attachments.map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 text-sm"><span className="text-blue-600 truncate max-w-[200px]">{file.fileName}</span><button type="button" onClick={() => removeAttachment(idx)} className="text-red-500 hover:text-red-700"><X size={16} /></button></div>))}</div>}</div>
-                <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-sm font-medium text-gray-700">شرح پرداخت</label><button type="button" onClick={handleEnhance} disabled={isEnhancing || !formData.description} className="text-xs flex items-center gap-1.5 text-purple-600 bg-purple-50 px-3 py-1.5 rounded-lg disabled:opacity-50">{isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}هوش مصنوعی</button></div><textarea required rows={4} className="w-full border rounded-xl px-4 py-3 bg-gray-50 resize-none" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} /></div>
-                <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 font-medium">انصراف</button><button type="submit" disabled={isSubmitting || remaining !== 0 || uploading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 disabled:opacity-70">{isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}ذخیره و ارسال جهت تایید مجدد</button></div>
+
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                    <label className="text-sm font-bold text-gray-700 mb-3 block flex items-center gap-2"><Paperclip size={18} />ضمیمه‌ها</label>
+                    <div className="flex items-center gap-4">
+                        <input type="file" id="attachment-edit" className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} disabled={uploading}/>
+                        <label htmlFor="attachment-edit" className={`bg-white border-2 border-dashed border-gray-300 text-gray-600 px-6 py-3 rounded-xl cursor-pointer hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center gap-2 text-sm font-medium ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {uploading ? <Loader2 size={18} className="animate-spin"/> : <Plus size={18}/>} {uploading ? 'در حال آپلود...' : 'افزودن فایل'}
+                        </label>
+                    </div>
+                    {attachments.length > 0 && <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">{attachments.map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200 text-sm shadow-sm group"><a href={file.data} target="_blank" className="text-blue-600 truncate hover:underline flex items-center gap-2"><Paperclip size={14}/> {file.fileName}</a><button type="button" onClick={() => removeAttachment(idx)} className="text-gray-400 hover:text-red-500 p-1"><X size={16} /></button></div>))}</div>}
+                </div>
+                
+                <div className="flex gap-3 justify-end pt-4 border-t">
+                    <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold transition-colors">انصراف</button>
+                    <button type="submit" disabled={isSubmitting || uploading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-70">
+                        {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} ذخیره تغییرات
+                    </button>
+                </div>
             </form>
         </div>
     </div>
   );
 };
+
 export default EditOrderModal;
