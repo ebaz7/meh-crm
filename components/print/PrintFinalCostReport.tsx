@@ -65,6 +65,14 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   };
 
   const costPerKg = totalWeight > 0 ? grandTotalRial / totalWeight : 0;
+  
+  // Calculate Overhead Per KG for Distribution
+  // Base Cost = Item Price * CalcRate
+  // Overhead = GrandTotal - (TotalItemsPrice * CalcRate)
+  const totalItemsCurrency = record.items.reduce((a, b) => a + b.totalPrice, 0);
+  const totalBaseCostRial = totalItemsCurrency * exchangeRate;
+  const totalOverheadRial = grandTotalRial - totalBaseCostRial;
+  const overheadPerKg = totalWeight > 0 ? totalOverheadRial / totalWeight : 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
@@ -100,7 +108,7 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     <div><span className="font-bold text-gray-600">شرح کالا:</span> {record.goodsName}</div>
                     <div><span className="font-bold text-gray-600">فروشنده:</span> {record.sellerName}</div>
                     <div><span className="font-bold text-gray-600">ارز پایه:</span> {record.mainCurrency}</div>
-                    <div><span className="font-bold text-gray-600">فی تمام شده هر واحد ارز:</span> {formatCurrency(exchangeRate)}</div>
+                    <div><span className="font-bold text-gray-600">نرخ ارز محاسباتی:</span> {formatCurrency(exchangeRate)}</div>
                     <div><span className="font-bold text-gray-600">کل وزن:</span> {formatNumberString(totalWeight)} KG</div>
                     <div><span className="font-bold text-gray-600">شماره سفارش:</span> {record.orderNumber || '-'}</div>
                 </div>
@@ -138,8 +146,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                         <span className="font-mono dir-ltr font-bold">{formatNumberString(totalCurrency)} {record.mainCurrency}</span>
                     </div>
                     <div className="flex justify-between mb-2 border-b border-gray-300 pb-2">
-                        <span>جمع کل هزینه‌های ریالی (شامل خرید ارز و سایر هزینه‌ها):</span>
-                        <span className="font-mono dir-ltr font-bold">{formatCurrency(grandTotalRial)}</span>
+                        <span>هزینه سربار هر کیلو (سرشکن شده):</span>
+                        <span className="font-mono dir-ltr font-bold">{formatCurrency(overheadPerKg)}</span>
                     </div>
                     <div className="flex justify-between mt-2 text-sm bg-gray-100 p-2 rounded">
                         <span className="font-black">قیمت تمام شده نهایی (کل پروژه):</span>
@@ -162,8 +170,10 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     </thead>
                     <tbody>
                         {record.items.map((item, idx) => {
-                            // New Calculation Logic based on Effective Rate
-                            const itemFinalCostRial = item.totalPrice * exchangeRate;
+                            // Logic: Base Cost (Price*Rate) + Overhead (Weight * OverheadPerKg)
+                            const itemBaseRial = item.totalPrice * exchangeRate;
+                            const itemOverhead = item.weight * overheadPerKg;
+                            const itemFinalCostRial = itemBaseRial + itemOverhead;
                             const itemFinalCostPerKg = item.weight > 0 ? itemFinalCostRial / item.weight : 0;
                             
                             return (
