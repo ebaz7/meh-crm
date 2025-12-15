@@ -368,6 +368,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         // Delivered now based on Received Amount if set, else Amount if isDelivered is true
         const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0);
         
+        // Calculate Total Net Rial Cost (Amount * Rate) - ReturnAmount (Rial)
+        const totalRialCost = updatedTranches.reduce((acc, t) => {
+            return acc + ((t.amount * (t.rate || 0)) - (t.returnAmount || 0));
+        }, 0);
+
         const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
         
         // Update Local State
@@ -379,6 +384,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         // IMPORTANT: Update costCurrency to reflect total purchased amount
         if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
         updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased;
+        
+        // Update costRial for timeline to show correct value
+        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost;
 
         await updateTradeRecord(updatedRecord); 
         setSelectedRecord(updatedRecord); 
@@ -421,6 +429,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
         const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); 
         
+        // Recalculate Rial Cost
+        const totalRialCost = updatedTranches.reduce((acc, t) => {
+            return acc + ((t.amount * (t.rate || 0)) - (t.returnAmount || 0));
+        }, 0);
+
         const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
         setCurrencyForm(updatedForm); 
         
@@ -428,6 +441,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         
         if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
         updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased;
+        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost;
 
         await updateTradeRecord(updatedRecord); 
         setSelectedRecord(updatedRecord); 
@@ -606,10 +620,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const totalProformaCurrency = totalItemsCurrency + totalFreightCurrency;
 
         // 2. Calculate Net Rial Cost of Currency Purchase (Buy - Return)
+        // BUG FIX: Return Amount is already in Rial, do not multiply by rate.
         const currencyTranches = selectedRecord.currencyPurchaseData?.tranches || [];
         const netCurrencyRialCost = currencyTranches.reduce((acc, t) => {
             const cost = t.amount * (t.rate || 0);
-            const ret = (t.returnAmount || 0) * (t.rate || 0);
+            const ret = t.returnAmount || 0; // Fixed: Do not multiply by rate again
             return acc + (cost - ret);
         }, 0);
 
@@ -622,17 +637,17 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         const totalOverheadsRial = overheadStages.reduce((sum, stage) => 
             sum + (selectedRecord.stages[stage]?.costRial || 0), 0);
 
-        // 4. Grand Total Rial Cost (The "Real" cost of the project)
+        // 4. Grand Total Rial Cost (Total Project Cost)
         const grandTotalRialProject = netCurrencyRialCost + totalOverheadsRial;
 
         // 5. Total Weight
         const totalWeight = selectedRecord.items.reduce((sum, item) => sum + item.weight, 0);
 
-        // 6. Effective Rate (Feat 1 Unit of Currency)
-        // Formula: Total Project Cost (Rial) / Total Proforma Amount (Currency)
+        // 6. Calculation Core:
+        // Effective Rate = Total Project Cost (Rial) / Total Proforma Currency (Items + Freight)
         const effectiveRate = totalProformaCurrency > 0 ? grandTotalRialProject / totalProformaCurrency : 0;
-
-        // 7. Freight Per Weight (Currency)
+        
+        // Freight per KG (Currency) = Total Freight (Currency) / Total Weight
         const freightPerKgCurrency = totalWeight > 0 ? totalFreightCurrency / totalWeight : 0;
 
         const costPerKg = totalWeight > 0 ? grandTotalRialProject / totalWeight : 0;
@@ -1355,10 +1370,11 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                 const totalProformaCurrency = totalItemsCurrency + totalFreightCurrency;
 
                                 // 2. Calculate Net Rial Cost of Currency Purchase (Buy - Return)
+                                // FIXED: Return Amount is already Rial, do not multiply by rate again.
                                 const currencyTranches = selectedRecord.currencyPurchaseData?.tranches || [];
                                 const netCurrencyRialCost = currencyTranches.reduce((acc, t) => {
                                     const cost = t.amount * (t.rate || 0);
-                                    const ret = (t.returnAmount || 0) * (t.rate || 0);
+                                    const ret = t.returnAmount || 0; // Fix applied here
                                     return acc + (cost - ret);
                                 }, 0);
 

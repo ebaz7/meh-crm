@@ -28,10 +28,11 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   const totalFreightCurrency = record.freightCost || 0;
   
   // Calculate Net Currency Cost for Display in Expenses
+  // FIXED: Return Amount is in Rial, do not multiply by rate.
   const tranches = record.currencyPurchaseData?.tranches || [];
   const netCurrencyRialCost = tranches.reduce((acc, t) => {
       const cost = t.amount * (t.rate || 0);
-      const ret = (t.returnAmount || 0) * (t.rate || 0);
+      const ret = t.returnAmount || 0; // Already in Rial
       return acc + (cost - ret);
   }, 0);
 
