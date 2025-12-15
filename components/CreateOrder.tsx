@@ -5,7 +5,7 @@ import { saveOrder, getNextTrackingNumber, uploadFile, getSettings, saveSettings
 import { enhanceDescription } from '../services/geminiService';
 import { apiCall } from '../services/apiService';
 import { jalaliToGregorian, getCurrentShamsiDate, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, formatDate } from '../constants';
-import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar } from 'lucide-react';
+import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar, Landmark } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import { getUsers } from '../services/authService';
 
@@ -44,6 +44,11 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [createdOrderForAutoSend, setCreatedOrderForAutoSend] = useState<PaymentOrder | null>(null);
 
+  // Add Bank Modal State
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankAccount, setNewBankAccount] = useState('');
+
   useEffect(() => {
       getSettings().then((s) => {
           setSettings(s);
@@ -76,16 +81,23 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       setNewLine(prev => ({ ...prev, bankName: '' })); // Reset selected bank on company change
   };
 
-  const handleAddBank = async () => {
+  const openAddBankModal = () => {
       if (!payingCompany) return alert('لطفا ابتدا شرکت پرداخت کننده را انتخاب کنید.');
+      setNewBankName('');
+      setNewBankAccount('');
+      setShowAddBankModal(true);
+  };
+
+  const handleSaveNewBank = async () => {
+      if (!newBankName.trim()) return alert('نام بانک الزامی است.');
       if (!settings) return;
 
-      const bankName = prompt('نام بانک جدید:');
-      if (!bankName) return;
-      const accountNum = prompt('شماره حساب/کارت (اختیاری):') || '';
-
-      const newBankObj: CompanyBank = { id: generateUUID(), bankName: bankName, accountNumber: accountNum };
-      const comboName = `${bankName}${accountNum ? ` - ${accountNum}` : ''}`;
+      const newBankObj: CompanyBank = { 
+          id: generateUUID(), 
+          bankName: newBankName.trim(), 
+          accountNumber: newBankAccount.trim() 
+      };
+      const comboName = `${newBankObj.bankName}${newBankObj.accountNumber ? ` - ${newBankObj.accountNumber}` : ''}`;
 
       // Update Settings structure
       const updatedCompanies = (settings.companies || []).map(c => {
@@ -102,6 +114,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           setSettings(newSettings);
           setAvailableBanks(prev => [...prev, comboName]);
           setNewLine(prev => ({ ...prev, bankName: comboName }));
+          setShowAddBankModal(false);
       } catch (e) {
           alert('خطا در ذخیره بانک جدید');
       }
@@ -182,6 +195,33 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
             </div>
         )}
 
+        {/* ADD BANK MODAL */}
+        {showAddBankModal && (
+            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 animate-scale-in">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2"><Landmark size={18} className="text-blue-600"/> افزودن بانک جدید</h3>
+                        <button onClick={() => setShowAddBankModal(false)} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+                    </div>
+                    <div className="space-y-3">
+                        <div className="text-xs text-gray-500 mb-2">برای شرکت: <span className="font-bold text-gray-800">{payingCompany}</span></div>
+                        <div>
+                            <label className="text-sm font-bold block mb-1">نام بانک</label>
+                            <input className="w-full border rounded-lg p-2 text-sm" placeholder="مثال: بانک ملت" value={newBankName} onChange={e => setNewBankName(e.target.value)} autoFocus />
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold block mb-1">شماره حساب / کارت</label>
+                            <input className="w-full border rounded-lg p-2 text-sm dir-ltr text-left" placeholder="xxxx-xxxx-xxxx-xxxx" value={newBankAccount} onChange={e => setNewBankAccount(e.target.value)} />
+                        </div>
+                        <div className="flex gap-2 mt-4 pt-2 border-t">
+                            <button onClick={() => setShowAddBankModal(false)} className="flex-1 py-2 rounded-lg border text-gray-600 hover:bg-gray-50 text-sm">انصراف</button>
+                            <button onClick={handleSaveNewBank} className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-bold">ذخیره بانک</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-green-50 p-2 rounded-lg text-green-600"><Plus size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت دستور پرداخت جدید</h2></div>
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -218,7 +258,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                     <div className="md:col-span-3 space-y-1"><label className="text-xs text-gray-500">مبلغ (ریال)</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left font-mono font-bold" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} onKeyDown={handleKeyDown}/></div>
-                    {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm font-mono" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} onKeyDown={handleKeyDown}/></div>}<div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select><button type="button" onClick={handleAddBank} className="bg-blue-100 text-blue-600 rounded-lg px-2 hover:bg-blue-200" title="افزودن بانک جدید"><Plus size={16}/></button></div></div></>) : <div className="md:col-span-4 hidden md:block"></div>}
+                    {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER) ? (<>{newLine.method === PaymentMethod.CHEQUE && <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm font-mono" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} onKeyDown={handleKeyDown}/></div>}<div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نام بانک</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select><button type="button" onClick={openAddBankModal} className="bg-blue-100 text-blue-600 rounded-lg px-2 hover:bg-blue-200 border border-blue-200" title="افزودن بانک جدید"><Plus size={16}/></button></div></div></>) : <div className="md:col-span-4 hidden md:block"></div>}
                     <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شرح (اختیاری)</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })} onKeyDown={handleKeyDown}/></div>
                     {newLine.method === PaymentMethod.CHEQUE && (<div className="md:col-span-12 bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-1 flex items-center gap-4"><label className="text-xs font-bold text-gray-700 flex items-center gap-1 min-w-fit"><Calendar size={14}/> تاریخ سررسید چک:</label><div className="flex gap-2 flex-1"><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>)}
                     <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center"><Plus size={20} /></button></div>
