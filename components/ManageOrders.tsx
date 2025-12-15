@@ -4,7 +4,7 @@ import { PaymentOrder, OrderStatus, User, UserRole, SystemSettings, PaymentMetho
 import { updateOrderStatus, deleteOrder } from '../services/storageService';
 import { getRolePermissions } from '../services/authService';
 import { formatCurrency, formatDate, getStatusLabel, jalaliToGregorian, formatNumberString, deformatNumberString } from '../constants';
-import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X } from 'lucide-react';
+import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import EditOrderModal from './EditOrderModal';
 
@@ -19,7 +19,7 @@ interface ManageOrdersProps {
 
 const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, currentUser, initialTab = 'current', settings, statusFilter }) => {
   const [activeTab, setActiveTab] = useState<'current' | 'archive'>(initialTab);
-  const [viewOrder, setViewOrder] = useState<PaymentOrder | null>(null); // Replaces printOrder
+  const [viewOrder, setViewOrder] = useState<PaymentOrder | null>(null); 
   const [editingOrder, setEditingOrder] = useState<PaymentOrder | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -30,6 +30,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
       to: { year: 1405, month: 12, day: 29 },
       enabled: false
   });
+  const [companyFilter, setCompanyFilter] = useState(''); // NEW: Company Filter
   
   const [currentStatusFilter, setCurrentStatusFilter] = useState<OrderStatus | 'pending_all' | null>(statusFilter || null);
 
@@ -49,6 +50,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   }, [statusFilter]);
 
   const permissions = getRolePermissions(currentUser.role, settings || null);
+  const availableCompanies = settings?.companies?.map(c => c.name) || settings?.companyNames || [];
 
   const canApprove = (order: PaymentOrder): boolean => {
     if (order.status === OrderStatus.APPROVED_CEO) return false;
@@ -95,7 +97,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     if (window.confirm(`آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`)) {
         await updateOrderStatus(id, nextStatus, currentUser); 
         refreshData();
-        setViewOrder(null); // Close modal after action
+        setViewOrder(null); 
     }
   };
 
@@ -104,7 +106,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
       if (reason !== null) {
           await updateOrderStatus(id, OrderStatus.REJECTED, currentUser, reason || 'بدون توضیح');
           refreshData();
-          setViewOrder(null); // Close modal after action
+          setViewOrder(null); 
       }
   };
 
@@ -125,10 +127,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           alert("هیچ سفارشی موجود نیست.");
           return;
       }
-      const headers = ["شماره دستور", "تاریخ", "گیرنده", "مبلغ", "بانک/روش", "شرح", "وضعیت", "درخواست کننده"];
+      const headers = ["شماره دستور", "تاریخ", "گیرنده", "مبلغ", "شرکت پرداخت کننده", "بانک/روش", "شرح", "وضعیت", "درخواست کننده"];
       const rows = filteredOrders.map(o => {
           const banks = o.paymentDetails.map(d => d.bankName || d.method).join(', ');
-          return [o.trackingNumber, formatDate(o.date), o.payee, o.totalAmount, banks, o.description, getStatusLabel(o.status), o.requester];
+          return [o.trackingNumber, formatDate(o.date), o.payee, o.totalAmount, o.payingCompany || '-', banks, o.description, getStatusLabel(o.status), o.requester];
       });
       const csvContent = [headers.join(','), ...rows.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(','))].join('\n');
       const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -146,21 +148,16 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const getOrdersForTab = () => {
-      // Base filtering for tab
       let tabOrders = orders;
-      
       if (activeTab === 'archive') {
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
       } else {
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO);
       }
 
-      // Permissions Filtering (Apply to BOTH Archive and Current)
       if (!permissions.canViewAll) {
-          // If user cannot view all, they only see their own requests
           return tabOrders.filter(o => o.requester === currentUser.fullName);
       }
-
       return tabOrders;
   };
 
@@ -172,6 +169,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             if (order.status !== currentStatusFilter) return false;
         }
     }
+    
+    // NEW: Company Filter
+    if (companyFilter && order.payingCompany !== companyFilter) return false;
+
     const term = searchTerm.toLowerCase();
     if (!order.payee.toLowerCase().includes(term) && !order.description.toLowerCase().includes(term) && !order.trackingNumber.toString().includes(term)) return false;
     if (amountRange.min && order.totalAmount < deformatNumberString(amountRange.min)) return false;
@@ -187,6 +188,9 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     }
     return true;
   });
+
+  const totalFilteredAmount = filteredOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalFilteredCount = filteredOrders.length;
 
   const canExport = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
   const years = Array.from({ length: 11 }, (_, i) => 1400 + i);
@@ -211,9 +215,24 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                     </div>
                 </div>
             </div>
+            
             {showFilters && (
-                <div className="bg-gray-50 rounded-xl p-4 border grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                    <div><label className="block font-bold mb-2">مبلغ (ریال):</label><div className="flex gap-2"><input placeholder="از..." className="w-full border rounded p-2 dir-ltr" value={formatNumberString(amountRange.min)} onChange={e=>setAmountRange({...amountRange, min:deformatNumberString(e.target.value).toString()})}/><span>تا</span><input placeholder="تا..." className="w-full border rounded p-2 dir-ltr" value={formatNumberString(amountRange.max)} onChange={e=>setAmountRange({...amountRange, max:deformatNumberString(e.target.value).toString()})}/></div></div>
+                <div className="bg-gray-50 rounded-xl p-4 border grid grid-cols-1 md:grid-cols-3 gap-6 text-sm animate-fade-in">
+                    <div>
+                        <label className="block font-bold mb-2 flex items-center gap-2"><Building2 size={16}/> شرکت پرداخت کننده (محل پرداخت):</label>
+                        <select className="w-full border rounded p-2 bg-white" value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
+                            <option value="">-- همه شرکت‌ها --</option>
+                            {availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block font-bold mb-2">مبلغ (ریال):</label>
+                        <div className="flex gap-2">
+                            <input placeholder="از..." className="w-full border rounded p-2 dir-ltr" value={formatNumberString(amountRange.min)} onChange={e=>setAmountRange({...amountRange, min:deformatNumberString(e.target.value).toString()})}/>
+                            <span className="self-center">تا</span>
+                            <input placeholder="تا..." className="w-full border rounded p-2 dir-ltr" value={formatNumberString(amountRange.max)} onChange={e=>setAmountRange({...amountRange, max:deformatNumberString(e.target.value).toString()})}/>
+                        </div>
+                    </div>
                     <div>
                          <div className="flex justify-between items-center mb-2"><label className="font-bold text-gray-700">محدوده تاریخ (شمسی):</label><div className="flex items-center gap-2"><input type="checkbox" id="enableDate" checked={dateRange.enabled} onChange={e => setDateRange({...dateRange, enabled: e.target.checked})}/><label htmlFor="enableDate" className="text-xs text-gray-500 cursor-pointer">فعال‌سازی</label></div></div>
                          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!dateRange.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -225,6 +244,24 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             )}
         </div>
 
+        {/* Summary Bar */}
+        <div className="bg-blue-50 border-b border-blue-100 p-3 flex flex-wrap justify-between items-center text-sm px-6">
+            <div className="flex items-center gap-2 text-blue-800 font-bold">
+                <Calculator size={18}/>
+                <span>خلاصه گزارش فیلتر شده:</span>
+            </div>
+            <div className="flex gap-6">
+                <div className="bg-white px-3 py-1 rounded-lg border border-blue-200">
+                    <span className="text-gray-500 text-xs ml-2">تعداد کل:</span>
+                    <span className="font-mono font-bold text-blue-700">{totalFilteredCount}</span>
+                </div>
+                <div className="bg-white px-3 py-1 rounded-lg border border-blue-200">
+                    <span className="text-gray-500 text-xs ml-2">مجموع مبلغ:</span>
+                    <span className="font-mono font-bold text-blue-700 text-lg">{formatCurrency(totalFilteredAmount)}</span>
+                </div>
+            </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-right min-w-[800px]">
             <thead className="bg-gray-50 text-gray-600 font-medium">
@@ -232,7 +269,8 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                 <th className="px-6 py-4">ش. دستور</th>
                 <th className="px-6 py-4">تاریخ</th>
                 <th className="px-6 py-4">گیرنده / شرح</th>
-                <th className="px-6 py-4">بانک پرداخت کننده</th>
+                <th className="px-6 py-4">شرکت پرداخت کننده</th>
+                <th className="px-6 py-4">بانک / روش</th>
                 <th className="px-6 py-4">مبلغ کل</th>
                 <th className="px-6 py-4">وضعیت</th>
                 <th className="px-6 py-4 text-center">عملیات</th>
@@ -240,13 +278,14 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredOrders.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">موردی یافت نشد</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-gray-400">موردی یافت نشد</td></tr>
               ) : (
                   filteredOrders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50/80 transition-colors">
                         <td className="px-6 py-4 font-mono text-gray-500">#{order.trackingNumber}</td>
                         <td className="px-6 py-4 text-gray-700">{formatDate(order.date)}</td>
                         <td className="px-6 py-4 font-medium text-gray-900 max-w-[200px]"><div className="truncate font-bold">{order.payee}</div><div className="text-xs text-gray-500 truncate mt-1">{order.description}</div><div className="flex gap-1 mt-1">{order.attachments?.map((a,i) => <a key={i} href={a.data} target="_blank" className="text-blue-500 text-[10px] bg-blue-50 px-1 rounded flex items-center"><Paperclip size={10}/></a>)}</div></td>
+                        <td className="px-6 py-4 text-xs font-bold text-gray-700">{order.payingCompany || '-'}</td>
                         <td className="px-6 py-4 text-xs text-gray-600">
                             {order.paymentDetails.map((d, i) => (
                                 <div key={i} className="truncate max-w-[120px]" title={d.bankName || d.method}>

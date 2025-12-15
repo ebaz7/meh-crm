@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TradeRecord, SystemSettings } from '../../types';
-import { X, Printer, Loader2 } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { formatNumberString } from '../../constants';
 
 interface Props {
