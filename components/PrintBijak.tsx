@@ -60,6 +60,11 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   const companyInfo = settings?.companies?.find(c => c.name === tx.company);
   const companyLogo = companyInfo?.logo || settings?.pwaIcon;
+  
+  // Resolve Target Numbers (Company Specific > Global Default)
+  const companyConfig = settings?.companyNotifications?.[tx.company];
+  const warehouseTarget = companyConfig?.warehouseGroup || settings?.defaultWarehouseGroup;
+  const managerTarget = companyConfig?.salesManager || settings?.defaultSalesManager;
 
   // Added delay to ensure DOM is ready for print
   const handlePrint = () => {
@@ -98,7 +103,7 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   };
 
   const generateAndSend = async (target: string, shouldHidePrice: boolean, captionPrefix: string) => {
-      if (!target) { alert("شماره مخاطب/مدیر تنظیم نشده است. لطفا در تنظیمات انبار بررسی کنید."); return; }
+      if (!target) { alert("شماره مخاطب/مدیر برای این شرکت تنظیم نشده است. لطفا در تنظیمات انبار بررسی کنید."); return; }
       setProcessing(true);
       const originalState = hidePrices;
       setHidePrices(shouldHidePrice);
@@ -150,7 +155,23 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
             </div>
             <div className="border rounded-lg p-3 mb-4 bg-gray-50 text-sm print:bg-white print:border-black"><div className="grid grid-cols-2 gap-4"><div><span className="text-gray-500 ml-2">تحویل گیرنده:</span> <span className="font-bold">{tx.recipientName}</span></div><div><span className="text-gray-500 ml-2">مقصد:</span> <span className="font-bold">{tx.destination || '-'}</span></div><div><span className="text-gray-500 ml-2">راننده:</span> <span className="font-bold">{tx.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">پلاک:</span> <span className="font-bold font-mono dir-ltr">{tx.plateNumber || '-'}</span></div></div></div>
             <div className="flex-1"><table className="w-full text-sm border-collapse border border-black"><thead className="bg-gray-200 print:bg-gray-100"><tr><th className="border border-black p-2 w-10 text-center">#</th><th className="border border-black p-2">شرح کالا</th><th className="border border-black p-2 w-20 text-center">تعداد</th><th className="border border-black p-2 w-24 text-center">وزن (KG)</th>{!hidePrices && <th className="border border-black p-2 w-28 text-center">فی (ریال)</th>}</tr></thead><tbody>{tx.items.map((item, idx) => (<tr key={idx}><td className="border border-black p-2 text-center">{idx + 1}</td><td className="border border-black p-2 font-bold">{item.itemName}</td><td className="border border-black p-2 text-center">{item.quantity}</td><td className="border border-black p-2 text-center">{item.weight}</td>{!hidePrices && <td className="border border-black p-2 text-center font-mono">{item.unitPrice ? formatCurrency(item.unitPrice).replace('ریال', '') : '-'}</td>}</tr>))}<tr className="bg-gray-100 font-bold print:bg-white"><td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل:</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.quantity,0)}</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.weight,0)}</td>{!hidePrices && <td className="border border-black p-2 bg-gray-200"></td>}</tr></tbody></table>{tx.description && <div className="mt-4 border p-2 rounded text-sm"><span className="font-bold block mb-1">توضیحات:</span>{tx.description}</div>}</div>
-            <div className="mt-8 pt-8 border-t-2 border-black grid grid-cols-3 gap-8 text-center"><div><div className="mb-8 font-bold text-sm">ثبت کننده (انبار)</div><div className="mb-2 font-bold text-xs">{tx.createdBy || 'کاربر انبار'}</div><div className="border-b border-gray-400 w-2/3 mx-auto"></div></div><div><div className="mb-8 font-bold text-sm">تایید مدیریت</div><div className="border-b border-gray-400 w-2/3 mx-auto"></div></div><div><div className="mb-8 font-bold text-sm">تحویل گیرنده (راننده)</div><div className="border-b border-gray-400 w-2/3 mx-auto"></div></div></div>
+            <div className="mt-8 pt-8 border-t-2 border-black grid grid-cols-3 gap-8 text-center">
+                <div>
+                    <div className="mb-8 font-bold text-sm">ثبت کننده (انبار)</div>
+                    <div className="mb-2 font-bold text-xs">{tx.createdBy || 'کاربر انبار'}</div>
+                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+                </div>
+                <div>
+                    <div className="mb-8 font-bold text-sm">تایید مدیریت</div>
+                    <div className="mb-2 font-bold text-xs min-h-[16px]">{tx.approvedBy || ''}</div>
+                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+                </div>
+                <div>
+                    <div className="mb-8 font-bold text-sm">تحویل گیرنده (راننده)</div>
+                    <div className="mb-2 font-bold text-xs min-h-[16px]"></div>
+                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+                </div>
+            </div>
       </div>
   );
 
@@ -165,8 +186,8 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
             <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <Printer size={16}/>} چاپ</button>
             
             <div className="border-t pt-2 mt-1 space-y-2">
-                <button onClick={() => { if(settings?.defaultWarehouseGroup) generateAndSend(settings.defaultWarehouseGroup, true, "📦 *حواله خروج (نسخه انبار)*"); else alert("شماره گروه انبار در تنظیمات تعیین نشده است."); }} disabled={processing} className="w-full bg-orange-100 text-orange-700 p-2 rounded text-xs hover:bg-orange-200 flex items-center justify-center gap-2 border border-orange-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به انبار (بدون فی)'}</button>
-                <button onClick={() => { if(settings?.defaultSalesManager) generateAndSend(settings.defaultSalesManager, false, "📑 *حواله خروج (نسخه مدیریت)*"); else alert("شماره مدیر فروش در تنظیمات تعیین نشده است."); }} disabled={processing} className="w-full bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 flex items-center justify-center gap-2 border border-green-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به مدیر (با فی)'}</button>
+                <button onClick={() => { if(warehouseTarget) generateAndSend(warehouseTarget, true, "📦 *حواله خروج (نسخه انبار)*"); else alert(`شماره گروه انبار برای شرکت ${tx.company} تنظیم نشده است.`); }} disabled={processing} className="w-full bg-orange-100 text-orange-700 p-2 rounded text-xs hover:bg-orange-200 flex items-center justify-center gap-2 border border-orange-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به انبار (بدون فی)'}</button>
+                <button onClick={() => { if(managerTarget) generateAndSend(managerTarget, false, "📑 *حواله خروج (نسخه مدیریت)*"); else alert(`شماره مدیر فروش برای شرکت ${tx.company} تنظیم نشده است.`); }} disabled={processing} className="w-full bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 flex items-center justify-center gap-2 border border-green-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به مدیر (با فی)'}</button>
                 
                 <button onClick={() => setShowContactSelect(true)} className="w-full bg-white border text-gray-700 p-2 rounded text-xs hover:bg-gray-50 flex items-center justify-center gap-2"><Share2 size={14}/> انتخاب مخاطب</button>
             </div>

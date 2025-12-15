@@ -164,6 +164,10 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     const managerNumber = companyConfig?.salesManager;
                     const groupNumber = companyConfig?.warehouseGroup;
 
+                    if (!managerNumber && !groupNumber) {
+                        console.warn("No destination numbers configured for company:", updatedTx.company);
+                    }
+
                     try {
                         // 1. Send to SALES MANAGER (With Price)
                         if (managerNumber && managerElement) {
@@ -198,7 +202,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 setApprovedTxForAutoSend(null);
                 loadData();
                 alert("تایید و ارسال شد.");
-            }, 1500);
+            }, 2000); // Increased timeout to ensure rendering
 
         } catch (e) { alert("خطا در عملیات تایید"); }
     };
