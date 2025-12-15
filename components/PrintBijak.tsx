@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { WarehouseTransaction, SystemSettings, Contact } from '../types';
 import { formatCurrency, formatDate } from '../constants';
-import { X, Printer, Loader2, Share2, Search, Users, Smartphone, FileDown, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { X, Printer, Loader2, Share2, Search, Users, Smartphone, FileDown, CheckCircle, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
 
@@ -151,13 +151,21 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
             padding: '8mm', // Proper padding
             boxSizing: 'border-box'
         }}>
-            <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
+            {/* Watermarks for Status */}
+            {tx.status === 'REJECTED' && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-6xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">REJECTED</div>
+            )}
+            {(tx.status as any) === 'DELETED' && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-6xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">حذف شده / باطل</div>
+            )}
+
+            <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start relative z-10">
                 <div className="flex items-center gap-3">{companyLogo && <img src={companyLogo} className="w-16 h-16 object-contain"/>}<div><h1 className="text-xl font-black">{tx.company}</h1><p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black border-2 border-black px-3 py-1 rounded">NO: {tx.number}</div><div className="text-sm font-bold">تاریخ: {formatDate(tx.date)}</div></div>
             </div>
-            <div className="border rounded-lg p-3 mb-4 bg-gray-50 text-sm print:bg-white print:border-black"><div className="grid grid-cols-2 gap-4"><div><span className="text-gray-500 ml-2">تحویل گیرنده:</span> <span className="font-bold">{tx.recipientName}</span></div><div><span className="text-gray-500 ml-2">مقصد:</span> <span className="font-bold">{tx.destination || '-'}</span></div><div><span className="text-gray-500 ml-2">راننده:</span> <span className="font-bold">{tx.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">پلاک:</span> <span className="font-bold font-mono dir-ltr">{tx.plateNumber || '-'}</span></div></div></div>
-            <div className="flex-1"><table className="w-full text-sm border-collapse border border-black"><thead className="bg-gray-200 print:bg-gray-100"><tr><th className="border border-black p-2 w-10 text-center">#</th><th className="border border-black p-2">شرح کالا</th><th className="border border-black p-2 w-20 text-center">تعداد</th><th className="border border-black p-2 w-24 text-center">وزن (KG)</th>{!hidePrices && <th className="border border-black p-2 w-28 text-center">فی (ریال)</th>}</tr></thead><tbody>{tx.items.map((item, idx) => (<tr key={idx}><td className="border border-black p-2 text-center">{idx + 1}</td><td className="border border-black p-2 font-bold">{item.itemName}</td><td className="border border-black p-2 text-center">{item.quantity}</td><td className="border border-black p-2 text-center">{item.weight}</td>{!hidePrices && <td className="border border-black p-2 text-center font-mono">{item.unitPrice ? formatCurrency(item.unitPrice).replace('ریال', '') : '-'}</td>}</tr>))}<tr className="bg-gray-100 font-bold print:bg-white"><td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل:</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.quantity,0)}</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.weight,0)}</td>{!hidePrices && <td className="border border-black p-2 bg-gray-200"></td>}</tr></tbody></table>{tx.description && <div className="mt-4 border p-2 rounded text-sm"><span className="font-bold block mb-1">توضیحات:</span>{tx.description}</div>}</div>
-            <div className="mt-8 pt-8 border-t-2 border-black grid grid-cols-3 gap-8 text-center">
+            <div className="border rounded-lg p-3 mb-4 bg-gray-50 text-sm print:bg-white print:border-black relative z-10"><div className="grid grid-cols-2 gap-4"><div><span className="text-gray-500 ml-2">تحویل گیرنده:</span> <span className="font-bold">{tx.recipientName}</span></div><div><span className="text-gray-500 ml-2">مقصد:</span> <span className="font-bold">{tx.destination || '-'}</span></div><div><span className="text-gray-500 ml-2">راننده:</span> <span className="font-bold">{tx.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">پلاک:</span> <span className="font-bold font-mono dir-ltr">{tx.plateNumber || '-'}</span></div></div></div>
+            <div className="flex-1 relative z-10"><table className="w-full text-sm border-collapse border border-black"><thead className="bg-gray-200 print:bg-gray-100"><tr><th className="border border-black p-2 w-10 text-center">#</th><th className="border border-black p-2">شرح کالا</th><th className="border border-black p-2 w-20 text-center">تعداد</th><th className="border border-black p-2 w-24 text-center">وزن (KG)</th>{!hidePrices && <th className="border border-black p-2 w-28 text-center">فی (ریال)</th>}</tr></thead><tbody>{tx.items.map((item, idx) => (<tr key={idx}><td className="border border-black p-2 text-center">{idx + 1}</td><td className="border border-black p-2 font-bold">{item.itemName}</td><td className="border border-black p-2 text-center">{item.quantity}</td><td className="border border-black p-2 text-center">{item.weight}</td>{!hidePrices && <td className="border border-black p-2 text-center font-mono">{item.unitPrice ? formatCurrency(item.unitPrice).replace('ریال', '') : '-'}</td>}</tr>))}<tr className="bg-gray-100 font-bold print:bg-white"><td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل:</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.quantity,0)}</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.weight,0)}</td>{!hidePrices && <td className="border border-black p-2 bg-gray-200"></td>}</tr></tbody></table>{tx.description && <div className="mt-4 border p-2 rounded text-sm"><span className="font-bold block mb-1">توضیحات:</span>{tx.description}</div>}</div>
+            <div className="mt-8 pt-8 border-t-2 border-black grid grid-cols-3 gap-8 text-center relative z-10">
                 <div>
                     <div className="mb-8 font-bold text-sm">ثبت کننده (انبار)</div>
                     <div className="mb-2 font-bold text-xs">{tx.createdBy || 'کاربر انبار'}</div>
@@ -184,12 +192,12 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
         <div className="bg-white p-3 rounded-xl shadow-lg z-50 flex flex-col gap-2 w-full max-w-[148mm] md:w-64 md:fixed md:top-4 md:left-4 mb-4 md:mb-0 relative order-1">
             <div className="flex justify-between items-center border-b pb-2"><span className="font-bold text-sm">پنل عملیات</span><button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500"/></button></div>
             
-            {/* Rejection Reason Alert */}
-            {tx.status === 'REJECTED' && tx.rejectionReason && (
+            {/* Rejection/Deletion Alert */}
+            {((tx.status as any) === 'DELETED' || tx.status === 'REJECTED') && (
                 <div className="bg-red-50 p-2 rounded-lg border border-red-200 flex items-start gap-2 text-xs text-red-800">
                     <AlertTriangle size={16} className="shrink-0 mt-0.5"/>
                     <div>
-                        <span className="font-bold block">این بیجک رد شده است:</span>
+                        <span className="font-bold block">این بیجک {(tx.status as any) === 'DELETED' ? 'حذف' : 'رد'} شده است.</span>
                         {tx.rejectionReason}
                     </div>
                 </div>

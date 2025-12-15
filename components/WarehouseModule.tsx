@@ -56,9 +56,10 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     // Print Report State
     const [showPrintStockReport, setShowPrintStockReport] = useState(false); 
 
-    // Auto Send on Approval/Edit
+    // Auto Send on Approval/Edit/Delete
     const [approvedTxForAutoSend, setApprovedTxForAutoSend] = useState<WarehouseTransaction | null>(null);
     const [editedBijakForAutoSend, setEditedBijakForAutoSend] = useState<WarehouseTransaction | null>(null);
+    const [deletedTxForAutoSend, setDeletedTxForAutoSend] = useState<WarehouseTransaction | null>(null);
 
     useEffect(() => { loadData(); }, []);
     useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
@@ -218,7 +219,63 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
         }
     };
 
-    const handleDeleteTx = async (id: string) => { if(confirm('حذف تراکنش؟')) { await deleteWarehouseTransaction(id); loadData(); } };
+    const handleDeleteTx = async (id: string) => { 
+        if(!confirm('آیا از حذف این تراکنش اطمینان دارید؟ عملیات غیرقابل بازگشت است.')) return;
+
+        const txToDelete = transactions.find(t => t.id === id);
+        
+        // If it's a Bijak (OUT), send notification before deleting
+        if (txToDelete && txToDelete.type === 'OUT' && settings && settings.companyNotifications) {
+            // Prepare deleted mock object for rendering with "DELETED" status
+            // We use 'DELETED' string which TypeScript might complain about if not in enum, casting as any
+            const deletedMock = { ...txToDelete, status: 'DELETED' as any };
+            setDeletedTxForAutoSend(deletedMock);
+
+            // Wait for render, capture, send, THEN delete
+            setTimeout(async () => {
+                const managerElement = document.getElementById(`print-bijak-del-${id}-price`);
+                const warehouseElement = document.getElementById(`print-bijak-del-${id}-noprice`);
+                
+                const companyConfig = settings.companyNotifications?.[txToDelete.company];
+                const managerNumber = companyConfig?.salesManager;
+                const groupNumber = companyConfig?.warehouseGroup;
+
+                let warningCaption = `❌❌ *هشدار: بیجک حذف شد* ❌❌\n`;
+                warningCaption += `⛔ *ارسال بار ممنوع*\n`;
+                warningCaption += `🔢 شماره: ${txToDelete.number}\n`;
+                warningCaption += `👤 گیرنده: ${txToDelete.recipientName}\n`;
+                warningCaption += `🗑️ حذف توسط: ${currentUser.fullName}\n`;
+                warningCaption += `⚠️ *این بیجک از سیستم حذف شده و فاقد اعتبار است.*`;
+
+                try {
+                    if (managerNumber && managerElement) {
+                        // @ts-ignore
+                        const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff' });
+                        const base64 = canvas.toDataURL('image/png').split(',')[1];
+                        await apiCall('/send-whatsapp', 'POST', { number: managerNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_DELETED_${txToDelete.number}.png` } });
+                    }
+                    if (groupNumber && warehouseElement) {
+                        // @ts-ignore
+                        const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff' });
+                        const base64 = canvas.toDataURL('image/png').split(',')[1];
+                        await apiCall('/send-whatsapp', 'POST', { number: groupNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_DELETED_${txToDelete.number}.png` } });
+                    }
+                } catch(e) { console.error("Error sending delete notification", e); }
+                
+                // Proceed with deletion after notification attempt
+                await deleteWarehouseTransaction(id);
+                setDeletedTxForAutoSend(null);
+                loadData();
+                setViewBijak(null); // Close modal if open
+                alert("تراکنش حذف و اطلاع‌رسانی شد.");
+
+            }, 1500);
+        } else {
+            // Normal delete for receipts or if no settings
+            await deleteWarehouseTransaction(id);
+            loadData();
+        }
+    };
     
     // ... (Edit handlers same) ...
     const handleEditBijakSave = async (updatedTx: WarehouseTransaction) => {
@@ -317,16 +374,25 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
             {/* Show Print Overlay */}
             {showPrintStockReport && (<PrintStockReport data={allWarehousesStock} onClose={() => setShowPrintStockReport(false)} />)}
 
-            {/* Hidden Rendering Area for Auto-Send Approval */}
+            {/* Hidden Rendering Area for Auto-Send */}
             <div className="hidden-print-export" style={{position:'absolute', top:'-9999px', left:'-9999px'}}>
+                {/* Approval Render */}
                 {approvedTxForAutoSend && (
                     <>
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-price`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-noprice`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
                     </>
                 )}
+                {/* Edit Render */}
                 {editedBijakForAutoSend && (
                      <div id={`print-bijak-edit-${editedBijakForAutoSend.id}`}><PrintBijak tx={editedBijakForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
+                )}
+                {/* Deletion Render */}
+                {deletedTxForAutoSend && (
+                    <>
+                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-price`}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
+                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-noprice`}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
+                    </>
                 )}
             </div>
 
