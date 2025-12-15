@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, SystemSettings, WarehouseItem, WarehouseTransaction, WarehouseTransactionItem, UserRole } from '../types';
 import { getWarehouseItems, saveWarehouseItem, deleteWarehouseItem, getWarehouseTransactions, saveWarehouseTransaction, deleteWarehouseTransaction, updateWarehouseTransaction, getNextBijakNumber, updateWarehouseItem } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatNumberString, deformatNumberString, formatDate, parsePersianDate, getShamsiDateFromIso } from '../constants';
-import { Package, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, FileText, BarChart3, Eye, Loader2, AlertTriangle, Settings, ArrowLeftRight, Search, FileClock, Printer, FileDown, Share2, LayoutGrid, Archive, Edit, Save, X, Container, CheckCircle } from 'lucide-react';
+import { Package, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, FileText, BarChart3, Eye, Loader2, AlertTriangle, Settings, ArrowLeftRight, Search, FileClock, Printer, FileDown, Share2, LayoutGrid, Archive, Edit, Save, X, Container, CheckCircle, XCircle } from 'lucide-react';
 import PrintBijak from './PrintBijak';
 import PrintStockReport from './print/PrintStockReport'; 
 import WarehouseKardexReport from './reports/WarehouseKardexReport'; // NEW IMPORT
@@ -201,10 +201,21 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 
                 setApprovedTxForAutoSend(null);
                 loadData();
+                setViewBijak(null);
                 alert("تایید و ارسال شد.");
             }, 2000); // Increased timeout to ensure rendering
 
         } catch (e) { alert("خطا در عملیات تایید"); }
+    };
+
+    const handleRejectBijak = async (tx: WarehouseTransaction) => {
+        const reason = prompt("لطفا دلیل رد بیجک را وارد کنید:");
+        if (reason) {
+            const updatedTx = { ...tx, status: 'REJECTED' as const, rejectionReason: reason, rejectedBy: currentUser.fullName };
+            await updateWarehouseTransaction(updatedTx);
+            loadData();
+            setViewBijak(null); 
+        }
     };
 
     const handleDeleteTx = async (id: string) => { if(confirm('حذف تراکنش؟')) { await deleteWarehouseTransaction(id); loadData(); } };
@@ -370,7 +381,12 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                                             <td className="p-4 text-xs">{tx.recipientName}</td>
                                             <td className="p-4 text-center flex justify-center gap-2">
                                                 <button onClick={() => setViewBijak(tx)} className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
-                                                {canApprove && <button onClick={() => handleApproveBijak(tx)} className="bg-green-100 text-green-600 p-2 rounded hover:bg-green-200" title="تایید و ارسال"><CheckCircle size={16}/></button>}
+                                                {canApprove && (
+                                                    <>
+                                                        <button onClick={() => handleApproveBijak(tx)} className="bg-green-100 text-green-600 p-2 rounded hover:bg-green-200" title="تایید و ارسال"><CheckCircle size={16}/></button>
+                                                        <button onClick={() => handleRejectBijak(tx)} className="bg-red-100 text-red-600 p-2 rounded hover:bg-red-200" title="رد"><XCircle size={16}/></button>
+                                                    </>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -396,7 +412,14 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                                     <td className="p-3 text-xs">{formatDate(tx.date)}</td>
                                     <td className="p-3 text-xs font-bold">{tx.company}</td>
                                     <td className="p-3 text-xs">{tx.recipientName}</td>
-                                    <td className="p-3"><span className={`text-[10px] px-2 py-1 rounded font-bold ${tx.status === 'APPROVED' ? 'bg-green-100 text-green-700' : tx.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>{tx.status === 'APPROVED' ? 'تایید شده' : tx.status === 'REJECTED' ? 'رد شده' : 'در انتظار تایید'}</span></td>
+                                    <td className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <span className={`text-[10px] px-2 py-1 rounded font-bold w-fit ${tx.status === 'APPROVED' ? 'bg-green-100 text-green-700' : tx.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>{tx.status === 'APPROVED' ? 'تایید شده' : tx.status === 'REJECTED' ? 'رد شده' : 'در انتظار تایید'}</span>
+                                            {tx.status === 'REJECTED' && tx.rejectionReason && (
+                                                <span className="text-[10px] text-red-600 truncate max-w-[150px]" title={tx.rejectionReason}>دلیل: {tx.rejectionReason}</span>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="p-3 flex gap-2">
                                         <button onClick={() => setViewBijak(tx)} className="text-blue-600 hover:text-blue-800 p-1 flex items-center gap-1"><Eye size={14}/> مشاهده</button>
                                         {(tx.status === 'PENDING' || !tx.status) && canApprove && <button onClick={() => handleApproveBijak(tx)} className="text-green-600 hover:text-green-800 p-1 flex items-center gap-1 bg-green-50 rounded"><CheckCircle size={14}/> تایید</button>}
@@ -409,7 +432,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 
                 {/* ... (Items, Entry kept hidden) ... */}
                 {activeTab === 'items' && (<div className="max-w-4xl mx-auto"><div className="bg-gray-50 p-4 rounded-xl border mb-6 flex items-end gap-3 flex-wrap"><div className="flex-1 min-w-[200px] space-y-1"><label className="text-xs font-bold text-gray-500">نام کالا</label><input className="w-full border rounded p-2" value={newItemName} onChange={e=>setNewItemName(e.target.value)}/></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">کد کالا</label><input className="w-full border rounded p-2" value={newItemCode} onChange={e=>setNewItemCode(e.target.value)}/></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">واحد</label><select className="w-full border rounded p-2 bg-white" value={newItemUnit} onChange={e=>setNewItemUnit(e.target.value)}><option>عدد</option><option>کارتن</option><option>کیلوگرم</option><option>دستگاه</option></select></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">گنجایش کانتینر</label><input type="number" className="w-full border rounded p-2 dir-ltr" placeholder="تعداد" value={newItemContainerCapacity} onChange={e=>setNewItemContainerCapacity(e.target.value)}/></div><button onClick={handleAddItem} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 h-[42px] w-12 flex items-center justify-center"><Plus/></button></div><div className="bg-white border rounded-xl overflow-hidden"><table className="w-full text-sm text-right"><thead className="bg-gray-100"><tr><th className="p-3">کد</th><th className="p-3">نام کالا</th><th className="p-3">واحد</th><th className="p-3">ظرفیت کانتینر</th><th className="p-3 text-center">عملیات</th></tr></thead><tbody>{items.map(i => (<tr key={i.id} className="border-t hover:bg-gray-50"><td className="p-3 font-mono">{i.code}</td><td className="p-3 font-bold">{i.name}</td><td className="p-3">{i.unit}</td><td className="p-3 font-mono">{i.containerCapacity ? i.containerCapacity : '-'}</td><td className="p-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => setEditingItem(i)} className="text-amber-500 hover:text-amber-700" title="ویرایش"><Edit size={16}/></button><button onClick={()=>handleDeleteItem(i.id)} className="text-red-500 hover:text-red-700" title="حذف"><Trash2 size={16}/></button></div></td></tr>))}</tbody></table></div></div>)}
-                {activeTab === 'entry' && (<div className="max-w-4xl mx-auto bg-green-50 p-6 rounded-2xl border border-green-200"><h3 className="font-bold text-green-800 mb-4 flex items-center gap-2"><ArrowDownCircle/> ثبت ورود کالا (رسید انبار)</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"><div><label className="block text-xs font-bold mb-1">شرکت مالک</label><select className="w-full border rounded p-2 bg-white" value={selectedCompany} onChange={e=>setSelectedCompany(e.target.value)}><option value="">انتخاب...</option>{companyList.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold mb-1">شماره پروفرما / سند</label><input className="w-full border rounded p-2 bg-white" value={proformaNumber} onChange={e=>setProformaNumber(e.target.value)}/></div><div><label className="block text-xs font-bold mb-1">تاریخ ورود</label><div className="flex gap-1 dir-ltr"><select className="border rounded p-1 text-sm flex-1" value={txDate.year} onChange={e=>setTxDate({...txDate, year:Number(e.target.value)})}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.month} onChange={e=>setTxDate({...txDate, month:Number(e.target.value)})}>{months.map(m=><option key={m} value={m}>{m}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.day} onChange={e=>setTxDate({...txDate, day:Number(e.target.value)})}>{days.map(d=><option key={d} value={d}>{d}</option>)}</select></div></div></div><div className="space-y-2 bg-white p-4 rounded-xl border">{txItems.map((row, idx) => (<div key={idx} className="flex gap-2 items-end"><div className="flex-1"><label className="text-[10px] text-gray-500">کالا</label><select className="w-full border rounded p-2 text-sm" value={row.itemId} onChange={e=>updateTxItem(idx, 'itemId', e.target.value)}><option value="">انتخاب کالا...</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="w-24"><label className="text-[10px] text-gray-500">تعداد</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.quantity} onChange={e=>updateTxItem(idx, 'quantity', e.target.value)}/></div><div className="w-24"><label className="text-[10px] text-gray-500">وزن (KG)</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.weight} onChange={e=>updateTxItem(idx, 'weight', e.target.value)}/></div>{idx > 0 && <button onClick={()=>handleRemoveTxItemRow(idx)} className="text-red-500 p-2"><Trash2 size={16}/></button>}</div>))}<button onClick={handleAddTxItemRow} className="text-xs text-blue-600 font-bold flex items-center gap-1 mt-2"><Plus size={14}/> افزودن ردیف کالا</button></div><button onClick={()=>handleSubmitTx('IN')} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl mt-4 hover:bg-green-700 shadow-lg">ثبت رسید انبار</button></div>)}
+                {activeTab === 'entry' && (<div className="max-w-4xl mx-auto bg-green-50 p-6 rounded-2xl border border-green-200"><h3 className="font-bold text-green-800 mb-4 flex items-center gap-2"><ArrowDownCircle/> ثبت ورود کالا (رسید انبار)</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"><div><label className="block text-xs font-bold mb-1">شرکت مالک</label><select className="w-full border rounded p-2 bg-white" value={selectedCompany} onChange={e=>setSelectedCompany(e.target.value)}><option value="">انتخاب...</option>{companyList.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold mb-1">شماره پروفرما / سند</label><input className="w-full border rounded p-2 bg-white" value={proformaNumber} onChange={e=>setProformaNumber(e.target.value)}/></div><div><label className="block text-xs font-bold mb-1">تاریخ ورود</label><div className="flex gap-1 dir-ltr"><select className="border rounded p-1 text-sm flex-1" value={txDate.year} onChange={e=>setTxDate({...txDate, year:Number(e.target.value)})}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.month} onChange={e=>setTxDate({...txDate, month:Number(e.target.value)})}>{months.map(m=><option key={m} value={m}>{m}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.day} onChange={e=>setTxDate({...txDate, day:Number(e.target.value)})}>{days.map(d=><option key={d} value={d}>{d}</option>)}</select></div></div></div><div className="space-y-2 bg-white p-4 rounded-xl border">{txItems.map((row, idx) => (<div key={idx} className="flex gap-2 items-end"><div className="flex-1"><label className="text-[10px] text-gray-500">کالا</label><select className="w-full border rounded p-2 text-sm" value={row.itemId} onChange={e=>updateTxItem(idx, 'itemId', e.target.value)}><option value="">انتخاب کالا...</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="w-20"><label className="text-[10px] text-gray-500">تعداد</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.quantity} onChange={e=>updateTxItem(idx, 'quantity', e.target.value)}/></div><div className="w-20"><label className="text-[10px] text-gray-500">وزن</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.weight} onChange={e=>updateTxItem(idx, 'weight', e.target.value)}/></div><div className="w-32"><label className="text-[10px] text-gray-500">فی (ریال)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr font-bold text-blue-600" value={formatNumberString(row.unitPrice)} onChange={e=>updateTxItem(idx, 'unitPrice', deformatNumberString(e.target.value))}/></div>{idx > 0 && <button onClick={()=>handleRemoveTxItemRow(idx)} className="text-red-500 p-2"><Trash2 size={16}/></button>}</div>))}<button onClick={handleAddTxItemRow} className="text-xs text-blue-600 font-bold flex items-center gap-1 mt-2"><Plus size={14}/> افزودن ردیف کالا</button></div><button onClick={()=>handleSubmitTx('IN')} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl mt-4 hover:bg-green-700 shadow-lg">ثبت رسید انبار</button></div>)}
                 
                 {activeTab === 'exit' && (
                     <div className="max-w-4xl mx-auto bg-red-50 p-6 rounded-2xl border border-red-200">
@@ -474,10 +497,22 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                                             <td className="p-4 text-xs">{formatDate(tx.date)}</td>
                                             <td className="p-4 text-xs font-bold">{tx.company}</td>
                                             <td className="p-4 text-xs"><div className="font-bold">{tx.recipientName}</div><div className="text-gray-500">{tx.driverName}</div></td>
-                                            <td className="p-4"><span className={`text-[10px] px-2 py-1 rounded font-bold ${tx.status === 'APPROVED' ? 'bg-green-100 text-green-700' : tx.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>{tx.status === 'APPROVED' ? 'تایید شده' : tx.status === 'REJECTED' ? 'رد شده' : 'در انتظار تایید'}</span></td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`text-[10px] px-2 py-1 rounded font-bold w-fit ${tx.status === 'APPROVED' ? 'bg-green-100 text-green-700' : tx.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>{tx.status === 'APPROVED' ? 'تایید شده' : tx.status === 'REJECTED' ? 'رد شده' : 'در انتظار تایید'}</span>
+                                                    {tx.status === 'REJECTED' && tx.rejectionReason && (
+                                                        <span className="text-[10px] text-red-600 truncate max-w-[150px]" title={tx.rejectionReason}>دلیل: {tx.rejectionReason}</span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="p-4 text-center flex justify-center gap-2">
                                                 <button onClick={() => setViewBijak(tx)} className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200" title="مشاهده/چاپ"><Eye size={16}/></button>
-                                                {(tx.status === 'PENDING' || !tx.status) && canApprove && <button onClick={() => handleApproveBijak(tx)} className="bg-green-100 text-green-600 p-2 rounded hover:bg-green-200" title="تایید و ارسال"><CheckCircle size={16}/></button>}
+                                                {(tx.status === 'PENDING' || !tx.status) && canApprove && (
+                                                    <>
+                                                        <button onClick={() => handleApproveBijak(tx)} className="bg-green-100 text-green-600 p-2 rounded hover:bg-green-200" title="تایید و ارسال"><CheckCircle size={16}/></button>
+                                                        <button onClick={() => handleRejectBijak(tx)} className="bg-red-100 text-red-600 p-2 rounded hover:bg-red-200" title="رد"><XCircle size={16}/></button>
+                                                    </>
+                                                )}
                                                 <button onClick={() => setEditingBijak(tx)} className="bg-amber-100 text-amber-600 p-2 rounded hover:bg-amber-200" title="ویرایش"><Edit size={16}/></button>
                                                 <button onClick={() => handleDeleteTx(tx.id)} className="bg-red-100 text-red-600 p-2 rounded hover:bg-red-200" title="حذف"><Trash2 size={16}/></button>
                                             </td>
@@ -494,7 +529,15 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
             </div>
             
             {/* View Bijak Modal */}
-            {viewBijak && (<PrintBijak tx={viewBijak} onClose={() => setViewBijak(null)} settings={settings} />)}
+            {viewBijak && (
+                <PrintBijak 
+                    tx={viewBijak} 
+                    onClose={() => setViewBijak(null)} 
+                    settings={settings}
+                    onApprove={canApprove && viewBijak.status === 'PENDING' ? () => handleApproveBijak(viewBijak) : undefined}
+                    onReject={canApprove && viewBijak.status === 'PENDING' ? () => handleRejectBijak(viewBijak) : undefined} 
+                />
+            )}
 
             {/* Edit Bijak Modal */}
             {editingBijak && (
@@ -504,6 +547,15 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                             <h3 className="font-bold text-lg">ویرایش بیجک #{editingBijak.number}</h3>
                             <button onClick={() => setEditingBijak(null)}><X size={20}/></button>
                         </div>
+                        {editingBijak.status === 'REJECTED' && editingBijak.rejectionReason && (
+                            <div className="bg-red-50 p-3 m-4 mb-0 rounded-lg border border-red-200 flex gap-3 text-red-800">
+                                <AlertTriangle size={20} className="shrink-0 mt-0.5"/>
+                                <div className="text-sm">
+                                    <span className="font-bold block mb-1">این بیجک رد شده است:</span>
+                                    {editingBijak.rejectionReason}
+                                </div>
+                            </div>
+                        )}
                         <EditBijakForm bijak={editingBijak} items={items} companyList={companyList} onSave={handleEditBijakSave} onCancel={() => setEditingBijak(null)} />
                     </div>
                 </div>

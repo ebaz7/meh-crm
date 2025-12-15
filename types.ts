@@ -1,5 +1,4 @@
 
-
 export enum PaymentMethod {
   CASH = 'نقد',
   CHEQUE = 'چک',
@@ -156,6 +155,8 @@ export interface WarehouseTransaction {
     // Approval Workflow
     status?: 'PENDING' | 'APPROVED' | 'REJECTED';
     approvedBy?: string; // CEO Name
+    rejectionReason?: string; // NEW
+    rejectedBy?: string;      // NEW
     
     createdAt: number;
     createdBy: string;

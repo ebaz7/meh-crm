@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { WarehouseTransaction, SystemSettings, Contact } from '../types';
 import { formatCurrency, formatDate } from '../constants';
-import { X, Printer, Loader2, Share2, Search, Users, Smartphone, FileDown } from 'lucide-react';
+import { X, Printer, Loader2, Share2, Search, Users, Smartphone, FileDown, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
 
@@ -12,9 +12,11 @@ interface PrintBijakProps {
   settings?: SystemSettings;
   embed?: boolean;
   forceHidePrices?: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
 }
 
-const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, forceHidePrices }) => {
+const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, forceHidePrices, onApprove, onReject }) => {
   const [processing, setProcessing] = useState(false);
   const [hidePrices, setHidePrices] = useState(forceHidePrices || false);
   const [showContactSelect, setShowContactSelect] = useState(false);
@@ -181,6 +183,34 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in no-print safe-pb">
         <div className="bg-white p-3 rounded-xl shadow-lg z-50 flex flex-col gap-2 w-full max-w-[148mm] md:w-64 md:fixed md:top-4 md:left-4 mb-4 md:mb-0 relative order-1">
             <div className="flex justify-between items-center border-b pb-2"><span className="font-bold text-sm">پنل عملیات</span><button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500"/></button></div>
+            
+            {/* Rejection Reason Alert */}
+            {tx.status === 'REJECTED' && tx.rejectionReason && (
+                <div className="bg-red-50 p-2 rounded-lg border border-red-200 flex items-start gap-2 text-xs text-red-800">
+                    <AlertTriangle size={16} className="shrink-0 mt-0.5"/>
+                    <div>
+                        <span className="font-bold block">این بیجک رد شده است:</span>
+                        {tx.rejectionReason}
+                    </div>
+                </div>
+            )}
+
+            {/* Approval Buttons */}
+            {(onApprove || onReject) && (
+                <div className="flex gap-2 mb-1">
+                    {onApprove && (
+                        <button onClick={onApprove} className="flex-1 bg-green-600 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold hover:bg-green-700 transition-colors shadow-sm">
+                            <CheckCircle size={14}/> تایید
+                        </button>
+                    )}
+                    {onReject && (
+                        <button onClick={onReject} className="flex-1 bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold hover:bg-red-700 transition-colors shadow-sm">
+                            <XCircle size={14}/> رد
+                        </button>
+                    )}
+                </div>
+            )}
+
             <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded"><input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} id="hidePrice"/><label htmlFor="hidePrice" className="cursor-pointer">مخفی کردن قیمت‌ها</label></div>
             <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 p-2 rounded text-sm hover:bg-gray-200 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
             <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <Printer size={16}/>} چاپ</button>
