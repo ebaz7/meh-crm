@@ -7,6 +7,7 @@ import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
 import { getUsers } from '../services/authService';
 import { generateUUID } from '../constants';
+import QRCode from 'react-qr-code';
 
 const Settings: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse'>('system');
@@ -491,42 +492,120 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {/* ... other tabs ... */}
+
                 {activeCategory === 'integrations' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><BrainCircuit size={20} className="text-purple-600"/> هوش مصنوعی (Gemini)</h3>
                             <div><label className="text-sm text-gray-600 block mb-1">کلید دسترسی (API Key)</label><input type="password" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.geminiApiKey || ''} onChange={(e) => setSettings({...settings, geminiApiKey: e.target.value})} /></div>
                         </div>
-                    </div>
-                )}
-                {activeCategory === 'whatsapp' && (
-                    <div className="space-y-6 animate-fade-in">
-                         {/* ... existing ... */}
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6">
-                            {/* ... */}
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Send size={20} className="text-blue-500"/> ربات تلگرام</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label className="text-sm text-gray-600 block mb-1">توکن ربات (Bot Token)</label><input type="text" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.telegramBotToken || ''} onChange={(e) => setSettings({...settings, telegramBotToken: e.target.value})} /></div>
+                                <div><label className="text-sm text-gray-600 block mb-1">آیدی عددی مدیر (Admin ID)</label><input type="text" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.telegramAdminId || ''} onChange={(e) => setSettings({...settings, telegramAdminId: e.target.value})} /></div>
+                            </div>
                         </div>
                     </div>
                 )}
-                {activeCategory === 'permissions' && (
-                    <div className="overflow-x-auto animate-fade-in">
-                        <table className="w-full text-sm text-center border-collapse">
-                            <thead><tr className="bg-gray-100 text-gray-700"><th className="p-3 border border-gray-200 text-right min-w-[200px]">عنوان مجوز</th>{roles.map(role => (<th key={role.id} className="p-3 border border-gray-200 w-24 vertical-text md:vertical-text-none">{role.label}</th>))}</tr></thead>
-                            <tbody>{permissionsList.map(perm => (<tr key={perm.id} className="hover:bg-gray-50"><td className="p-3 border border-gray-200 text-right font-medium text-gray-600">{perm.label}</td>{roles.map(role => { const rolePerms = settings.rolePermissions?.[role.id] || {}; /* @ts-ignore */ const isChecked = !!rolePerms[perm.id]; return (<td key={role.id} className="p-3 border border-gray-200"><input type="checkbox" checked={isChecked} onChange={(e) => handlePermissionChange(role.id, perm.id as keyof RolePermissions, e.target.checked)} className="w-5 h-5 text-blue-600 rounded cursor-pointer" /></td>); })}</tr>))}</tbody>
-                        </table>
+                
+                {activeCategory === 'whatsapp' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className={`bg-${whatsappStatus?.ready ? 'green' : 'amber'}-50 border border-${whatsappStatus?.ready ? 'green' : 'amber'}-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6`}>
+                            {refreshingWA ? (
+                                <div className="flex flex-col items-center gap-2 text-gray-500">
+                                    <Loader2 size={32} className="animate-spin"/>
+                                    <span className="text-sm">در حال بررسی وضعیت...</span>
+                                </div>
+                            ) : whatsappStatus?.ready ? (
+                                <>
+                                    <div className="bg-green-100 p-4 rounded-full text-green-600"><Check size={32}/></div>
+                                    <div className="flex-1 text-center md:text-right">
+                                        <h3 className="font-bold text-lg text-green-800 mb-1">واتساپ متصل است</h3>
+                                        <p className="text-sm text-green-700">شماره متصل: {whatsappStatus.user ? `+${whatsappStatus.user}` : 'ناشناس'}</p>
+                                    </div>
+                                    <button type="button" onClick={handleWhatsappLogout} className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors">خروج از حساب</button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="bg-white p-2 rounded-lg border shadow-sm">
+                                        {whatsappStatus?.qr ? <QRCode value={whatsappStatus.qr} size={160} /> : <div className="w-40 h-40 flex items-center justify-center text-gray-400 text-xs">در حال دریافت QR...</div>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-lg text-amber-800 mb-2">اتصال به واتساپ</h3>
+                                        <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1">
+                                            <li>واتساپ را در گوشی خود باز کنید</li>
+                                            <li>به تنظیمات و سپس Linked Devices بروید</li>
+                                            <li>دکمه Link a Device را بزنید</li>
+                                            <li>کد QR روبرو را اسکن کنید</li>
+                                        </ol>
+                                        <button type="button" onClick={checkWhatsappStatus} className="mt-4 text-blue-600 text-xs font-bold hover:underline">بروزرسانی وضعیت</button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-gray-800 border-b pb-2 flex justify-between items-center">
+                                <span>دفترچه تلفن و گروه‌ها</span>
+                                <button type="button" onClick={handleFetchGroups} disabled={fetchingGroups || !whatsappStatus?.ready} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100 disabled:opacity-50">{fetchingGroups ? '...' : 'بروزرسانی لیست گروه‌ها'}</button>
+                            </h3>
+                            
+                            <div className="flex gap-2 mb-2">
+                                <input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام مخاطب" value={contactName} onChange={e => setContactName(e.target.value)} />
+                                <input className="flex-1 border rounded-lg p-2 text-sm dir-ltr" placeholder="شماره (98912...)" value={contactNumber} onChange={e => setContactNumber(e.target.value)} />
+                                <button type="button" onClick={() => setIsGroupContact(!isGroupContact)} className={`px-3 rounded-lg border ${isGroupContact ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-white text-gray-500'}`}>{isGroupContact ? 'گروه' : 'شخص'}</button>
+                                <button type="button" onClick={handleAddContact} className="bg-green-600 text-white px-4 rounded-lg"><Plus size={20}/></button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                                {settings.savedContacts?.map(contact => (
+                                    <div key={contact.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200 group hover:border-blue-300 transition-colors">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className={`p-2 rounded-full shrink-0 ${contact.isGroup ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {contact.isGroup ? <Users size={16}/> : <Smartphone size={16}/>}
+                                            </div>
+                                            <div className="truncate">
+                                                <div className="font-bold text-sm text-gray-800 truncate" title={contact.name}>{contact.name}</div>
+                                                <div className="text-xs text-gray-500 font-mono">{contact.number}</div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => handleDeleteContact(contact.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"><Trash2 size={16}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                <div className="flex justify-end pt-4 border-t sticky bottom-0 bg-white p-4 shadow-inner md:shadow-none md:static">
-                    <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all disabled:opacity-70">
-                        {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} ذخیره تنظیمات
-                    </button>
-                </div>
+                {activeCategory === 'permissions' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><ShieldCheck size={20}/> مدیریت دسترسی نقش‌ها</h3>
+                        <div className="space-y-6">
+                            {roles.map(role => (
+                                <div key={role.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <h4 className="font-bold text-sm text-gray-800 mb-3 border-b pb-2">{role.label}</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {permissionsList.map(perm => (
+                                            <label key={`${role.id}-${perm.id}`} className="flex items-center gap-2 cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-4 h-4 text-blue-600 rounded"
+                                                    checked={settings.rolePermissions?.[role.id]?.[perm.id as keyof RolePermissions] ?? false}
+                                                    onChange={(e) => handlePermissionChange(role.id, perm.id as keyof RolePermissions, e.target.checked)}
+                                                />
+                                                <span className="text-xs text-gray-700">{perm.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </form>
         </div>
-        {message && (<div className={`fixed bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full text-white text-sm font-bold shadow-2xl z-[100] animate-bounce ${message.includes('خطا') ? 'bg-red-600' : 'bg-green-600'}`}>{message}</div>)}
     </div>
   );
 };
-
 export default Settings;
