@@ -552,6 +552,22 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     };
 
     const renderReportContent = useMemo(() => {
+        // Safe default settings to prevent crashes in child components
+        const safeSettings = settings || { 
+            currentTrackingNumber: 1000, 
+            currentExitPermitNumber: 1000, 
+            companyNames: [], 
+            companies: [], 
+            defaultCompany: '', 
+            bankNames: [], 
+            operatingBankNames: [], 
+            commodityGroups: [], 
+            rolePermissions: {}, 
+            savedContacts: [], 
+            warehouseSequences: {},
+            companyNotifications: {} 
+        };
+
         switch (activeReport) {
             case 'general':
                 return (
@@ -588,7 +604,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                     </div>
                 );
             case 'allocation_queue':
-                return <AllocationReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} onUpdateRecord={async (r, u) => { const updated = {...r, ...u}; await updateTradeRecord(updated); setRecords(prev => prev.map(rec => rec.id === updated.id ? updated : rec)); }} settings={settings} />;
+                return <AllocationReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} onUpdateRecord={async (r, u) => { const updated = {...r, ...u}; await updateTradeRecord(updated); setRecords(prev => prev.map(rec => rec.id === updated.id ? updated : rec)); }} settings={safeSettings} />;
             case 'currency':
                 return <CurrencyReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} />;
             case 'company_performance':
@@ -599,6 +615,53 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 return <div className="p-8 text-center text-gray-500">گزارش در حال تکمیل است...</div>;
         }
     }, [activeReport, records, reportFilterCompany, reportSearchTerm, settings]);
+
+    if (viewMode === 'reports') {
+        return (
+            <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] bg-gray-50 rounded-2xl overflow-hidden border">
+                {/* Sidebar */}
+                <div className="w-full md:w-64 bg-white border-l p-4 flex flex-col gap-2 flex-shrink-0 h-auto md:h-full overflow-y-auto border-b md:border-b-0 shadow-sm md:shadow-none z-10">
+                    <h3 className="font-bold text-gray-800 mb-2 md:mb-4 flex items-center gap-2"><FileSpreadsheet size={20}/> گزارشات بازرگانی</h3>
+                    
+                    <div className="mb-2 relative">
+                        <input 
+                            className="w-full border rounded p-2 text-sm pl-8" 
+                            placeholder="جستجو..." 
+                            value={reportSearchTerm} 
+                            onChange={e => setReportSearchTerm(e.target.value)}
+                        />
+                        <Search size={16} className="absolute left-2 top-2.5 text-gray-400"/>
+                    </div>
+
+                    <div className="mb-4"><label className="text-xs font-bold text-gray-500 mb-1 block">فیلتر شرکت</label><select className="w-full border rounded p-1 text-sm" value={reportFilterCompany} onChange={e => setReportFilterCompany(e.target.value)}><option value="">همه شرکت‌ها</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                    <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
+                        <button onClick={() => setActiveReport('general')} className={`p-2 rounded text-right text-sm ${activeReport === 'general' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📄 لیست کلی پرونده‌ها</button>
+                        <button onClick={() => setActiveReport('allocation_queue')} className={`p-2 rounded text-right text-sm ${activeReport === 'allocation_queue' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>⏳ در صف تخصیص</button>
+                        <button onClick={() => setActiveReport('currency')} className={`p-2 rounded text-right text-sm ${activeReport === 'currency' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>💰 وضعیت خرید ارز</button>
+                        <button onClick={() => setActiveReport('insurance_ledger')} className={`p-2 rounded text-right text-sm ${activeReport === 'insurance_ledger' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>🛡️ صورتحساب بیمه</button>
+                        <button onClick={() => setActiveReport('company_performance')} className={`p-2 rounded text-right text-sm ${activeReport === 'company_performance' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📊 عملکرد شرکت‌ها</button>
+                    </div>
+                    <div className="mt-auto pt-4 md:pt-0">
+                        <button onClick={handlePrintReport} className="w-full flex items-center justify-center gap-2 border p-2 rounded hover:bg-gray-50 text-gray-600"><Printer size={16}/> چاپ گزارش</button>
+                        <button onClick={() => setViewMode('dashboard')} className="w-full mt-2 flex items-center justify-center gap-2 bg-gray-800 text-white p-2 rounded hover:bg-gray-900">بازگشت به داشبورد</button>
+                    </div>
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col w-full min-h-0">
+                    <h2 className="text-xl font-bold mb-4 hidden md:block">
+                        {activeReport === 'general' ? 'لیست کلی پرونده‌ها' : 
+                         activeReport === 'allocation_queue' ? 'گزارش صف تخصیص' : 
+                         activeReport === 'currency' ? 'گزارش وضعیت خرید ارز' : 
+                         activeReport === 'company_performance' ? 'خلاصه عملکرد شرکت‌ها' : 
+                         activeReport === 'insurance_ledger' ? 'صورتحساب و مانده بیمه' :
+                         'گزارش'}
+                    </h2>
+                    {renderReportContent}
+                </div>
+            </div>
+        );
+    }
 
     if (selectedRecord && viewMode === 'details') {
         
@@ -644,10 +707,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 )}
 
                 {/* Clearance Declaration Print Overlay (NEW) */}
-                {showClearancePrint && settings && (
+                {showClearancePrint && (
                     <PrintClearanceDeclaration 
                         record={selectedRecord}
-                        settings={settings}
+                        settings={settings || { companies: [] } as any}
                         onClose={() => setShowClearancePrint(false)}
                     />
                 )}
