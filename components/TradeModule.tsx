@@ -171,19 +171,70 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
     useEffect(() => {
         if (selectedRecord) {
-            setInsuranceForm(selectedRecord.insuranceData || { policyNumber: '', company: '', cost: 0, bank: '', endorsements: [], isPaid: false, paymentDate: '' });
-            const inspData = selectedRecord.inspectionData || { certificates: [], payments: [] };
-            if (inspData.certificates.length === 0 && selectedRecord.inspectionData?.certificateNumber) {
-                 inspData.certificates.push({ id: generateUUID(), part: 'Original', certificateNumber: selectedRecord.inspectionData.certificateNumber, company: selectedRecord.inspectionData.inspectionCompany || '', amount: selectedRecord.inspectionData.totalInvoiceAmount || 0 });
+            // CRITICAL FIX: Safe initialization to prevent crashes on empty legacy data
+            const insData = selectedRecord.insuranceData || {};
+            setInsuranceForm({
+                policyNumber: insData.policyNumber || '',
+                company: insData.company || '',
+                cost: insData.cost || 0,
+                bank: insData.bank || '',
+                endorsements: insData.endorsements || [],
+                isPaid: !!insData.isPaid,
+                paymentDate: insData.paymentDate || ''
+            });
+
+            const inspData = selectedRecord.inspectionData || {};
+            const certificates = inspData.certificates || [];
+            if (certificates.length === 0 && inspData.certificateNumber) {
+                 certificates.push({ id: generateUUID(), part: 'Original', certificateNumber: inspData.certificateNumber, company: inspData.inspectionCompany || '', amount: inspData.totalInvoiceAmount || 0 });
             }
-            setInspectionForm(inspData);
-            setClearanceForm(selectedRecord.clearanceData || { receipts: [], payments: [] });
-            setGreenLeafForm(selectedRecord.greenLeafData || { duties: [], guarantees: [], taxes: [], roadTolls: [] });
-            setInternalShippingForm(selectedRecord.internalShippingData || { payments: [] });
-            setAgentForm(selectedRecord.agentData || { payments: [] });
-            const curData = (selectedRecord.currencyPurchaseData || { payments: [], purchasedAmount: 0, purchasedCurrencyType: selectedRecord.mainCurrency || 'EUR', tranches: [], isDelivered: false, deliveredAmount: 0, remittedAmount: 0 }) as CurrencyPurchaseData;
-            if (!curData.tranches) curData.tranches = [];
-            setCurrencyForm(curData);
+            setInspectionForm({
+                certificates: certificates,
+                payments: inspData.payments || []
+            });
+
+            const clrData = selectedRecord.clearanceData || {};
+            setClearanceForm({
+                receipts: clrData.receipts || [],
+                payments: clrData.payments || []
+            });
+
+            const glData = selectedRecord.greenLeafData || {};
+            setGreenLeafForm({
+                duties: glData.duties || [],
+                guarantees: glData.guarantees || [],
+                taxes: glData.taxes || [],
+                roadTolls: glData.roadTolls || []
+            });
+
+            const isData = selectedRecord.internalShippingData || {};
+            setInternalShippingForm({
+                payments: isData.payments || []
+            });
+
+            const agData = selectedRecord.agentData || {};
+            setAgentForm({
+                payments: agData.payments || []
+            });
+
+            const curData = (selectedRecord.currencyPurchaseData || {}) as CurrencyPurchaseData;
+            setCurrencyForm({
+                payments: curData.payments || [],
+                purchasedAmount: curData.purchasedAmount || 0,
+                purchasedCurrencyType: curData.purchasedCurrencyType || selectedRecord.mainCurrency || 'EUR',
+                tranches: curData.tranches || [],
+                isDelivered: !!curData.isDelivered,
+                deliveredAmount: curData.deliveredAmount || 0,
+                remittedAmount: curData.remittedAmount || 0,
+                guaranteeCheque: curData.guaranteeCheque,
+                purchaseDate: curData.purchaseDate || '',
+                brokerName: curData.brokerName || '',
+                exchangeName: curData.exchangeName || '',
+                deliveryDate: curData.deliveryDate || '',
+                recipientName: curData.recipientName || '',
+                deliveredCurrencyType: curData.deliveredCurrencyType || ''
+            });
+
             if (curData.guaranteeCheque) {
                 setCurrencyGuarantee({
                     amount: formatNumberString(curData.guaranteeCheque.amount),
@@ -195,6 +246,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             } else {
                 setCurrencyGuarantee({amount: '', bank: '', number: '', date: '', isDelivered: false});
             }
+            
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             
             // RESET LOCAL FORMS
