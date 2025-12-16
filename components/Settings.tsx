@@ -38,7 +38,7 @@ const Settings: React.FC = () => {
       companyNotifications: {},
       defaultWarehouseGroup: '',
       defaultSalesManager: '',
-      insuranceCompanies: [] // Init
+      insuranceCompanies: [] 
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -323,8 +323,6 @@ const Settings: React.FC = () => {
   ];
 
   const getMergedContactOptions = () => {
-      // appUsers already contains users mapped as contacts, we should filter duplicates if any from savedContacts
-      // But settings.savedContacts are distinct manual contacts.
       return [...(settings.savedContacts || []), ...appUsers as Contact[]];
   };
 
