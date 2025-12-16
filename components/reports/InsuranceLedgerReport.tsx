@@ -1,33 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
-import { TradeRecord, SystemSettings } from '../../types';
+import { TradeRecord } from '../../types';
 import { formatCurrency, formatNumberString, parsePersianDate } from '../../constants';
 import { Printer, FileDown, Search, Filter, X, Loader2 } from 'lucide-react';
 
 interface Props {
     records: TradeRecord[];
-    settings?: SystemSettings | null; // Pass settings to get list of companies
 }
 
-const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
+const InsuranceLedgerReport: React.FC<Props> = ({ records }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [selectedInsCompany, setSelectedInsCompany] = useState<string>('');
     const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
-    // Extract unique insurance companies from records + settings
+    // Extract unique insurance companies purely from records
     const insuranceCompanies = React.useMemo(() => {
         const companies = new Set<string>();
-        // Add from settings
-        if (settings?.insuranceCompanies) {
-            settings.insuranceCompanies.forEach(c => companies.add(c));
-        }
-        // Add from existing records (for historical data)
         records.forEach(r => {
             if (r.insuranceData?.company) companies.add(r.insuranceData.company);
         });
         return Array.from(companies);
-    }, [records, settings]);
+    }, [records]);
 
     useEffect(() => {
         if (insuranceCompanies.length > 0 && !selectedInsCompany) {
@@ -62,7 +56,7 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
             const checkDate = (dateStr: string) => {
                 if (!dateRange.from && !dateRange.to) return true;
                 const date = parsePersianDate(dateStr);
-                if (!date) return true; // Keep if invalid date to show everything
+                if (!date) return true; 
                 if (dateRange.from) {
                     const fromDate = parsePersianDate(dateRange.from);
                     if (fromDate && date < fromDate) return false;
@@ -78,9 +72,6 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
 
             // 1. Policy Cost (Creditor / Bestankar)
             if (r.insuranceData.cost > 0) {
-                // If date filter applies, check record date. If filtered out, just add to balance but don't show row? 
-                // For ledger, we usually want running balance.
-                // Simplified: Show if in range.
                 if (checkDate(recordDate)) {
                     runningBalance += r.insuranceData.cost; 
                     rows.push({
@@ -93,11 +84,6 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
                         type: 'cost'
                     });
                 } else {
-                    // Accumulate balance even if hidden? Usually for "Previous Balance" row.
-                    // For simplicity, let's just calculate logic based on rows shown or handle "Opening Balance".
-                    // Here we keep it simple: Reset running balance calculation based on filtered list might be wrong for ledger.
-                    // Correct approach: Calculate ALL, then filter display?
-                    // Let's stick to standard flow: filter logic inside loop.
                     runningBalance += r.insuranceData.cost;
                 }
             }
@@ -142,11 +128,6 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
                 }
             }
         });
-
-        // Filter rows for display based on date range (after calculating running balance)
-        // Note: The above logic filters *insertion* into rows, but keeps running balance updates.
-        // This is correct for a ledger view where you see transactions in a period.
-        // Ideally, we'd add an "Opening Balance" row if filtered by start date.
         
         return rows;
     }, [records, selectedInsCompany, searchTerm, dateRange]);

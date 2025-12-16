@@ -168,7 +168,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         });
     }, []);
 
-    // ... (useEffect for selectedRecord logic same as before) ...
     useEffect(() => {
         if (selectedRecord) {
             setInsuranceForm(selectedRecord.insuranceData || { policyNumber: '', company: '', cost: 0, bank: '', endorsements: [], isPaid: false, paymentDate: '' });
@@ -197,7 +196,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 setCurrencyGuarantee({amount: '', bank: '', number: '', date: '', isDelivered: false});
             }
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
-            // ... rest of reset logic
         }
     }, [selectedRecord]);
 
@@ -207,16 +205,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const goCompany = (company: string) => { setSelectedCompany(company); setNavLevel('COMPANY'); setSelectedGroup(null); setSearchTerm(''); };
     const goGroup = (group: string) => { setSelectedGroup(group); setNavLevel('GROUP'); setSearchTerm(''); };
 
-    const bankOptions = useMemo(() => {
-        if (!selectedRecord?.company || !settings?.companies) return availableBanks;
-        const currentCompanyObj = settings.companies.find(c => c.name === selectedRecord.company);
-        if (currentCompanyObj && currentCompanyObj.banks && currentCompanyObj.banks.length > 0) {
-            return currentCompanyObj.banks.map(b => `${b.bankName}${b.accountNumber ? ` - ${b.accountNumber}` : ''}`);
-        }
-        return availableBanks;
-    }, [selectedRecord, settings, availableBanks]);
+    // --- REVERTED: Simple Bank Options ---
+    const bankOptions = availableBanks;
 
-    // ... (rest of functions like groupedData, handlers etc. kept same) ...
     const groupedData = useMemo(() => {
         const currentRecords = records.filter(r => showArchived ? r.isArchived : !r.isArchived);
         if (navLevel === 'ROOT') {
@@ -261,9 +252,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleAddEndorsement = () => { if (!newEndorsement.amount) return; const amount = endorsementType === 'increase' ? Number(newEndorsement.amount) : -Number(newEndorsement.amount); const endorsement: InsuranceEndorsement = { id: generateUUID(), date: newEndorsement.date || '', amount: amount, description: newEndorsement.description || '' }; const updatedEndorsements = [...(insuranceForm.endorsements || []), endorsement]; setInsuranceForm({ ...insuranceForm, endorsements: updatedEndorsements }); setNewEndorsement({ amount: 0, description: '', date: '' }); };
     const handleDeleteEndorsement = (id: string) => { setInsuranceForm({ ...insuranceForm, endorsements: insuranceForm.endorsements?.filter(e => e.id !== id) }); };
     
-    // ... (Rest of existing handlers like Inspection, Clearance, GreenLeaf etc.) ...
-    // Note: I'm keeping the rest of the handlers implicit to save space, assuming they are unchanged from previous versions.
-    // In real implementation, include all handlers here.
+    // ... (Handlers) ...
     const handleAddInspectionCertificate = async () => { if (!selectedRecord || !newInspectionCertificate.amount) return; const cert: InspectionCertificate = { id: generateUUID(), part: newInspectionCertificate.part || 'Part', company: newInspectionCertificate.company || '', certificateNumber: newInspectionCertificate.certificateNumber || '', amount: Number(newInspectionCertificate.amount), description: '' }; const updatedCertificates = [...(inspectionForm.certificates || []), cert]; const updatedData = { ...inspectionForm, certificates: updatedCertificates }; setInspectionForm(updatedData); setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 }); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; if (!updatedRecord.stages[TradeStage.INSPECTION]) updatedRecord.stages[TradeStage.INSPECTION] = getStageData(updatedRecord, TradeStage.INSPECTION); updatedRecord.stages[TradeStage.INSPECTION].isCompleted = updatedCertificates.length > 0; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleDeleteInspectionCertificate = async (id: string) => { if (!selectedRecord) return; const updatedCertificates = (inspectionForm.certificates || []).filter(c => c.id !== id); const updatedData = { ...inspectionForm, certificates: updatedCertificates }; setInspectionForm(updatedData); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleAddInspectionPayment = async () => { if (!selectedRecord || !newInspectionPayment.amount) return; const payment: InspectionPayment = { id: generateUUID(), part: newInspectionPayment.part || 'Part', amount: Number(newInspectionPayment.amount), date: newInspectionPayment.date || '', bank: newInspectionPayment.bank || '', description: '' }; const updatedPayments = [...(inspectionForm.payments || []), payment]; const updatedData = { ...inspectionForm, payments: updatedPayments }; setInspectionForm(updatedData); setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' }); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; if (!updatedRecord.stages[TradeStage.INSPECTION]) updatedRecord.stages[TradeStage.INSPECTION] = getStageData(updatedRecord, TradeStage.INSPECTION); updatedRecord.stages[TradeStage.INSPECTION].costRial = updatedPayments.reduce((acc, p) => acc + p.amount, 0); await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -358,15 +347,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             case 'company_performance':
                 return <CompanyPerformanceReport records={records} />;
             case 'insurance_ledger':
-                return <InsuranceLedgerReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} settings={settings} />; // Pass settings
+                return <InsuranceLedgerReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} />; 
             default:
                 return <div className="p-8 text-center text-gray-500">گزارش در حال تکمیل است...</div>;
         }
     }, [activeReport, records, reportFilterCompany, reportSearchTerm, settings]);
 
-    // ... (rest of the detailed view logic) ...
     if (selectedRecord && viewMode === 'details') {
-        
         // ... (calculation logic remains same)
         const totalItemsCurrency = selectedRecord.items.reduce((a, b) => a + b.totalPrice, 0);
         const totalFreightCurrency = selectedRecord.freightCost || 0;
@@ -660,20 +647,12 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">شماره بیمه‌نامه</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={insuranceForm.policyNumber} onChange={e => setInsuranceForm({...insuranceForm, policyNumber: e.target.value})} /></div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-gray-700">شرکت بیمه</label>
-                                        <select 
+                                        <input 
                                             className="w-full border rounded p-2 text-sm" 
                                             value={insuranceForm.company} 
                                             onChange={e => setInsuranceForm({...insuranceForm, company: e.target.value})}
-                                        >
-                                            <option value="">انتخاب کنید...</option>
-                                            {settings?.insuranceCompanies?.map(ins => (
-                                                <option key={ins} value={ins}>{ins}</option>
-                                            ))}
-                                            {/* Allow custom entry if needed or fallback */}
-                                            {insuranceForm.company && !settings?.insuranceCompanies?.includes(insuranceForm.company) && (
-                                                <option value={insuranceForm.company}>{insuranceForm.company}</option>
-                                            )}
-                                        </select>
+                                            placeholder="نام شرکت بیمه"
+                                        />
                                     </div>
                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">هزینه اولیه (ریال)</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(insuranceForm.cost)} onChange={e => setInsuranceForm({...insuranceForm, cost: deformatNumberString(e.target.value)})} /></div>
                                     <div className="space-y-1">
@@ -684,13 +663,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                                             onChange={e => setInsuranceForm({...insuranceForm, bank: e.target.value})}
                                         >
                                             <option value="">انتخاب بانک</option>
-                                            {/* Logic to show company specific banks if available, otherwise global */}
-                                            {(() => {
-                                                const currentCompanyObj = settings?.companies?.find(c => c.name === selectedRecord.company);
-                                                const companySpecificBanks = currentCompanyObj?.banks?.map(b => b.bankName) || [];
-                                                const displayBanks = companySpecificBanks.length > 0 ? companySpecificBanks : availableBanks;
-                                                return displayBanks.map(b => <option key={b} value={b}>{b}</option>);
-                                            })()}
+                                            {availableBanks.map(b => <option key={b} value={b}>{b}</option>)}
                                         </select>
                                     </div>
                                 </div>
