@@ -231,6 +231,9 @@ export interface SystemSettings {
   whatsappNumber?: string; 
   geminiApiKey?: string; 
   
+  // Trade Settings (NEW)
+  insuranceCompanies?: string[]; 
+
   // Warehouse Settings
   warehouseSequences?: Record<string, number>; // Company Name -> Next Bijak Number
   
