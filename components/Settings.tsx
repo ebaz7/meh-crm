@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
-import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText } from 'lucide-react';
+import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User } from '../types';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
-import { getUsers } from '../services/authService';
+import { getUsers, updateUser } from '../services/authService';
 import { generateUUID } from '../constants';
 
 // Internal QRCode Component to avoid build dependency issues with 'react-qr-code'
@@ -14,7 +14,7 @@ const QRCode = ({ value, size }: { value: string, size: number }) => {
 };
 
 const Settings: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse'>('system');
+  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse' | 'commerce'>('system');
   const [settings, setSettings] = useState<SystemSettings>({ 
       currentTrackingNumber: 1000, 
       currentExitPermitNumber: 1000, 
@@ -37,7 +37,8 @@ const Settings: React.FC = () => {
       warehouseSequences: {},
       companyNotifications: {},
       defaultWarehouseGroup: '',
-      defaultSalesManager: ''
+      defaultSalesManager: '',
+      insuranceCompanies: []
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -68,14 +69,16 @@ const Settings: React.FC = () => {
   const [fetchingGroups, setFetchingGroups] = useState(false);
   const [newOperatingBank, setNewOperatingBank] = useState('');
   const [newCommodity, setNewCommodity] = useState('');
+  const [newInsuranceCompany, setNewInsuranceCompany] = useState(''); // NEW for Insurance List
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const isSecure = window.isSecureContext;
   
-  // App Users to merge into contacts list
-  const [appUsers, setAppUsers] = useState<Contact[]>([]);
+  // App Users to merge into contacts list and manage access
+  const [appUsers, setAppUsers] = useState<(Contact | User)[]>([]); // Mixed list or handle separately
+  const [rawUsers, setRawUsers] = useState<User[]>([]); // For Commerce Access Management
 
   useEffect(() => { 
       loadSettings(); 
@@ -91,6 +94,7 @@ const Settings: React.FC = () => {
           safeData.currentExitPermitNumber = safeData.currentExitPermitNumber || 1000;
           safeData.companies = safeData.companies || [];
           safeData.operatingBankNames = safeData.operatingBankNames || [];
+          safeData.insuranceCompanies = safeData.insuranceCompanies || [];
           if (safeData.companyNames?.length > 0 && safeData.companies.length === 0) {
               safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true, banks: [] }));
           }
@@ -103,6 +107,7 @@ const Settings: React.FC = () => {
   const loadAppUsers = async () => {
       try {
           const users = await getUsers();
+          setRawUsers(users); // Keep raw for managing access
           const contacts = users
               .filter(u => u.phoneNumber)
               .map(u => ({
@@ -267,6 +272,22 @@ const Settings: React.FC = () => {
 
   const handleAddCommodity = () => { if (newCommodity.trim() && !settings.commodityGroups.includes(newCommodity.trim())) { setSettings({ ...settings, commodityGroups: [...settings.commodityGroups, newCommodity.trim()] }); setNewCommodity(''); } };
   const handleRemoveCommodity = (name: string) => { setSettings({ ...settings, commodityGroups: settings.commodityGroups.filter(c => c !== name) }); };
+  
+  // Insurance Companies
+  const handleAddInsuranceCompany = () => { if (newInsuranceCompany.trim() && !(settings.insuranceCompanies || []).includes(newInsuranceCompany.trim())) { setSettings({ ...settings, insuranceCompanies: [...(settings.insuranceCompanies || []), newInsuranceCompany.trim()] }); setNewInsuranceCompany(''); } };
+  const handleRemoveInsuranceCompany = (name: string) => { setSettings({ ...settings, insuranceCompanies: (settings.insuranceCompanies || []).filter(c => c !== name) }); };
+
+  // Access Management for Commerce
+  const handleToggleUserCommerceAccess = async (user: User) => {
+      const updatedUser = { ...user, canManageTrade: !user.canManageTrade };
+      try {
+          await updateUser(updatedUser);
+          setRawUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      } catch(e) {
+          alert("خطا در بروزرسانی دسترسی");
+      }
+  };
+
   const handlePermissionChange = (role: string, field: keyof RolePermissions, value: boolean) => { setSettings({ ...settings, rolePermissions: { ...settings.rolePermissions, [role]: { ...settings.rolePermissions[role], [field]: value } } }); };
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const res = await uploadFile(file.name, ev.target?.result as string); setSettings({ ...settings, pwaIcon: res.url }); } catch (error) { alert('خطا'); } finally { setUploadingIcon(false); } }; reader.readAsDataURL(file); };
   const handleToggleNotifications = async () => { if (!isSecure) { alert("HTTPS لازم است"); return; } if (notificationsEnabled) { setNotificationPreference(false); setNotificationsEnabled(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotificationPreference(true); setNotificationsEnabled(true); } } };
@@ -313,13 +334,9 @@ const Settings: React.FC = () => {
   ];
 
   const getMergedContactOptions = () => {
-      const all = [...(settings.savedContacts || []), ...appUsers];
-      const seen = new Set();
-      return all.filter(c => {
-          if (seen.has(c.number)) return false;
-          seen.add(c.number);
-          return true;
-      });
+      // appUsers already contains users mapped as contacts, we should filter duplicates if any from savedContacts
+      // But settings.savedContacts are distinct manual contacts.
+      return [...(settings.savedContacts || []), ...appUsers as Contact[]];
   };
 
   return (
@@ -330,6 +347,7 @@ const Settings: React.FC = () => {
             <nav className="space-y-1">
                 <button onClick={() => setActiveCategory('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'system' ? 'bg-white shadow text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><AppWindow size={18}/> عمومی و سیستم</button>
                 <button onClick={() => setActiveCategory('data')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'data' ? 'bg-white shadow text-indigo-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18}/> اطلاعات پایه</button>
+                <button onClick={() => setActiveCategory('commerce')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'commerce' ? 'bg-white shadow text-rose-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Container size={18}/> تنظیمات بازرگانی</button>
                 <button onClick={() => setActiveCategory('warehouse')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'warehouse' ? 'bg-white shadow text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Warehouse size={18}/> انبار</button>
                 <button onClick={() => setActiveCategory('integrations')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'integrations' ? 'bg-white shadow text-purple-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Link size={18}/> اتصالات (API)</button>
                 <button onClick={() => setActiveCategory('whatsapp')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'whatsapp' ? 'bg-white shadow text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><MessageCircle size={18}/> مدیریت واتساپ</button>
@@ -339,6 +357,8 @@ const Settings: React.FC = () => {
 
         <div className="flex-1 p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-100px)]">
             <form onSubmit={handleSave} className="space-y-8 max-w-4xl mx-auto">
+                
+                {/* 1. SYSTEM SETTINGS */}
                 {activeCategory === 'system' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -372,6 +392,48 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
+
+                {/* 2. COMMERCE SETTINGS (NEW) */}
+                {activeCategory === 'commerce' && (
+                    <div className="space-y-8 animate-fade-in">
+                        
+                        {/* Insurance Companies */}
+                        <div className="space-y-2">
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><ShieldCheck size={18}/> شرکت‌های بیمه</h3>
+                            <p className="text-xs text-gray-500 mb-2">لیست شرکت‌های بیمه جهت انتخاب در پرونده‌های بازرگانی</p>
+                            <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام شرکت بیمه..." value={newInsuranceCompany} onChange={(e) => setNewInsuranceCompany(e.target.value)} /><button type="button" onClick={handleAddInsuranceCompany} className="bg-rose-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
+                            <div className="flex flex-wrap gap-2">{(settings.insuranceCompanies || []).map((comp, idx) => (<div key={idx} className="bg-rose-50 text-rose-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-rose-100"><span>{comp}</span><button type="button" onClick={() => handleRemoveInsuranceCompany(comp)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
+                        </div>
+
+                        <hr className="border-gray-200"/>
+
+                        {/* Access Management */}
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Users size={18}/> دسترسی کاربران به بخش بازرگانی</h3>
+                            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                                <table className="w-full text-sm text-right">
+                                    <thead className="bg-gray-100 text-gray-600"><tr><th className="p-3">نام کاربر</th><th className="p-3">نام کاربری</th><th className="p-3 text-center">دسترسی بازرگانی</th></tr></thead>
+                                    <tbody>
+                                        {rawUsers.map(u => (
+                                            <tr key={u.id} className="border-b last:border-0 hover:bg-white">
+                                                <td className="p-3 font-bold">{u.fullName}</td>
+                                                <td className="p-3 font-mono text-gray-500">{u.username}</td>
+                                                <td className="p-3 text-center">
+                                                    <label className="inline-flex items-center cursor-pointer">
+                                                        <input type="checkbox" className="sr-only peer" checked={u.canManageTrade || false} onChange={() => handleToggleUserCommerceAccess(u)}/>
+                                                        <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                                                    </label>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. WAREHOUSE SETTINGS */}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -390,6 +452,8 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
+
+                {/* 4. BASIC DATA */}
                 {activeCategory === 'data' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -497,6 +561,7 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
+                {/* 5. INTEGRATIONS */}
                 {activeCategory === 'integrations' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -513,6 +578,7 @@ const Settings: React.FC = () => {
                     </div>
                 )}
                 
+                {/* 6. WHATSAPP */}
                 {activeCategory === 'whatsapp' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className={`bg-${whatsappStatus?.ready ? 'green' : 'amber'}-50 border border-${whatsappStatus?.ready ? 'green' : 'amber'}-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6`}>
@@ -582,6 +648,7 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
+                {/* 7. PERMISSIONS */}
                 {activeCategory === 'permissions' && (
                     <div className="space-y-8 animate-fade-in">
                         <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><ShieldCheck size={20}/> مدیریت دسترسی نقش‌ها</h3>
