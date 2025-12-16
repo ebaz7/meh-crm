@@ -603,7 +603,9 @@ export interface TradeRecord {
         company: string;
         cost: number; 
         bank: string;
-        endorsements?: InsuranceEndorsement[]; 
+        endorsements?: InsuranceEndorsement[];
+        isPaid?: boolean; // NEW: Ledger Logic
+        paymentDate?: string; // NEW: Ledger Logic
     };
     inspectionData?: InspectionData;
     clearanceData?: ClearanceData;
