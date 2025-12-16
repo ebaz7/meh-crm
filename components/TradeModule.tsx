@@ -35,7 +35,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [availableBanks, setAvailableBanks] = useState<string[]>([]);
     const [operatingBanks, setOperatingBanks] = useState<string[]>([]);
     const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
-    const [insuranceCompanies, setInsuranceCompanies] = useState<string[]>([]); 
     const [settings, setSettingsData] = useState<SystemSettings | null>(null);
 
     // Navigation State
@@ -78,7 +77,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             setAvailableBanks(s.bankNames || []);
             setOperatingBanks(s.operatingBankNames || []);
             setAvailableCompanies(s.companyNames || []);
-            setInsuranceCompanies(s.insuranceCompanies || []); 
             setNewRecordCompany(s.defaultCompany || '');
         });
     }, []);
@@ -263,19 +261,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                     {activeTab === 'insurance' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-xl border">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">شرکت بیمه</label>
-                                    <input 
-                                      list="insurance-list"
-                                      className="w-full border rounded-lg p-2 text-sm bg-white"
-                                      value={insuranceForm.company}
-                                      onChange={e => setInsuranceForm({...insuranceForm, company: e.target.value})}
-                                      placeholder="انتخاب یا تایپ کنید..."
-                                    />
-                                    <datalist id="insurance-list">
-                                      {insuranceCompanies.map((c, i) => <option key={i} value={c} />)}
-                                    </datalist>
-                                </div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">شرکت بیمه</label><input className="w-full border rounded-lg p-2 text-sm" value={insuranceForm.company} onChange={e => setInsuranceForm({...insuranceForm, company: e.target.value})} /></div>
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">شماره بیمه نامه</label><input className="w-full border rounded-lg p-2 text-sm" value={insuranceForm.policyNumber} onChange={e => setInsuranceForm({...insuranceForm, policyNumber: e.target.value})} /></div>
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">حق بیمه (ریال)</label><input type="number" className="w-full border rounded-lg p-2 text-sm dir-ltr" value={insuranceForm.cost} onChange={e => setInsuranceForm({...insuranceForm, cost: Number(e.target.value)})} /></div>
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">بانک / شعبه</label><input className="w-full border rounded-lg p-2 text-sm" value={insuranceForm.bank} onChange={e => setInsuranceForm({...insuranceForm, bank: e.target.value})} /></div>

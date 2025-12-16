@@ -133,61 +133,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const unreadCount = notifications.filter(n => !n.read).length;
   const perms = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
   
-  // Base Permissions
   const canCreatePayment = perms ? perms.canCreatePaymentOrder === true : false;
   const canCreateExit = perms?.canCreateExitPermit ?? false;
   const canManageWarehouse = currentUser.role === UserRole.ADMIN || (perms && perms.canManageWarehouse === true);
   const canSeeTrade = perms?.canManageTrade ?? false;
   const canSeeSettings = currentUser.role === UserRole.ADMIN || (perms?.canManageSettings ?? false);
-
-  // Grouped Navigation Logic
-  interface NavGroup {
-      title: string;
-      items: { id: string; label: string; icon: any }[];
-  }
-
-  const navStructure: NavGroup[] = [];
-
-  // 1. Dashboard
-  navStructure.push({
-      title: '',
-      items: [{ id: 'dashboard', label: 'داشبورد', icon: LayoutDashboard }]
-  });
-
-  // 2. Payment Group
-  const paymentItems = [];
-  if (canCreatePayment) paymentItems.push({ id: 'create', label: 'ثبت پرداخت', icon: PlusCircle });
-  if (perms?.canViewPaymentOrders) paymentItems.push({ id: 'manage', label: 'سوابق پرداخت', icon: ListChecks });
-  
-  if (paymentItems.length > 0) {
-      navStructure.push({ title: 'مدیریت دستور پرداخت', items: paymentItems });
-  }
-
-  // 3. Factory Exit Group
-  const exitItems = [];
-  if (canCreateExit) exitItems.push({ id: 'create-exit', label: 'ثبت خروج', icon: Truck });
-  if (perms?.canViewExitPermits) exitItems.push({ id: 'manage-exit', label: 'سوابق خروج', icon: ClipboardList });
-
-  if (exitItems.length > 0) {
-      navStructure.push({ title: 'خروج بار کارخانه', items: exitItems });
-  }
-
-  // 4. Warehouse
-  if (canManageWarehouse) {
-      navStructure.push({
-          title: '',
-          items: [{ id: 'warehouse', label: 'مدیریت انبار', icon: Package }]
-      });
-  }
-
-  // 5. General Modules
-  const generalItems = [{ id: 'chat', label: 'گفتگو', icon: MessageSquare }];
-  if (canSeeTrade) generalItems.push({ id: 'trade', label: 'بازرگانی', icon: Container });
-  if (hasPermission(currentUser, 'manage_users')) generalItems.push({ id: 'users', label: 'کاربران', icon: Users });
-  if (canSeeSettings) generalItems.push({ id: 'settings', label: 'تنظیمات', icon: Settings });
-
-  navStructure.push({ title: '', items: generalItems });
-
 
   const NotificationDropdown = () => ( <div className="absolute top-12 left-2 right-2 md:bottom-12 md:top-auto md:left-0 md:right-auto md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 text-gray-800 z-50 overflow-hidden origin-top md:origin-bottom-left animate-fade-in"><div className="bg-blue-50 p-3 flex justify-between items-center border-b border-blue-100"><div className="flex items-center gap-2">{notifEnabled ? <Bell size={16} className="text-blue-600"/> : <BellOff size={16} className="text-gray-500"/>}<span className="text-xs font-bold text-blue-800">وضعیت اعلان‌ها:</span></div><button onClick={handleToggleNotif} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 hover:bg-red-200 animate-pulse'}`}>{notifEnabled ? 'فعال است' : 'فعال‌سازی'}</button></div><div className="bg-gray-50 p-2 flex justify-between items-center border-b"><span className="text-xs font-bold text-gray-600">پیام‌های سیستم</span>{notifications.length > 0 && (<button onClick={clearNotifications} className="text-gray-400 hover:text-red-500 flex items-center gap-1 text-[10px]"><X size={12} /> پاک کردن همه</button>)}</div><div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<div className="p-6 text-center text-xs text-gray-400 flex flex-col items-center"><BellOff size={24} className="mb-2 opacity-20"/>هیچ پیامی نیست</div>) : (notifications.map(n => (<div key={n.id} className="p-3 border-b hover:bg-gray-50 text-right last:border-0"><div className="text-xs font-bold text-gray-800 mb-1">{n.title}</div><div className="text-xs text-gray-600 leading-tight">{n.message}</div><div className="text-[10px] text-gray-400 mt-1 text-left">{new Date(n.timestamp).toLocaleTimeString('fa-IR')}</div></div>)))}</div></div> );
 
@@ -248,22 +198,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       <aside className="w-64 bg-slate-800 text-white flex-shrink-0 hidden md:flex flex-col no-print shadow-xl relative h-screen sticky top-0"><div className="p-6 border-b border-slate-700 flex items-center gap-3"><div className="bg-blue-500 p-2 rounded-lg"><FileText className="w-6 h-6 text-white" /></div><div><h1 className="text-lg font-bold tracking-wide">سیستم مالی</h1><span className="text-xs text-slate-400">پنل کاربری</span></div></div><div className="p-4 bg-slate-700/50 mx-4 mt-4 rounded-xl flex items-center gap-3 border border-slate-600 relative group cursor-pointer hover:bg-slate-600 transition-colors" onClick={() => setShowProfileModal(true)} title="تنظیمات کاربری"><div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center overflow-hidden shrink-0">{currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <UserIcon size={20} className="text-blue-300" />}</div><div className="overflow-hidden flex-1"><p className="text-sm font-bold truncate">{currentUser.fullName}</p><p className="text-xs text-slate-400 truncate">نقش: {currentUser.role}</p></div><div className="absolute right-2 top-2 bg-slate-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={14} /></div></div>
       
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navStructure.map((group, gIdx) => (
-            <div key={gIdx} className="mb-4">
-                {group.title && (
-                    <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">{group.title}</h3>
-                )}
-                {group.items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                        <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                            <Icon size={20} />
-                            <span className="font-medium text-sm">{item.label}</span>
-                        </button>
-                    );
-                })}
-            </div>
-        ))}
+        <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><LayoutDashboard size={20} /><span className="font-medium text-sm">داشبورد</span></button>
+        {canCreatePayment && <button onClick={() => setActiveTab('create')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'create' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><PlusCircle size={20} /><span className="font-medium text-sm">ثبت دستور پرداخت</span></button>}
+        {perms?.canViewPaymentOrders && <button onClick={() => setActiveTab('manage')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'manage' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><ListChecks size={20} /><span className="font-medium text-sm">سوابق پرداخت</span></button>}
+        {canCreateExit && <button onClick={() => setActiveTab('create-exit')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'create-exit' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><Truck size={20} /><span className="font-medium text-sm">ثبت مجوز خروج</span></button>}
+        {perms?.canViewExitPermits && <button onClick={() => setActiveTab('manage-exit')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'manage-exit' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><ClipboardList size={20} /><span className="font-medium text-sm">سوابق خروج</span></button>}
+        {canManageWarehouse && <button onClick={() => setActiveTab('warehouse')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'warehouse' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><Package size={20} /><span className="font-medium text-sm">مدیریت انبار</span></button>}
+        <button onClick={() => setActiveTab('chat')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'chat' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><MessageSquare size={20} /><span className="font-medium text-sm">گفتگو و تسک</span></button>
+        {canSeeTrade && <button onClick={() => setActiveTab('trade')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'trade' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><Container size={20} /><span className="font-medium text-sm">بازرگانی</span></button>}
+        {hasPermission(currentUser, 'manage_users') && <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'users' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><Users size={20} /><span className="font-medium text-sm">مدیریت کاربران</span></button>}
+        {canSeeSettings && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}><Settings size={20} /><span className="font-medium text-sm">تنظیمات</span></button>}
         
         {deferredPrompt && (<button onClick={handleInstallClick} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-teal-300 hover:bg-slate-700 hover:text-white transition-colors mt-4"><Download size={20} /><span className="font-medium">نصب برنامه (PWA)</span></button>)}
         
@@ -336,8 +280,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
                     </div>
                     <div>
                         <h1 className="font-bold text-gray-800 text-sm">
-                            {/* Resolve label from nested structure */}
-                            {navStructure.flatMap(g => g.items).find(i => i.id === activeTab)?.label || 'سیستم مالی'}
+                            {/* Static Title Map for Mobile Header since navStructure is gone */}
+                            {activeTab === 'dashboard' ? 'داشبورد' : 
+                             activeTab === 'create' ? 'ثبت پرداخت' : 
+                             activeTab === 'manage' ? 'سوابق پرداخت' :
+                             activeTab === 'create-exit' ? 'ثبت خروج' :
+                             activeTab === 'manage-exit' ? 'سوابق خروج' :
+                             activeTab === 'warehouse' ? 'مدیریت انبار' :
+                             activeTab === 'chat' ? 'گفتگو' :
+                             activeTab === 'trade' ? 'بازرگانی' :
+                             activeTab === 'users' ? 'کاربران' :
+                             activeTab === 'settings' ? 'تنظیمات' : 'سیستم مالی'}
                         </h1>
                         <div className="text-[10px] text-gray-500">{currentUser.fullName}</div>
                     </div>
