@@ -2,14 +2,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
 import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
-import { getUsers } from '../services/authService';
+import { getUsers, getCurrentUser, getRolePermissions } from '../services/authService'; // Updated imports
 import { generateUUID } from '../constants';
 
 const Settings: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse'>('system');
+  const [currentUserData, setCurrentUserData] = useState<any>(null); // To check permissions
+  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse' | 'trade_config'>('system');
   const [settings, setSettings] = useState<SystemSettings>({ 
       currentTrackingNumber: 1000, 
       currentExitPermitNumber: 1000, 
@@ -19,6 +20,7 @@ const Settings: React.FC = () => {
       bankNames: [], 
       operatingBankNames: [], 
       commodityGroups: [], 
+      insuranceCompanies: [], // Init new field
       rolePermissions: {}, 
       savedContacts: [], 
       pwaIcon: '', 
@@ -63,6 +65,7 @@ const Settings: React.FC = () => {
   const [fetchingGroups, setFetchingGroups] = useState(false);
   const [newOperatingBank, setNewOperatingBank] = useState('');
   const [newCommodity, setNewCommodity] = useState('');
+  const [newInsuranceCompany, setNewInsuranceCompany] = useState(''); // NEW state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const [uploadingIcon, setUploadingIcon] = useState(false);
@@ -77,6 +80,8 @@ const Settings: React.FC = () => {
       setNotificationsEnabled(isNotificationEnabledInApp()); 
       checkWhatsappStatus();
       loadAppUsers();
+      const user = getCurrentUser();
+      setCurrentUserData(user);
   }, []);
 
   const loadSettings = async () => { 
@@ -86,6 +91,7 @@ const Settings: React.FC = () => {
           safeData.currentExitPermitNumber = safeData.currentExitPermitNumber || 1000;
           safeData.companies = safeData.companies || [];
           safeData.operatingBankNames = safeData.operatingBankNames || [];
+          safeData.insuranceCompanies = safeData.insuranceCompanies || []; // Ensure Array
           if (safeData.companyNames?.length > 0 && safeData.companies.length === 0) {
               safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true, banks: [] }));
           }
@@ -256,12 +262,18 @@ const Settings: React.FC = () => {
       setNewCompanyBanks(newCompanyBanks.filter(b => b.id !== id));
   };
 
-  // Operating Banks
+  // Operating Banks (Trade)
   const handleAddOperatingBank = () => { if (newOperatingBank.trim() && !(settings.operatingBankNames || []).includes(newOperatingBank.trim())) { setSettings({ ...settings, operatingBankNames: [...(settings.operatingBankNames || []), newOperatingBank.trim()] }); setNewOperatingBank(''); } };
   const handleRemoveOperatingBank = (name: string) => { setSettings({ ...settings, operatingBankNames: (settings.operatingBankNames || []).filter(b => b !== name) }); };
 
+  // Commodity Groups (Trade)
   const handleAddCommodity = () => { if (newCommodity.trim() && !settings.commodityGroups.includes(newCommodity.trim())) { setSettings({ ...settings, commodityGroups: [...settings.commodityGroups, newCommodity.trim()] }); setNewCommodity(''); } };
   const handleRemoveCommodity = (name: string) => { setSettings({ ...settings, commodityGroups: settings.commodityGroups.filter(c => c !== name) }); };
+  
+  // Insurance Companies (Trade) - NEW
+  const handleAddInsuranceCompany = () => { if (newInsuranceCompany.trim() && !(settings.insuranceCompanies || []).includes(newInsuranceCompany.trim())) { setSettings({ ...settings, insuranceCompanies: [...(settings.insuranceCompanies || []), newInsuranceCompany.trim()] }); setNewInsuranceCompany(''); } };
+  const handleRemoveInsuranceCompany = (name: string) => { setSettings({ ...settings, insuranceCompanies: (settings.insuranceCompanies || []).filter(c => c !== name) }); };
+
   const handlePermissionChange = (role: string, field: keyof RolePermissions, value: boolean) => { setSettings({ ...settings, rolePermissions: { ...settings.rolePermissions, [role]: { ...settings.rolePermissions[role], [field]: value } } }); };
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const res = await uploadFile(file.name, ev.target?.result as string); setSettings({ ...settings, pwaIcon: res.url }); } catch (error) { alert('خطا'); } finally { setUploadingIcon(false); } }; reader.readAsDataURL(file); };
   const handleToggleNotifications = async () => { if (!isSecure) { alert("HTTPS لازم است"); return; } if (notificationsEnabled) { setNotificationPreference(false); setNotificationsEnabled(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotificationPreference(true); setNotificationsEnabled(true); } } };
@@ -298,6 +310,7 @@ const Settings: React.FC = () => {
       { id: 'canApproveCeo', label: 'تایید مرحله نهایی' }, 
       { id: 'canManageTrade', label: 'دسترسی به بخش بازرگانی' }, 
       { id: 'canManageSettings', label: 'دسترسی به تنظیمات سیستم' },
+      { id: 'canManageTradeSettings', label: 'دسترسی به تنظیمات بازرگانی (اختصاصی)' }, // NEW permission
       { id: 'canCreateExitPermit', label: 'ثبت درخواست خروج بار' },
       { id: 'canApproveExitCeo', label: 'تایید خروج بار (مدیرعامل)' },
       { id: 'canApproveExitFactory', label: 'تایید خروج بار (کارخانه)' },
@@ -317,6 +330,9 @@ const Settings: React.FC = () => {
       });
   };
 
+  // Permission Check for Trade Config Tab
+  const canAccessTradeConfig = currentUserData?.role === UserRole.ADMIN || getRolePermissions(currentUserData?.role || '', settings).canManageTradeSettings;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-20 animate-fade-in">
         
@@ -324,7 +340,8 @@ const Settings: React.FC = () => {
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2 px-2"><SettingsIcon size={24} className="text-blue-600"/> تنظیمات</h2>
             <nav className="space-y-1">
                 <button onClick={() => setActiveCategory('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'system' ? 'bg-white shadow text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><AppWindow size={18}/> عمومی و سیستم</button>
-                <button onClick={() => setActiveCategory('data')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'data' ? 'bg-white shadow text-indigo-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18}/> اطلاعات پایه</button>
+                <button onClick={() => setActiveCategory('data')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'data' ? 'bg-white shadow text-indigo-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18}/> شرکت‌ها و اشخاص</button>
+                {canAccessTradeConfig && <button onClick={() => setActiveCategory('trade_config')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'trade_config' ? 'bg-white shadow text-teal-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Container size={18}/> پیکربندی بازرگانی</button>}
                 <button onClick={() => setActiveCategory('warehouse')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'warehouse' ? 'bg-white shadow text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Warehouse size={18}/> انبار</button>
                 <button onClick={() => setActiveCategory('integrations')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'integrations' ? 'bg-white shadow text-purple-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Link size={18}/> اتصالات (API)</button>
                 <button onClick={() => setActiveCategory('whatsapp')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'whatsapp' ? 'bg-white shadow text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><MessageCircle size={18}/> مدیریت واتساپ</button>
@@ -336,6 +353,7 @@ const Settings: React.FC = () => {
             <form onSubmit={handleSave} className="space-y-8 max-w-4xl mx-auto">
                 {activeCategory === 'system' && (
                     <div className="space-y-8 animate-fade-in">
+                        {/* ... Existing system settings ... */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2">تنظیمات ظاهری و اعلان‌ها</h3>
                             <div className="flex items-center gap-4">
@@ -369,6 +387,7 @@ const Settings: React.FC = () => {
                 )}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
+                        {/* ... Existing warehouse settings ... */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Warehouse size={20}/> تنظیمات انبار و ارسال خودکار</h3>
                             <div className="space-y-6">
@@ -476,6 +495,16 @@ const Settings: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+                {activeCategory === 'trade_config' && canAccessTradeConfig && (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-4">
+                            <h3 className="font-bold text-teal-800 text-sm mb-2">بخش پیکربندی بازرگانی</h3>
+                            <p className="text-xs text-teal-600">
+                                این بخش مخصوص تنظیمات پایه ماژول بازرگانی است. تغییرات در این بخش روی لیست‌های انتخابی در پرونده‌ها تاثیر می‌گذارد.
+                            </p>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
@@ -489,6 +518,25 @@ const Settings: React.FC = () => {
                                 <div className="flex flex-wrap gap-2">{settings.commodityGroups.map((group, idx) => (<div key={idx} className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-amber-100"><span>{group}</span><button type="button" onClick={() => handleRemoveCommodity(group)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
                             </div>
                         </div>
+
+                        <div className="space-y-4 pt-4 border-t">
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><ShieldCheck size={18}/> مدیریت شرکت‌های بیمه</h3>
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex gap-2 mb-4">
+                                    <input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام شرکت بیمه (مثلاً: بیمه ایران)..." value={newInsuranceCompany} onChange={(e) => setNewInsuranceCompany(e.target.value)} />
+                                    <button type="button" onClick={handleAddInsuranceCompany} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700">افزودن</button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {(settings.insuranceCompanies || []).map((ins, idx) => (
+                                        <div key={idx} className="bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 border border-green-200">
+                                            <span>{ins}</span>
+                                            <button type="button" onClick={() => handleRemoveInsuranceCompany(ins)} className="text-red-400 hover:text-red-600"><X size={14} /></button>
+                                        </div>
+                                    ))}
+                                    {(settings.insuranceCompanies || []).length === 0 && <span className="text-gray-400 text-xs">هیچ شرکت بیمه‌ای تعریف نشده است.</span>}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
                 {/* ... other tabs ... */}
@@ -498,7 +546,6 @@ const Settings: React.FC = () => {
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><BrainCircuit size={20} className="text-purple-600"/> هوش مصنوعی (Gemini)</h3>
                             <div><label className="text-sm text-gray-600 block mb-1">کلید دسترسی (API Key)</label><input type="password" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.geminiApiKey || ''} onChange={(e) => setSettings({...settings, geminiApiKey: e.target.value})} /></div>
                         </div>
-                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'whatsapp' && (
@@ -507,12 +554,10 @@ const Settings: React.FC = () => {
                         <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6">
                             {/* ... */}
                         </div>
-                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'permissions' && (
                     <div className="overflow-x-auto animate-fade-in">
-                        {/* ... */}
                         <table className="w-full text-sm text-center border-collapse">
                             <thead><tr className="bg-gray-100 text-gray-700"><th className="p-3 border border-gray-200 text-right min-w-[200px]">عنوان مجوز</th>{roles.map(role => (<th key={role.id} className="p-3 border border-gray-200 w-24 vertical-text md:vertical-text-none">{role.label}</th>))}</tr></thead>
                             <tbody>{permissionsList.map(perm => (<tr key={perm.id} className="hover:bg-gray-50"><td className="p-3 border border-gray-200 text-right font-medium text-gray-600">{perm.label}</td>{roles.map(role => { const rolePerms = settings.rolePermissions?.[role.id] || {}; /* @ts-ignore */ const isChecked = !!rolePerms[perm.id]; return (<td key={role.id} className="p-3 border border-gray-200"><input type="checkbox" checked={isChecked} onChange={(e) => handlePermissionChange(role.id, perm.id as keyof RolePermissions, e.target.checked)} className="w-5 h-5 text-blue-600 rounded cursor-pointer" /></td>); })}</tr>))}</tbody>
@@ -531,7 +576,5 @@ const Settings: React.FC = () => {
     </div>
   );
 };
-
-const QRCode = ({ value, size }: { value: string, size: number }) => { return <img src={`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}`} alt="QR Code" width={size} height={size} className="mix-blend-multiply" />; };
 
 export default Settings;
