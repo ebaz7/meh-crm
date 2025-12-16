@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
-import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
+import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank } from '../types';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
-import { getUsers, updateUser } from '../services/authService';
+import { getUsers } from '../services/authService';
 import { generateUUID } from '../constants';
 
 // Internal QRCode Component to avoid build dependency issues with 'react-qr-code'
@@ -74,8 +74,8 @@ const Settings: React.FC = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const isSecure = window.isSecureContext;
   
-  // App Users to merge into contacts list and manage access
-  const [appUsers, setAppUsers] = useState<(Contact | User)[]>([]); // Mixed list or handle separately
+  // App Users to merge into contacts list
+  const [appUsers, setAppUsers] = useState<Contact[]>([]);
 
   useEffect(() => { 
       loadSettings(); 
@@ -267,7 +267,6 @@ const Settings: React.FC = () => {
 
   const handleAddCommodity = () => { if (newCommodity.trim() && !settings.commodityGroups.includes(newCommodity.trim())) { setSettings({ ...settings, commodityGroups: [...settings.commodityGroups, newCommodity.trim()] }); setNewCommodity(''); } };
   const handleRemoveCommodity = (name: string) => { setSettings({ ...settings, commodityGroups: settings.commodityGroups.filter(c => c !== name) }); };
-  
   const handlePermissionChange = (role: string, field: keyof RolePermissions, value: boolean) => { setSettings({ ...settings, rolePermissions: { ...settings.rolePermissions, [role]: { ...settings.rolePermissions[role], [field]: value } } }); };
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const res = await uploadFile(file.name, ev.target?.result as string); setSettings({ ...settings, pwaIcon: res.url }); } catch (error) { alert('خطا'); } finally { setUploadingIcon(false); } }; reader.readAsDataURL(file); };
   const handleToggleNotifications = async () => { if (!isSecure) { alert("HTTPS لازم است"); return; } if (notificationsEnabled) { setNotificationPreference(false); setNotificationsEnabled(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotificationPreference(true); setNotificationsEnabled(true); } } };
@@ -314,9 +313,13 @@ const Settings: React.FC = () => {
   ];
 
   const getMergedContactOptions = () => {
-      // appUsers already contains users mapped as contacts, we should filter duplicates if any from savedContacts
-      // But settings.savedContacts are distinct manual contacts.
-      return [...(settings.savedContacts || []), ...appUsers as Contact[]];
+      const all = [...(settings.savedContacts || []), ...appUsers];
+      const seen = new Set();
+      return all.filter(c => {
+          if (seen.has(c.number)) return false;
+          seen.add(c.number);
+          return true;
+      });
   };
 
   return (
@@ -336,8 +339,6 @@ const Settings: React.FC = () => {
 
         <div className="flex-1 p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-100px)]">
             <form onSubmit={handleSave} className="space-y-8 max-w-4xl mx-auto">
-                
-                {/* 1. SYSTEM SETTINGS */}
                 {activeCategory === 'system' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -371,8 +372,6 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
-
-                {/* 3. WAREHOUSE SETTINGS */}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -391,8 +390,6 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
-
-                {/* 4. BASIC DATA */}
                 {activeCategory === 'data' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -500,7 +497,6 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
-                {/* 5. INTEGRATIONS */}
                 {activeCategory === 'integrations' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -517,7 +513,6 @@ const Settings: React.FC = () => {
                     </div>
                 )}
                 
-                {/* 6. WHATSAPP */}
                 {activeCategory === 'whatsapp' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className={`bg-${whatsappStatus?.ready ? 'green' : 'amber'}-50 border border-${whatsappStatus?.ready ? 'green' : 'amber'}-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6`}>
@@ -587,7 +582,6 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
-                {/* 7. PERMISSIONS */}
                 {activeCategory === 'permissions' && (
                     <div className="space-y-8 animate-fade-in">
                         <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><ShieldCheck size={20}/> مدیریت دسترسی نقش‌ها</h3>
