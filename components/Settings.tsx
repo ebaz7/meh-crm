@@ -2,14 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
 import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
-import { getUsers, getCurrentUser, getRolePermissions } from '../services/authService';
+import { getUsers } from '../services/authService';
 import { generateUUID } from '../constants';
 
 const Settings: React.FC = () => {
-  const [currentUserData, setCurrentUserData] = useState<any>(null); 
   const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse'>('system');
   const [settings, setSettings] = useState<SystemSettings>({ 
       currentTrackingNumber: 1000, 
@@ -20,7 +19,6 @@ const Settings: React.FC = () => {
       bankNames: [], 
       operatingBankNames: [], 
       commodityGroups: [], 
-      insuranceCompanies: [],
       rolePermissions: {}, 
       savedContacts: [], 
       pwaIcon: '', 
@@ -48,6 +46,7 @@ const Settings: React.FC = () => {
   const [newCompanyLetterhead, setNewCompanyLetterhead] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   
+  // Local states for adding banks to a company
   const [tempBankName, setTempBankName] = useState('');
   const [tempAccountNum, setTempAccountNum] = useState('');
 
@@ -70,6 +69,7 @@ const Settings: React.FC = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const isSecure = window.isSecureContext;
   
+  // App Users to merge into contacts list
   const [appUsers, setAppUsers] = useState<Contact[]>([]);
 
   useEffect(() => { 
@@ -77,8 +77,6 @@ const Settings: React.FC = () => {
       setNotificationsEnabled(isNotificationEnabledInApp()); 
       checkWhatsappStatus();
       loadAppUsers();
-      const user = getCurrentUser();
-      setCurrentUserData(user);
   }, []);
 
   const loadSettings = async () => { 
@@ -88,7 +86,6 @@ const Settings: React.FC = () => {
           safeData.currentExitPermitNumber = safeData.currentExitPermitNumber || 1000;
           safeData.companies = safeData.companies || [];
           safeData.operatingBankNames = safeData.operatingBankNames || [];
-          safeData.insuranceCompanies = safeData.insuranceCompanies || [];
           if (safeData.companyNames?.length > 0 && safeData.companies.length === 0) {
               safeData.companies = safeData.companyNames.map(name => ({ id: generateUUID(), name, showInWarehouse: true, banks: [] }));
           }
@@ -153,9 +150,11 @@ const Settings: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => { 
       e.preventDefault(); setLoading(true); 
       try { 
+          // 1. Check if there are pending company edits in the form that weren't "Added/Edited"
           let currentCompanies = [...(settings.companies || [])];
           
           if (activeCategory === 'data' && (newCompanyName.trim() || editingCompanyId)) {
+              // Apply the pending edit/add automatically
               if (editingCompanyId) {
                   currentCompanies = currentCompanies.map(c =>
                       c.id === editingCompanyId
@@ -179,9 +178,11 @@ const Settings: React.FC = () => {
                       letterhead: newCompanyLetterhead
                   }];
               }
+              // Clear form
               resetCompanyForm();
           }
 
+          // 2. Prepare Settings Object
           const syncedSettings = { 
               ...settings, 
               companies: currentCompanies,
@@ -243,6 +244,7 @@ const Settings: React.FC = () => {
 
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
   
+  // Company Bank Management
   const addCompanyBank = () => {
       if (!tempBankName) return;
       const newBank: CompanyBank = { id: generateUUID(), bankName: tempBankName, accountNumber: tempAccountNum };
@@ -254,12 +256,12 @@ const Settings: React.FC = () => {
       setNewCompanyBanks(newCompanyBanks.filter(b => b.id !== id));
   };
 
+  // Operating Banks
   const handleAddOperatingBank = () => { if (newOperatingBank.trim() && !(settings.operatingBankNames || []).includes(newOperatingBank.trim())) { setSettings({ ...settings, operatingBankNames: [...(settings.operatingBankNames || []), newOperatingBank.trim()] }); setNewOperatingBank(''); } };
   const handleRemoveOperatingBank = (name: string) => { setSettings({ ...settings, operatingBankNames: (settings.operatingBankNames || []).filter(b => b !== name) }); };
 
   const handleAddCommodity = () => { if (newCommodity.trim() && !settings.commodityGroups.includes(newCommodity.trim())) { setSettings({ ...settings, commodityGroups: [...settings.commodityGroups, newCommodity.trim()] }); setNewCommodity(''); } };
   const handleRemoveCommodity = (name: string) => { setSettings({ ...settings, commodityGroups: settings.commodityGroups.filter(c => c !== name) }); };
-  
   const handlePermissionChange = (role: string, field: keyof RolePermissions, value: boolean) => { setSettings({ ...settings, rolePermissions: { ...settings.rolePermissions, [role]: { ...settings.rolePermissions[role], [field]: value } } }); };
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const res = await uploadFile(file.name, ev.target?.result as string); setSettings({ ...settings, pwaIcon: res.url }); } catch (error) { alert('خطا'); } finally { setUploadingIcon(false); } }; reader.readAsDataURL(file); };
   const handleToggleNotifications = async () => { if (!isSecure) { alert("HTTPS لازم است"); return; } if (notificationsEnabled) { setNotificationPreference(false); setNotificationsEnabled(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotificationPreference(true); setNotificationsEnabled(true); } } };
@@ -296,7 +298,6 @@ const Settings: React.FC = () => {
       { id: 'canApproveCeo', label: 'تایید مرحله نهایی' }, 
       { id: 'canManageTrade', label: 'دسترسی به بخش بازرگانی' }, 
       { id: 'canManageSettings', label: 'دسترسی به تنظیمات سیستم' },
-      { id: 'canManageTradeSettings', label: 'دسترسی به تنظیمات بازرگانی (اختصاصی)' }, 
       { id: 'canCreateExitPermit', label: 'ثبت درخواست خروج بار' },
       { id: 'canApproveExitCeo', label: 'تایید خروج بار (مدیرعامل)' },
       { id: 'canApproveExitFactory', label: 'تایید خروج بار (کارخانه)' },
@@ -335,7 +336,6 @@ const Settings: React.FC = () => {
             <form onSubmit={handleSave} className="space-y-8 max-w-4xl mx-auto">
                 {activeCategory === 'system' && (
                     <div className="space-y-8 animate-fade-in">
-                        {/* ... Existing system settings ... */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2">تنظیمات ظاهری و اعلان‌ها</h3>
                             <div className="flex items-center gap-4">
@@ -347,21 +347,7 @@ const Settings: React.FC = () => {
                             </div>
                             <button type="button" onClick={handleToggleNotifications} className={`w-full md:w-auto px-4 py-2 rounded-lg border flex items-center justify-center gap-2 transition-colors ${notificationsEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 text-gray-600'}`}>{notificationsEnabled ? <BellRing size={18} /> : <BellOff size={18} />}<span>{notificationsEnabled ? 'نوتیفیکیشن‌ها فعال است' : 'فعال‌سازی نوتیفیکیشن'}</span></button>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                            <div className="space-y-2">
-                                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Briefcase size={18}/> بانک‌های عامل (بازرگانی)</h3>
-                                <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام بانک عامل..." value={newOperatingBank} onChange={(e) => setNewOperatingBank(e.target.value)} /><button type="button" onClick={handleAddOperatingBank} className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
-                                <div className="flex flex-wrap gap-2">{(settings.operatingBankNames || []).map((bank, idx) => (<div key={idx} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-blue-100"><span>{bank}</span><button type="button" onClick={() => handleRemoveOperatingBank(bank)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Package size={18}/> گروه‌های کالایی</h3>
-                                <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام گروه..." value={newCommodity} onChange={(e) => setNewCommodity(e.target.value)} /><button type="button" onClick={handleAddCommodity} className="bg-amber-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
-                                <div className="flex flex-wrap gap-2">{settings.commodityGroups.map((group, idx) => (<div key={idx} className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-amber-100"><span>{group}</span><button type="button" onClick={() => handleRemoveCommodity(group)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4 pt-4 border-t">
+                        <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Truck size={20}/> شماره‌گذاری اسناد</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div><label className="text-sm font-bold text-gray-700 block mb-1">شروع شماره دستور پرداخت</label><input type="number" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.currentTrackingNumber} onChange={(e) => setSettings({...settings, currentTrackingNumber: Number(e.target.value)})} /></div>
@@ -383,7 +369,6 @@ const Settings: React.FC = () => {
                 )}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
-                        {/* ... Existing warehouse settings ... */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Warehouse size={20}/> تنظیمات انبار و ارسال خودکار</h3>
                             <div className="space-y-6">
@@ -491,14 +476,29 @@ const Settings: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Briefcase size={18}/> بانک‌های عامل (بازرگانی)</h3>
+                                <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام بانک عامل..." value={newOperatingBank} onChange={(e) => setNewOperatingBank(e.target.value)} /><button type="button" onClick={handleAddOperatingBank} className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
+                                <div className="flex flex-wrap gap-2">{(settings.operatingBankNames || []).map((bank, idx) => (<div key={idx} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-blue-100"><span>{bank}</span><button type="button" onClick={() => handleRemoveOperatingBank(bank)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Package size={18}/> گروه‌های کالایی</h3>
+                                <div className="flex gap-2"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="نام گروه..." value={newCommodity} onChange={(e) => setNewCommodity(e.target.value)} /><button type="button" onClick={handleAddCommodity} className="bg-amber-600 text-white p-2 rounded-lg"><Plus size={18} /></button></div>
+                                <div className="flex flex-wrap gap-2">{settings.commodityGroups.map((group, idx) => (<div key={idx} className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-xs flex items-center gap-1 border border-amber-100"><span>{group}</span><button type="button" onClick={() => handleRemoveCommodity(group)} className="hover:text-red-500"><X size={12} /></button></div>))}</div>
+                            </div>
+                        </div>
                     </div>
                 )}
+                {/* ... other tabs ... */}
                 {activeCategory === 'integrations' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><BrainCircuit size={20} className="text-purple-600"/> هوش مصنوعی (Gemini)</h3>
                             <div><label className="text-sm text-gray-600 block mb-1">کلید دسترسی (API Key)</label><input type="password" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.geminiApiKey || ''} onChange={(e) => setSettings({...settings, geminiApiKey: e.target.value})} /></div>
                         </div>
+                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'whatsapp' && (
@@ -507,10 +507,12 @@ const Settings: React.FC = () => {
                         <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6">
                             {/* ... */}
                         </div>
+                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'permissions' && (
                     <div className="overflow-x-auto animate-fade-in">
+                        {/* ... */}
                         <table className="w-full text-sm text-center border-collapse">
                             <thead><tr className="bg-gray-100 text-gray-700"><th className="p-3 border border-gray-200 text-right min-w-[200px]">عنوان مجوز</th>{roles.map(role => (<th key={role.id} className="p-3 border border-gray-200 w-24 vertical-text md:vertical-text-none">{role.label}</th>))}</tr></thead>
                             <tbody>{permissionsList.map(perm => (<tr key={perm.id} className="hover:bg-gray-50"><td className="p-3 border border-gray-200 text-right font-medium text-gray-600">{perm.label}</td>{roles.map(role => { const rolePerms = settings.rolePermissions?.[role.id] || {}; /* @ts-ignore */ const isChecked = !!rolePerms[perm.id]; return (<td key={role.id} className="p-3 border border-gray-200"><input type="checkbox" checked={isChecked} onChange={(e) => handlePermissionChange(role.id, perm.id as keyof RolePermissions, e.target.checked)} className="w-5 h-5 text-blue-600 rounded cursor-pointer" /></td>); })}</tr>))}</tbody>
@@ -529,5 +531,7 @@ const Settings: React.FC = () => {
     </div>
   );
 };
+
+const QRCode = ({ value, size }: { value: string, size: number }) => { return <img src={`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}`} alt="QR Code" width={size} height={size} className="mix-blend-multiply" />; };
 
 export default Settings;

@@ -187,9 +187,6 @@ export interface RolePermissions {
     canManageWarehouse?: boolean; // Full Access
     canViewWarehouseReports?: boolean; // Read Only
     canApproveBijak?: boolean; // New Permission for Bijak Approval
-    
-    // Trade Settings Permission
-    canManageTradeSettings?: boolean; // New: Access to trade config tab
 }
 
 export interface CompanyBank {
@@ -223,7 +220,6 @@ export interface SystemSettings {
   bankNames: string[]; // Deprecated (Global) - kept for legacy
   operatingBankNames?: string[]; // Separate banks for Trade
   commodityGroups: string[]; 
-  insuranceCompanies?: string[]; // NEW: List of Insurance Companies
   rolePermissions: Record<string, RolePermissions>; 
   savedContacts?: Contact[]; 
   pwaIcon?: string; 
