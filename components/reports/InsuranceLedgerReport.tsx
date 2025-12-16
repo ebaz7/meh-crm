@@ -13,7 +13,7 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records }) => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [selectedInsCompany, setSelectedInsCompany] = useState<string>('');
 
-    // Extract unique insurance companies
+    // Extract unique insurance companies from records only
     const insuranceCompanies = React.useMemo(() => {
         const companies = new Set<string>();
         records.forEach(r => {

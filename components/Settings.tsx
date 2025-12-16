@@ -498,7 +498,6 @@ const Settings: React.FC = () => {
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><BrainCircuit size={20} className="text-purple-600"/> هوش مصنوعی (Gemini)</h3>
                             <div><label className="text-sm text-gray-600 block mb-1">کلید دسترسی (API Key)</label><input type="password" className="w-full border rounded-lg p-2 dir-ltr text-left" value={settings.geminiApiKey || ''} onChange={(e) => setSettings({...settings, geminiApiKey: e.target.value})} /></div>
                         </div>
-                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'whatsapp' && (
@@ -507,12 +506,10 @@ const Settings: React.FC = () => {
                         <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6">
                             {/* ... */}
                         </div>
-                        {/* ... */}
                     </div>
                 )}
                 {activeCategory === 'permissions' && (
                     <div className="overflow-x-auto animate-fade-in">
-                        {/* ... */}
                         <table className="w-full text-sm text-center border-collapse">
                             <thead><tr className="bg-gray-100 text-gray-700"><th className="p-3 border border-gray-200 text-right min-w-[200px]">عنوان مجوز</th>{roles.map(role => (<th key={role.id} className="p-3 border border-gray-200 w-24 vertical-text md:vertical-text-none">{role.label}</th>))}</tr></thead>
                             <tbody>{permissionsList.map(perm => (<tr key={perm.id} className="hover:bg-gray-50"><td className="p-3 border border-gray-200 text-right font-medium text-gray-600">{perm.label}</td>{roles.map(role => { const rolePerms = settings.rolePermissions?.[role.id] || {}; /* @ts-ignore */ const isChecked = !!rolePerms[perm.id]; return (<td key={role.id} className="p-3 border border-gray-200"><input type="checkbox" checked={isChecked} onChange={(e) => handlePermissionChange(role.id, perm.id as keyof RolePermissions, e.target.checked)} className="w-5 h-5 text-blue-600 rounded cursor-pointer" /></td>); })}</tr>))}</tbody>
@@ -531,7 +528,5 @@ const Settings: React.FC = () => {
     </div>
   );
 };
-
-const QRCode = ({ value, size }: { value: string, size: number }) => { return <img src={`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}`} alt="QR Code" width={size} height={size} className="mix-blend-multiply" />; };
 
 export default Settings;
