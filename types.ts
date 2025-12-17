@@ -38,8 +38,8 @@ export enum UserRole {
   SALES_MANAGER = 'sales_manager', 
   FACTORY_MANAGER = 'factory_manager',
   WAREHOUSE_KEEPER = 'warehouse_keeper', 
-  SECURITY_GUARD = 'security_guard', // Added
-  SECURITY_HEAD = 'security_head',   // Added
+  SECURITY_GUARD = 'security_guard',
+  SECURITY_HEAD = 'security_head',
   USER = 'user'           
 }
 
@@ -48,7 +48,7 @@ export interface User {
   username: string;
   password: string;
   fullName: string;
-  role: string; // Changed from UserRole to string to support custom roles
+  role: string;
   canManageTrade?: boolean; 
   receiveNotifications?: boolean; 
   avatar?: string; 
@@ -87,7 +87,6 @@ export interface PaymentOrder {
   updatedAt?: number; 
 }
 
-// Exit Permit Types
 export interface ExitPermitItem {
   id: string;
   goodsName: string;
@@ -131,75 +130,70 @@ export interface WarehouseItem {
     id: string;
     code: string;
     name: string;
-    unit: string; // e.g., Kg, Carton, Pcs
-    containerCapacity?: number; // Capacity per container
+    unit: string;
+    containerCapacity?: number;
     description?: string;
 }
 
 export interface WarehouseTransactionItem {
     itemId: string;
-    itemName: string; // Cached name
+    itemName: string;
     quantity: number;
     weight: number;
-    unitPrice?: number; // Optional, only for OUT (Bijak)
+    unitPrice?: number;
 }
 
 export interface WarehouseTransaction {
     id: string;
     type: 'IN' | 'OUT';
-    date: string; // ISO Date
-    company: string; // Owner Company
-    number: number; // Receipt Number or Bijak Number
-    
-    // For IN
+    date: string;
+    company: string;
+    number: number;
     proformaNumber?: string;
-    
-    // For OUT
     recipientName?: string;
     driverName?: string;
     plateNumber?: string;
     destination?: string;
-
     items: WarehouseTransactionItem[];
     description?: string;
-    
-    // Approval Workflow
     status?: 'PENDING' | 'APPROVED' | 'REJECTED';
-    approvedBy?: string; // CEO Name
-    rejectionReason?: string; // NEW
-    rejectedBy?: string;      // NEW
-    
+    approvedBy?: string;
+    rejectionReason?: string;
+    rejectedBy?: string;
     createdAt: number;
     createdBy: string;
     updatedAt?: number;
 }
 
-// --- SECURITY MODULE TYPES ---
+// --- SECURITY MODULE TYPES (UPDATED TO MATCH IMAGES) ---
 
 // 1. Daily Log (Vehicle/Goods Traffic) - فرم گزارش نگهبانی
 export interface SecurityLog {
     id: string;
-    rowNumber: number;
-    date: string;
-    shift: string; // Morning, Evening, Night
+    rowNumber: number; // ردیف
+    date: string; // تاریخ
+    shift: string; // شیفت
     
     // Traffic Details
-    type: 'Entry' | 'Exit';
-    time: string;
-    originDestination: string; // Mabda/Maghsad
+    origin: string; // مبدا
+    entryTime: string; // ورود
+    exitTime: string; // خروج
     
     // Driver/Vehicle
-    driverName: string;
-    driverPhone?: string;
-    plateNumber: string;
-    vehicleType?: string; // e.g. Nissan, Truck
+    driverName: string; // نام راننده
+    plateNumber: string; // شماره خودرو
     
     // Cargo
-    goodsName: string;
-    quantity: string;
+    goodsName: string; // مشخصات کالا
+    quantity: string; // مقدار
+    destination: string; // مقصد
+    receiver: string; // گیرنده کالا
     
+    workDescription: string; // موارد انجام کار
+    permitProvider: string; // مجوز دهنده
+
     // Workflow
-    registrant: string; // Guard Name
+    registrant: string; 
     status: SecurityStatus;
     
     approverSupervisor?: string;
@@ -214,31 +208,10 @@ export interface SecurityLog {
 export interface PersonnelDelay {
     id: string;
     date: string;
-    personnelName: string;
-    unit: string; // Unit/Department
-    arrivalTime: string;
-    delayAmount: string; // e.g. "15 min"
-    description?: string;
-    
-    registrant: string;
-    status: SecurityStatus;
-    
-    approverSupervisor?: string;
-    approverFactory?: string;
-    approverCeo?: string; // Usually Factory Manager is enough, but per request -> CEO -> Archive
-    rejectionReason?: string;
-    
-    createdAt: number;
-}
-
-// 3. Incident/Unit Report - فرم گزارش واحد انتظامات
-export interface SecurityIncident {
-    id: string;
-    reportNumber: number;
-    date: string;
-    subject: string;
-    description: string;
-    shift: string;
+    personnelName: string; // نام و نام خانوادگی
+    unit: string; // واحد
+    arrivalTime: string; // ساعت ورود
+    delayAmount: string; // مدت تاخیر
     
     registrant: string;
     status: SecurityStatus;
@@ -251,9 +224,35 @@ export interface SecurityIncident {
     createdAt: number;
 }
 
+// 3. Incident/Unit Report - فرم گزارش واحد انتظامات
+export interface SecurityIncident {
+    id: string;
+    reportNumber: string; // شماره گزارش
+    date: string;
+    subject: string; // موضوع گزارش
+    description: string; // شرح دقیق موضوع
+    shift: string; // شیفت
+    
+    registrant: string; // گزارش کننده
+    status: SecurityStatus;
+    
+    witnesses?: string; // شهود
+    shiftManagerOpinion?: string; // نظر سر شیفت
+    
+    approverSupervisor?: string;
+    approverFactory?: string; // دستور مدیریت (Director)
+    approverCeo?: string;
+    
+    hrAction?: string; // اقدام کارگزینی
+    safetyAction?: string; // اقدام ایمنی و بهداشت
+
+    rejectionReason?: string;
+    createdAt: number;
+}
+
 export interface RolePermissions {
     canViewAll: boolean;
-    canCreatePaymentOrder: boolean; // New Permission
+    canCreatePaymentOrder: boolean;
     canViewPaymentOrders: boolean;
     canViewExitPermits: boolean;
     canApproveFinancial: boolean;
@@ -268,13 +267,11 @@ export interface RolePermissions {
     canCreateExitPermit?: boolean; 
     canApproveExitCeo?: boolean; 
     canApproveExitFactory?: boolean;
-    canViewExitArchive?: boolean; // New
-    canEditExitArchive?: boolean; // New
-    
-    // Warehouse Permissions
-    canManageWarehouse?: boolean; // Full Access
-    canViewWarehouseReports?: boolean; // Read Only
-    canApproveBijak?: boolean; // New Permission for Bijak Approval
+    canViewExitArchive?: boolean;
+    canEditExitArchive?: boolean;
+    canManageWarehouse?: boolean;
+    canViewWarehouseReports?: boolean;
+    canApproveBijak?: boolean;
     
     // Security Permissions
     canViewSecurity?: boolean;
@@ -292,9 +289,9 @@ export interface Company {
     id: string;
     name: string;
     logo?: string;
-    showInWarehouse?: boolean; // Toggle for warehouse module visibility
-    banks?: CompanyBank[]; // NEW: Banks specific to this company
-    letterhead?: string; // NEW: URL to letterhead image
+    showInWarehouse?: boolean;
+    banks?: CompanyBank[];
+    letterhead?: string;
 }
 
 export interface Contact {
@@ -315,11 +312,11 @@ export interface SystemSettings {
   companyNames: string[]; 
   companies?: Company[]; 
   defaultCompany: string; 
-  bankNames: string[]; // Deprecated (Global) - kept for legacy
-  operatingBankNames?: string[]; // Separate banks for Trade
+  bankNames: string[]; 
+  operatingBankNames?: string[]; 
   commodityGroups: string[]; 
   rolePermissions: Record<string, RolePermissions>; 
-  customRoles?: CustomRole[]; // NEW: List of user defined roles
+  customRoles?: CustomRole[]; 
   savedContacts?: Contact[]; 
   pwaIcon?: string; 
   telegramBotToken?: string; 
@@ -329,23 +326,13 @@ export interface SystemSettings {
   googleCalendarId?: string; 
   whatsappNumber?: string; 
   geminiApiKey?: string; 
-  
-  // Trade Settings (NEW)
   insuranceCompanies?: string[]; 
-
-  // Warehouse Settings
-  warehouseSequences?: Record<string, number>; // Company Name -> Next Bijak Number
-  
-  // Exit Permit Settings (NEW)
-  exitPermitNotificationGroup?: string; // Group ID to notify on exit approval
-
-  // Per-Company Notification Settings
+  warehouseSequences?: Record<string, number>; 
+  exitPermitNotificationGroup?: string; 
   companyNotifications?: Record<string, {
-      salesManager?: string; // WhatsApp ID/Number
-      warehouseGroup?: string; // WhatsApp ID/Number
+      salesManager?: string; 
+      warehouseGroup?: string; 
   }>;
-  
-  // Deprecated global settings (kept for backward compatibility if needed, but UI will use per-company)
   defaultWarehouseGroup?: string; 
   defaultSalesManager?: string; 
 }
@@ -443,7 +430,7 @@ export interface TradeItem {
     weight: number; 
     unitPrice: number;
     totalPrice: number;
-    hsCode?: string; // Added HS Code
+    hsCode?: string; 
 }
 
 export interface InsuranceEndorsement {
@@ -597,9 +584,9 @@ export interface CurrencyTranche {
     date: string;
     amount: number; 
     currencyType: string;
-    rate?: number; // Kept for legacy, but now we prefer rialAmount
-    rialAmount?: number; // NEW: Manual Rial Payment
-    currencyFee?: number; // NEW: Currency Fee (Display)
+    rate?: number; 
+    rialAmount?: number; 
+    currencyFee?: number; 
     brokerName?: string;
     exchangeName?: string;
     isDelivered?: boolean;
@@ -709,8 +696,8 @@ export interface TradeRecord {
         cost: number; 
         bank: string;
         endorsements?: InsuranceEndorsement[];
-        isPaid?: boolean; // NEW: Ledger Logic
-        paymentDate?: string; // NEW: Ledger Logic
+        isPaid?: boolean;
+        paymentDate?: string;
     };
     inspectionData?: InspectionData;
     clearanceData?: ClearanceData;
