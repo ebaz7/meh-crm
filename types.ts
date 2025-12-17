@@ -165,7 +165,15 @@ export interface WarehouseTransaction {
     updatedAt?: number;
 }
 
-// --- SECURITY MODULE TYPES (UPDATED TO MATCH IMAGES) ---
+// --- SECURITY MODULE TYPES ---
+
+// New: Meta data for daily report (Shift info, bottom notes)
+export interface DailySecurityMeta {
+    dailyDescription?: string;
+    morningGuard?: { name: string; entry: string; exit: string };
+    eveningGuard?: { name: string; entry: string; exit: string };
+    nightGuard?: { name: string; entry: string; exit: string };
+}
 
 // 1. Daily Log (Vehicle/Goods Traffic) - فرم گزارش نگهبانی
 export interface SecurityLog {
@@ -335,6 +343,9 @@ export interface SystemSettings {
   }>;
   defaultWarehouseGroup?: string; 
   defaultSalesManager?: string; 
+  
+  // Security Meta Data Storage
+  dailySecurityMeta?: Record<string, DailySecurityMeta>; // Key: Date (YYYY-MM-DD)
 }
 
 export interface DashboardStats {

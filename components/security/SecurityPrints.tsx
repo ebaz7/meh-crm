@@ -1,14 +1,15 @@
 
 import React from 'react';
-import { SecurityLog, PersonnelDelay, SecurityIncident } from '../../types';
+import { SecurityLog, PersonnelDelay, SecurityIncident, DailySecurityMeta } from '../../types';
 import { formatDate } from '../../constants';
 
 interface DailyLogProps {
     date: string;
     logs: SecurityLog[];
+    meta?: DailySecurityMeta; // New prop for shift info/notes
 }
 
-export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) => {
+export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, meta }) => {
     // Fill empty rows if less than 13 for full page feel
     const displayLogs = [...logs];
     while (displayLogs.length < 13) {
@@ -89,11 +90,12 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) =
 
                 {/* Footer Section */}
                 <div className="h-48 flex flex-col border-t-2 border-black">
-                    {/* Notes Section */}
+                    {/* Notes Section - Populated from meta */}
                     <div className="h-20 border-b border-black p-2 flex flex-col relative">
                         <span className="font-bold text-xs underline mb-1 absolute top-2 right-2 bg-white px-1">گزارش مختصر از وقایع نگهبانی / توضیحات تکمیلی:</span>
-                        <div className="flex-1 mt-4 border-b border-dotted border-gray-400"></div>
-                        <div className="flex-1 border-b border-dotted border-gray-400"></div>
+                        <div className="flex-1 mt-4 text-xs font-medium whitespace-pre-wrap leading-tight pt-1 pr-2">
+                            {meta?.dailyDescription || ''}
+                        </div>
                     </div>
                     
                     {/* Signatures */}
@@ -102,18 +104,27 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) =
                         <div className="w-1/4 border-l border-black flex">
                             <div className="w-1/3 border-l border-gray-400 p-1 text-center flex flex-col justify-between">
                                 <span className="font-bold">نگهبان صبح</span>
-                                <div className="h-8"></div>
-                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                                <div className="h-8 flex items-center justify-center font-bold text-[9px] whitespace-nowrap">{meta?.morningGuard?.name || ''}</div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]">
+                                    <span>{meta?.morningGuard?.entry || ''}</span>
+                                    <span>{meta?.morningGuard?.exit || ''}</span>
+                                </div>
                             </div>
                             <div className="w-1/3 border-l border-gray-400 p-1 text-center flex flex-col justify-between">
                                 <span className="font-bold">نگهبان عصر</span>
-                                <div className="h-8"></div>
-                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                                <div className="h-8 flex items-center justify-center font-bold text-[9px] whitespace-nowrap">{meta?.eveningGuard?.name || ''}</div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]">
+                                    <span>{meta?.eveningGuard?.entry || ''}</span>
+                                    <span>{meta?.eveningGuard?.exit || ''}</span>
+                                </div>
                             </div>
                             <div className="w-1/3 p-1 text-center flex flex-col justify-between">
                                 <span className="font-bold">نگهبان شب</span>
-                                <div className="h-8"></div>
-                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                                <div className="h-8 flex items-center justify-center font-bold text-[9px] whitespace-nowrap">{meta?.nightGuard?.name || ''}</div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]">
+                                    <span>{meta?.nightGuard?.entry || ''}</span>
+                                    <span>{meta?.nightGuard?.exit || ''}</span>
+                                </div>
                             </div>
                         </div>
 
