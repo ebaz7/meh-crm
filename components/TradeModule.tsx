@@ -815,6 +815,297 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                     )}
 
                     {/* ... (Proforma, Insurance etc. Kept same for brevity, logic unmodified) ... */}
+                    {activeTab === 'proforma' && (
+                        /* ... Proforma content ... */
+                        <div className="p-6 max-w-5xl mx-auto space-y-6">
+                            {/* ... Content of Proforma ... */}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border">
+                                <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">اطلاعات کلی پروفرما</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">شماره پرونده</label><input className="w-full border rounded p-2 text-sm" value={selectedRecord.fileNumber} onChange={e => handleUpdateProforma('fileNumber', e.target.value)}/></div>
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">شماره ثبت سفارش</label><input className="w-full border rounded p-2 text-sm" value={selectedRecord.registrationNumber || ''} onChange={e => handleUpdateProforma('registrationNumber', e.target.value)}/></div>
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">فروشنده</label><input className="w-full border rounded p-2 text-sm" value={selectedRecord.sellerName} onChange={e => handleUpdateProforma('sellerName', e.target.value)}/></div>
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">ارز پایه</label><select className="w-full border rounded p-2 text-sm" value={selectedRecord.mainCurrency} onChange={e => handleUpdateProforma('mainCurrency', e.target.value)}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ ثبت سفارش</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/01/01" value={selectedRecord.registrationDate || ''} onChange={e => handleUpdateProforma('registrationDate', e.target.value)}/></div>
+                                    <div className="space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ انقضا</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/06/01" value={selectedRecord.registrationExpiry || ''} onChange={e => handleUpdateProforma('registrationExpiry', e.target.value)}/></div>
+                                    
+                                    {/* Currency Origin & Type */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">منشا ارز</label>
+                                        <select 
+                                            className="w-full border rounded p-2 text-sm" 
+                                            value={selectedRecord.currencyAllocationType || ''} 
+                                            onChange={e => handleUpdateProforma('currencyAllocationType', e.target.value)}
+                                        >
+                                            <option value="">انتخاب کنید...</option>
+                                            <option value="Bank">بانکی</option>
+                                            <option value="Export">ارز حاصل از صادرات خود</option>
+                                            <option value="ExportOther">ارز حاصل از صادرات دیگران</option>
+                                            <option value="Free">متقاضی (آزاد)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">نوع ارز (رتبه)</label>
+                                        <select 
+                                            className="w-full border rounded p-2 text-sm" 
+                                            value={selectedRecord.allocationCurrencyRank || ''} 
+                                            onChange={e => handleUpdateProforma('allocationCurrencyRank', e.target.value as any)}
+                                        >
+                                            <option value="">انتخاب کنید...</option>
+                                            <option value="Type1">نوع اول</option>
+                                            <option value="Type2">نوع دوم</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">بانک عامل</label>
+                                        <select 
+                                            className="w-full border rounded p-2 text-sm" 
+                                            value={selectedRecord.operatingBank || ''} 
+                                            onChange={e => handleUpdateProforma('operatingBank', e.target.value)}
+                                        >
+                                            <option value="">انتخاب کنید...</option>
+                                            {operatingBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-xl shadow-sm border">
+                                <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">اقلام پروفرما</h3>
+                                <div className="flex gap-2 items-end mb-4 bg-gray-50 p-3 rounded-lg flex-wrap">
+                                    <div className="flex-1 min-w-[150px] space-y-1"><label className="text-xs text-gray-500">شرح کالا</label><input className="w-full border rounded p-2 text-sm" placeholder="نام کالا" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}/></div>
+                                    <div className="w-32 space-y-1"><label className="text-xs text-gray-500">HS Code</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="کد تعرفه" value={newItem.hsCode || ''} onChange={e => setNewItem({...newItem, hsCode: e.target.value})}/></div>
+                                    <div className="w-24 space-y-1"><label className="text-xs text-gray-500">وزن (KG)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.weightStr} onChange={e => setNewItem({...newItem, weightStr: e.target.value, weight: parseFloat(e.target.value) || 0})}/></div>
+                                    <div className="w-28 space-y-1"><label className="text-xs text-gray-500">فی (Unit)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr" placeholder="0" value={newItem.unitPriceStr} onChange={e => setNewItem({...newItem, unitPriceStr: e.target.value, unitPrice: parseFloat(e.target.value) || 0})}/></div>
+                                    <div className="w-32 space-y-1"><label className="text-xs text-gray-500">قیمت کل</label><input type="number" step="0.01" className="w-full border rounded p-2 text-sm dir-ltr bg-gray-100" placeholder="Auto" value={newItem.totalPrice || (Number(newItem.weight) * Number(newItem.unitPrice))} readOnly/></div>
+                                    <button onClick={handleAddItem} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 h-[38px] min-w-[40px] flex items-center justify-center">{editingItemId ? <Save size={18}/> : <Plus size={18}/>}</button>
+                                    {editingItemId && <button onClick={() => { setEditingItemId(null); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' }); }} className="bg-gray-200 text-gray-700 p-2 rounded-lg hover:bg-gray-300 h-[38px]"><X size={18}/></button>}
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-right">
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">شرح</th><th className="p-3">HS Code</th><th className="p-3">وزن</th><th className="p-3">فی</th><th className="p-3">قیمت کل</th><th className="p-3">عملیات</th></tr></thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {selectedRecord.items.map((item) => (
+                                                <tr key={item.id} className={editingItemId === item.id ? 'bg-blue-50' : ''}>
+                                                    <td className="p-3">{item.name}</td>
+                                                    <td className="p-3 font-mono">{item.hsCode || '-'}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(item.weight)}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(item.unitPrice)}</td>
+                                                    <td className="p-3 font-mono font-bold">{formatNumberString(item.totalPrice)}</td>
+                                                    <td className="p-3 flex gap-2">
+                                                        <button onClick={() => handleEditItem(item)} className="text-amber-500 hover:text-amber-700"><Edit size={16}/></button>
+                                                        <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-blue-50 font-bold">
+                                                <td className="p-3">جمع کل</td>
+                                                <td></td>
+                                                <td className="p-3 font-mono">{formatNumberString(selectedRecord.items.reduce((a,b)=>a+b.weight,0))}</td>
+                                                <td></td>
+                                                <td className="p-3 font-mono text-blue-700">{formatNumberString(selectedRecord.items.reduce((a,b)=>a+b.totalPrice,0))} {selectedRecord.mainCurrency}</td>
+                                                <td></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <label className="text-xs font-bold text-gray-700 block mb-1">هزینه حمل کل (Freight)</label>
+                                    <div className="flex gap-2 items-center">
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            className="w-48 border rounded p-2 text-sm dir-ltr font-mono" 
+                                            value={selectedRecord.freightCost || ''} 
+                                            onChange={e => handleUpdateProforma('freightCost', parseFloat(e.target.value) || 0)} 
+                                        />
+                                        <span className="text-sm font-bold text-gray-500">{selectedRecord.mainCurrency}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white p-6 rounded-xl shadow-sm border">
+                                 <h3 className="font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2"><Banknote size={20} className="text-purple-600"/> هزینه‌های ثبت سفارش (کارمزد بانکی و...)</h3>
+                                 <div className="flex gap-2 items-end mb-4 bg-purple-50 p-3 rounded-lg">
+                                     <div className="flex-1 space-y-1"><label className="text-xs text-gray-500">شرح هزینه</label><input className="w-full border rounded p-2 text-sm" value={newLicenseTx.description} onChange={e => setNewLicenseTx({...newLicenseTx, description: e.target.value})}/></div>
+                                     <div className="w-32 space-y-1"><label className="text-xs text-gray-500">مبلغ (ریال)</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(newLicenseTx.amount)} onChange={e => setNewLicenseTx({...newLicenseTx, amount: deformatNumberString(e.target.value)})}/></div>
+                                     <div className="w-32 space-y-1"><label className="text-xs text-gray-500">تاریخ</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/xx/xx" value={newLicenseTx.date} onChange={e => setNewLicenseTx({...newLicenseTx, date: e.target.value})}/></div>
+                                     <button onClick={handleAddLicenseTx} className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 h-[38px]"><Plus size={18}/></button>
+                                 </div>
+                                 <div className="space-y-1">
+                                     {selectedRecord.licenseData?.transactions.map(tx => (
+                                         <div key={tx.id} className="flex justify-between items-center bg-gray-50 p-2 rounded text-sm border">
+                                             <div className="flex gap-4"><span>{tx.description}</span><span className="text-gray-500">{tx.date}</span></div>
+                                             <div className="flex gap-4 items-center"><span className="font-bold text-purple-700 font-mono">{formatCurrency(tx.amount)}</span><button onClick={() => handleRemoveLicenseTx(tx.id)} className="text-red-500"><X size={14}/></button></div>
+                                         </div>
+                                     ))}
+                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'insurance' && (
+                        <InsuranceTab 
+                            form={insuranceForm} 
+                            setForm={setInsuranceForm} 
+                            companies={settings?.insuranceCompanies || []} 
+                            banks={availableBanks} 
+                            onSave={handleSaveInsurance}
+                            newEndorsement={newEndorsement}
+                            setNewEndorsement={setNewEndorsement}
+                            endorsementType={endorsementType}
+                            setEndorsementType={setEndorsementType}
+                            onAddEndorsement={handleAddEndorsement}
+                            onDeleteEndorsement={handleDeleteEndorsement}
+                        />
+                    )}
+
+                    {activeTab === 'currency_purchase' && (
+                        /* ... Currency Purchase Logic ... */
+                        <div className="p-6 max-w-5xl mx-auto space-y-6">
+                            {/* Tranches Section */}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Coins size={20} className="text-amber-600"/> پارت‌های خرید ارز</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end bg-amber-50 p-4 rounded-lg">
+                                    <div className="col-span-1 space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">نوع ارز</label>
+                                        <select 
+                                            className="w-full border rounded p-2 text-sm bg-white" 
+                                            value={newCurrencyTranche.currencyType} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, currencyType: e.target.value})}
+                                        >
+                                            {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="col-span-1 space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">مقدار ارز</label>
+                                        <input 
+                                            className="w-full border rounded p-2 text-sm dir-ltr" 
+                                            value={newCurrencyTranche.amountStr || ''} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, amountStr: e.target.value})}
+                                            placeholder="مثال: 12500.5"
+                                        />
+                                    </div>
+                                    <div className="col-span-1 space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">مبلغ کل پرداختی (ریال)</label>
+                                        <input 
+                                            className="w-full border rounded p-2 text-sm dir-ltr" 
+                                            value={newCurrencyTranche.rialAmountStr || ''} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, rialAmountStr: formatNumberString(deformatNumberString(e.target.value))})} 
+                                            placeholder="مبلغ پرداختی..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1 space-y-1">
+                                        <label className="text-xs font-bold text-gray-700">کارمزد ارزی</label>
+                                        <input 
+                                            className="w-full border rounded p-2 text-sm dir-ltr" 
+                                            value={newCurrencyTranche.currencyFeeStr || ''} 
+                                            onChange={e => setNewCurrencyTranche({...newCurrencyTranche, currencyFeeStr: e.target.value})} 
+                                            placeholder="اختیاری..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">صرافی</label><input className="w-full border rounded p-2 text-sm" value={newCurrencyTranche.exchangeName} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, exchangeName: e.target.value})} /></div>
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">کارگزار</label><input className="w-full border rounded p-2 text-sm" value={newCurrencyTranche.brokerName} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, brokerName: e.target.value})} /></div>
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ خرید</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/01/01" value={newCurrencyTranche.date} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, date: e.target.value})} /></div>
+                                    {/* Added Return Fields */}
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-red-700">مبلغ عودت (ریال)</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={formatNumberString(newCurrencyTranche.returnAmount)} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnAmount: e.target.value})} placeholder="اختیاری" /></div>
+                                    <div className="col-span-2 space-y-1"><label className="text-xs font-bold text-red-700">تاریخ عودت</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={newCurrencyTranche.returnDate || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, returnDate: e.target.value})} placeholder="1403/..." /></div>
+                                    
+                                    <div className="col-span-1 space-y-1"><label className="text-xs font-bold text-green-700">مقدار تحویلی</label><input className="w-full border rounded p-2 text-sm dir-ltr font-bold text-green-700" value={newCurrencyTranche.receivedAmountStr || ''} onChange={e => setNewCurrencyTranche({...newCurrencyTranche, receivedAmountStr: e.target.value})} placeholder="اختیاری" /></div>
+
+                                    <div className="col-span-2 flex justify-end mt-2 gap-2">
+                                        {editingTrancheId && <button onClick={handleCancelEditTranche} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-300">انصراف</button>}
+                                        <button onClick={handleAddCurrencyTranche} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 flex items-center gap-1"><Plus size={16} /> {editingTrancheId ? 'ویرایش و ذخیره' : 'افزودن پارت'}</button>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-right">
+                                        <thead className="bg-gray-100 text-gray-700"><tr><th className="p-3">تاریخ</th><th className="p-3">مقدار</th><th className="p-3">کل پرداختی (ریال)</th><th className="p-3">کارمزد ارزی</th><th className="p-3">صرافی / کارگزار</th><th className="p-3 text-green-700">تحویل شده</th><th className="p-3 text-red-700">عودت (ریال)</th><th className="p-3 text-center">وضعیت تحویل</th><th className="p-3 bg-indigo-50 text-indigo-800">نرخ تمام شده</th><th className="p-3">عملیات</th></tr></thead>
+                                        <tbody>
+                                            {currencyForm.tranches?.map((t) => {
+                                                // Check for return amount field, handle if missing in type definition (runtime check)
+                                                // @ts-ignore
+                                                const retAmt = t.returnAmount;
+                                                // @ts-ignore
+                                                const retDate = t.returnDate;
+                                                // @ts-ignore
+                                                const recvAmt = t.receivedAmount;
+                                                
+                                                // Calculate Effective Rate for Display: (Paid - Return) / Delivered
+                                                const netPaid = (t.rialAmount || 0) - (retAmt || 0);
+                                                const actualDelivered = recvAmt || (t.isDelivered ? t.amount : 0);
+                                                const effectiveRateDisplay = actualDelivered > 0 ? netPaid / actualDelivered : 0;
+                                                
+                                                return (
+                                                <tr key={t.id} className="border-b hover:bg-gray-50">
+                                                    <td className="p-3">{t.date}</td>
+                                                    <td className="p-3 font-mono font-bold text-blue-600">{formatNumberString(t.amount)} {t.currencyType}</td>
+                                                    <td className="p-3 font-mono">{formatNumberString(t.rialAmount || 0)}</td>
+                                                    <td className="p-3 font-mono">{t.currencyFee ? t.currencyFee : '-'}</td>
+                                                    <td className="p-3 text-xs">{t.exchangeName} {t.brokerName ? `(${t.brokerName})` : ''}</td>
+                                                    <td className="p-3 text-xs font-bold text-green-600 font-mono">{recvAmt ? formatNumberString(recvAmt) : '-'}</td>
+                                                    <td className="p-3 text-xs text-red-600 font-mono">{retAmt ? `${formatNumberString(retAmt)} (${retDate || '-'})` : '-'}</td>
+                                                    <td className="p-3 text-center">
+                                                        <button onClick={() => handleToggleTrancheDelivery(t.id)} className={`px-2 py-1 rounded text-xs font-bold ${t.isDelivered ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {t.isDelivered ? 'تکمیل' : 'ناقص'}
+                                                        </button>
+                                                    </td>
+                                                    <td className="p-3 font-mono font-bold text-indigo-700 bg-indigo-50">{effectiveRateDisplay > 0 ? formatCurrency(effectiveRateDisplay) : '-'}</td>
+                                                    <td className="p-3 flex gap-1">
+                                                        <button onClick={() => handleEditTranche(t)} className="text-amber-500 hover:text-amber-700 p-1"><Edit2 size={16}/></button>
+                                                        <button onClick={() => handleRemoveTranche(t.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 size={16}/></button>
+                                                    </td>
+                                                </tr>
+                                            )})}
+                                            {(() => {
+                                                const totalPaid = currencyForm.tranches?.reduce((acc, t) => acc + (t.rialAmount || 0), 0) || 0;
+                                                const totalReturn = currencyForm.tranches?.reduce((acc, t:any) => acc + (t.returnAmount || 0), 0) || 0;
+                                                const totalNet = totalPaid - totalReturn;
+                                                const totalDelivered = currencyForm.deliveredAmount || 0;
+                                                const avgRate = totalDelivered > 0 ? totalNet / totalDelivered : 0;
+
+                                                return (
+                                                    <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
+                                                        <td className="p-3">جمع کل</td>
+                                                        <td className="p-3 font-mono text-amber-800">{formatNumberString(currencyForm.purchasedAmount)}</td>
+                                                        <td className="p-3 font-mono">{formatNumberString(totalPaid)}</td>
+                                                        <td colSpan={2}></td>
+                                                        <td className="p-3 font-mono text-green-800">{formatNumberString(currencyForm.deliveredAmount)}</td>
+                                                        <td className="p-3 font-mono text-red-800">{formatNumberString(totalReturn)}</td>
+                                                        <td></td>
+                                                        <td className="p-3 font-mono text-indigo-800 text-sm bg-indigo-100">{formatCurrency(avgRate)}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                );
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Guarantee Cheque Section */}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><ShieldCheck size={20} className="text-purple-600"/> چک ضمانت ارزی (رفع تعهد)</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end bg-purple-50 p-4 rounded-lg">
+                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">شماره چک</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={currencyGuarantee.number} onChange={e => setCurrencyGuarantee({...currencyGuarantee, number: e.target.value})} /></div>
+                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">نام بانک</label><select className="w-full border rounded p-2 text-sm" value={currencyGuarantee.bank} onChange={e => setCurrencyGuarantee({...currencyGuarantee, bank: e.target.value})}><option value="">انتخاب</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">مبلغ (ریال)</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={currencyGuarantee.amount} onChange={e => setCurrencyGuarantee({...currencyGuarantee, amount: formatNumberString(deformatNumberString(e.target.value).toString())})} /></div>
+                                     <div className="space-y-1"><label className="text-xs font-bold text-gray-700">تاریخ سررسید</label><input className="w-full border rounded p-2 text-sm dir-ltr" placeholder="1403/xx/xx" value={currencyGuarantee.date} onChange={e => setCurrencyGuarantee({...currencyGuarantee, date: e.target.value})} /></div>
+                                     <button onClick={handleSaveCurrencyGuarantee} className="bg-purple-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-purple-700 h-[38px]"><Save size={16} /></button>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-bold text-gray-700">وضعیت چک:</label>
+                                    <button onClick={handleToggleCurrencyGuaranteeDelivery} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${currencyGuarantee.isDelivered ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
+                                        {currencyGuarantee.isDelivered ? 'عودت داده شد (رفع تعهد)' : 'نزد بانک (در جریان)'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ... (Other tabs kept same - Shipping Docs, Inspection) ... */}
                     {/* (Other tabs logic remains identical to previous version, omitted for brevity but present in final file) */}
                     {activeTab === 'final_calculation' && (
                         /* ... Final Calculation Logic ... */
@@ -1028,7 +1319,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
 
             {/* Dashboard Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {navLevel !== 'GROUP' ? (
+                {navLevel !== 'GROUP' && !searchTerm ? (
                     groupedData.map((item: any) => (
                         <div key={item.name} onClick={() => item.type === 'company' ? goCompany(item.name) : goGroup(item.name)} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-2 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1049,11 +1340,13 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                             if (showArchived ? !r.isArchived : r.isArchived) return false;
                             
                             // 2. Navigation Filters
-                            if (r.company !== selectedCompany) return false;
-                            if (r.commodityGroup !== selectedGroup) return false;
+                            if (selectedCompany && r.company !== selectedCompany) return false;
+                            if (selectedGroup && r.commodityGroup !== selectedGroup) return false;
 
                             // 3. Enhanced Search
                             const term = searchTerm.toLowerCase();
+                            if (!term) return true;
+                            
                             return (
                                 r.goodsName.toLowerCase().includes(term) ||
                                 r.fileNumber.toLowerCase().includes(term) ||
