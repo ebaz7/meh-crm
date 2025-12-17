@@ -37,7 +37,7 @@ export interface User {
   username: string;
   password: string;
   fullName: string;
-  role: UserRole;
+  role: string; // Changed from UserRole to string to support custom roles
   canManageTrade?: boolean; 
   receiveNotifications?: boolean; 
   avatar?: string; 
@@ -211,6 +211,11 @@ export interface Contact {
     isGroup?: boolean; 
 }
 
+export interface CustomRole {
+    id: string;
+    label: string;
+}
+
 export interface SystemSettings {
   currentTrackingNumber: number;
   currentExitPermitNumber: number; 
@@ -221,6 +226,7 @@ export interface SystemSettings {
   operatingBankNames?: string[]; // Separate banks for Trade
   commodityGroups: string[]; 
   rolePermissions: Record<string, RolePermissions>; 
+  customRoles?: CustomRole[]; // NEW: List of user defined roles
   savedContacts?: Contact[]; 
   pwaIcon?: string; 
   telegramBotToken?: string; 
@@ -263,7 +269,7 @@ export interface ChatMessage {
     senderUsername: string; 
     recipient?: string; 
     groupId?: string; 
-    role: UserRole;
+    role: string;
     message: string;
     timestamp: number;
     attachment?: {

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
-import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User } from '../types';
+import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User, CustomRole } from '../types';
 import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
@@ -25,6 +25,7 @@ const Settings: React.FC = () => {
       operatingBankNames: [], 
       commodityGroups: [], 
       rolePermissions: {}, 
+      customRoles: [], // NEW
       savedContacts: [], 
       pwaIcon: '', 
       telegramBotToken: '', 
@@ -59,6 +60,9 @@ const Settings: React.FC = () => {
 
   // Commerce Local States
   const [newInsuranceCompany, setNewInsuranceCompany] = useState('');
+
+  // Custom Role Local State
+  const [newRoleName, setNewRoleName] = useState('');
 
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingLetterhead, setIsUploadingLetterhead] = useState(false);
@@ -102,6 +106,7 @@ const Settings: React.FC = () => {
           }
           if(!safeData.warehouseSequences) safeData.warehouseSequences = {};
           if(!safeData.companyNotifications) safeData.companyNotifications = {};
+          if(!safeData.customRoles) safeData.customRoles = [];
           setSettings(safeData); 
       } catch (e) { console.error("Failed to load settings"); } 
   };
@@ -278,6 +283,33 @@ const Settings: React.FC = () => {
   const handleAddInsuranceCompany = () => { if (newInsuranceCompany.trim() && !(settings.insuranceCompanies || []).includes(newInsuranceCompany.trim())) { setSettings({ ...settings, insuranceCompanies: [...(settings.insuranceCompanies || []), newInsuranceCompany.trim()] }); setNewInsuranceCompany(''); } };
   const handleRemoveInsuranceCompany = (name: string) => { setSettings({ ...settings, insuranceCompanies: (settings.insuranceCompanies || []).filter(c => c !== name) }); };
 
+  // CUSTOM ROLES MANAGEMENT
+  const handleAddRole = () => {
+      if (!newRoleName.trim()) return;
+      // Generate a distinct ID for the custom role
+      const roleId = `role_${Date.now()}`;
+      const newRole: CustomRole = { id: roleId, label: newRoleName.trim() };
+      setSettings({
+          ...settings,
+          customRoles: [...(settings.customRoles || []), newRole]
+      });
+      setNewRoleName('');
+  };
+
+  const handleRemoveRole = (roleId: string) => {
+      if (!confirm("آیا از حذف این نقش اطمینان دارید؟")) return;
+      const updatedRoles = (settings.customRoles || []).filter(r => r.id !== roleId);
+      // Clean up permissions for this role
+      const updatedPermissions = { ...settings.rolePermissions };
+      delete updatedPermissions[roleId];
+      
+      setSettings({
+          ...settings,
+          customRoles: updatedRoles,
+          rolePermissions: updatedPermissions
+      });
+  };
+
   const handlePermissionChange = (role: string, field: keyof RolePermissions, value: boolean) => { setSettings({ ...settings, rolePermissions: { ...settings.rolePermissions, [role]: { ...settings.rolePermissions[role], [field]: value } } }); };
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { try { const res = await uploadFile(file.name, ev.target?.result as string); setSettings({ ...settings, pwaIcon: res.url }); } catch (error) { alert('خطا'); } finally { setUploadingIcon(false); } }; reader.readAsDataURL(file); };
   const handleToggleNotifications = async () => { if (!isSecure) { alert("HTTPS لازم است"); return; } if (notificationsEnabled) { setNotificationPreference(false); setNotificationsEnabled(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotificationPreference(true); setNotificationsEnabled(true); } } };
@@ -289,7 +321,7 @@ const Settings: React.FC = () => {
   const handleRestoreClick = () => { if (confirm('بازگردانی اطلاعات کامل (شامل عکس‌ها)؟ همه اطلاعات فعلی پاک می‌شود.')) fileInputRef.current?.click(); };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setRestoring(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const response = await apiCall<{success: boolean}>('/full-restore', 'POST', { fileData: base64 }); if (response.success) { alert('بازگردانی کامل با موفقیت انجام شد. سیستم رفرش می‌شود.'); window.location.reload(); } } catch (error) { alert('خطا در بازگردانی فایل Zip'); } finally { setRestoring(false); } }; reader.readAsDataURL(file); };
 
-  const roles = [ 
+  const defaultRoles = [ 
       { id: UserRole.USER, label: 'کاربر عادی' }, 
       { id: UserRole.FINANCIAL, label: 'مدیر مالی' }, 
       { id: UserRole.MANAGER, label: 'مدیر داخلی' }, 
@@ -299,6 +331,9 @@ const Settings: React.FC = () => {
       { id: UserRole.WAREHOUSE_KEEPER, label: 'انباردار' },
       { id: UserRole.ADMIN, label: 'مدیر سیستم' }, 
   ];
+
+  // Combine default and custom roles for the permissions editor
+  const allRoles = [...defaultRoles, ...(settings.customRoles || [])];
   
   const permissionsList = [ 
       { id: 'canCreatePaymentOrder', label: 'ثبت دستور پرداخت جدید' }, 
@@ -339,7 +374,7 @@ const Settings: React.FC = () => {
                 <button onClick={() => setActiveCategory('warehouse')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'warehouse' ? 'bg-white shadow text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Warehouse size={18}/> انبار</button>
                 <button onClick={() => setActiveCategory('integrations')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'integrations' ? 'bg-white shadow text-purple-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Link size={18}/> اتصالات (API)</button>
                 <button onClick={() => setActiveCategory('whatsapp')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'whatsapp' ? 'bg-white shadow text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><MessageCircle size={18}/> مدیریت واتساپ</button>
-                <button onClick={() => setActiveCategory('permissions')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'permissions' ? 'bg-white shadow text-amber-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><ShieldCheck size={18}/> دسترسی‌ها</button>
+                <button onClick={() => setActiveCategory('permissions')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'permissions' ? 'bg-white shadow text-amber-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><ShieldCheck size={18}/> دسترسی‌ها و نقش‌ها</button>
             </nav>
         </div>
 
@@ -632,14 +667,45 @@ const Settings: React.FC = () => {
                 {/* 7. PERMISSIONS */}
                 {activeCategory === 'permissions' && (
                     <div className="space-y-8 animate-fade-in">
+                        
+                        {/* Custom Role Creation Section */}
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6">
+                            <h3 className="font-bold text-blue-800 mb-3 flex items-center gap-2"><Users size={20}/> تعریف نقش‌های کاربری سفارشی</h3>
+                            <div className="flex gap-2">
+                                <input 
+                                    className="flex-1 border rounded-lg p-2 text-sm bg-white" 
+                                    placeholder="نام نقش جدید (مثال: انتظامات، کارشناس فروش...)" 
+                                    value={newRoleName} 
+                                    onChange={(e) => setNewRoleName(e.target.value)} 
+                                />
+                                <button type="button" onClick={handleAddRole} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-1">
+                                    <Plus size={18}/> افزودن نقش
+                                </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                {settings.customRoles?.map(role => (
+                                    <div key={role.id} className="bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-blue-800 text-sm font-bold flex items-center gap-2 shadow-sm">
+                                        <span>{role.label}</span>
+                                        <button type="button" onClick={() => handleRemoveRole(role.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded p-0.5"><X size={14}/></button>
+                                    </div>
+                                ))}
+                                {(!settings.customRoles || settings.customRoles.length === 0) && (
+                                    <span className="text-xs text-gray-500">هیچ نقش سفارشی تعریف نشده است.</span>
+                                )}
+                            </div>
+                        </div>
+
                         <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><ShieldCheck size={20}/> مدیریت دسترسی نقش‌ها</h3>
                         <div className="space-y-6">
-                            {roles.map(role => (
+                            {allRoles.map(role => (
                                 <div key={role.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                    <h4 className="font-bold text-sm text-gray-800 mb-3 border-b pb-2">{role.label}</h4>
+                                    <div className="flex justify-between items-center mb-3 border-b pb-2">
+                                        <h4 className="font-bold text-sm text-gray-800">{role.label}</h4>
+                                        {/* Identify custom roles if needed, though delete is handled above */}
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {permissionsList.map(perm => (
-                                            <label key={`${role.id}-${perm.id}`} className="flex items-center gap-2 cursor-pointer">
+                                            <label key={`${role.id}-${perm.id}`} className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     className="w-4 h-4 text-blue-600 rounded"
