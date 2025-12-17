@@ -118,11 +118,18 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // --- PERMISSION LOGIC ---
     const canEdit = (item: any) => {
-        // Updated: Admin & CEO CAN edit archived items
+        // 1. Admin & CEO can edit everything except fully archived/locked if needed (here allowed)
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
         
+        // 2. Archived Items: Normal users CANNOT edit
         if (item.status === SecurityStatus.ARCHIVED) return false;
 
+        // 3. Rejected Items: Creator CAN edit to resubmit
+        if (item.status === SecurityStatus.REJECTED) {
+            return item.registrant === currentUser.fullName;
+        }
+
+        // 4. Workflow based editing
         if (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD) {
             return item.status === SecurityStatus.PENDING_SUPERVISOR;
         }
@@ -135,13 +142,15 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const canDelete = (item: any) => {
-        // Updated: Admin & CEO CAN delete archived items
+        // Admin & CEO can delete
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
         
+        // Archived: No one else can delete
         if (item.status === SecurityStatus.ARCHIVED) return false;
         
+        // Creator can delete if pending or rejected
         if (item.registrant === currentUser.fullName) {
-            if (currentUser.role === UserRole.SECURITY_GUARD && item.status !== SecurityStatus.PENDING_SUPERVISOR) return false;
+            if (currentUser.role === UserRole.SECURITY_GUARD && item.status !== SecurityStatus.PENDING_SUPERVISOR && item.status !== SecurityStatus.REJECTED) return false;
             return true;
         }
         return false;
@@ -158,11 +167,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         
         // Grouping logic for CEO: Group by Date
         if (role === UserRole.CEO || role === UserRole.ADMIN) {
-            // Find all pending CEO items
             const ceoLogs = logs.filter(l => l.status === SecurityStatus.PENDING_CEO);
             const ceoDelays = delays.filter(d => d.status === SecurityStatus.PENDING_CEO);
             
-            // Group Logs by Date
             const groupedByDate: Record<string, {count: number, type: 'daily_approval', date: string}> = {};
             
             ceoLogs.forEach(l => {
@@ -174,20 +181,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 groupedByDate[d.date].count++;
             });
 
-            // Push grouped items
             Object.values(groupedByDate).forEach(group => allPending.push(group));
-
-            // Push standalone incidents (critical)
             incidents.filter(i => i.status === SecurityStatus.PENDING_CEO).forEach(i => allPending.push({...i, type: 'incident'}));
             
-            // Add other pending items if ADMIN
             if (role === UserRole.ADMIN) {
-                 // Add non-CEO pending items for admin view
                  logs.filter(l => l.status !== SecurityStatus.PENDING_CEO && l.status !== SecurityStatus.ARCHIVED && l.status !== SecurityStatus.REJECTED).forEach(l => allPending.push({...l, type: 'log'}));
             }
 
         } else {
-            // Standard individual items for other roles
             const check = (item: any, type: string) => {
                 if (role === UserRole.SECURITY_HEAD && item.status === SecurityStatus.PENDING_SUPERVISOR) {
                     allPending.push({ ...item, type });
@@ -213,6 +214,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // --- ACTIONS ---
     const handleSaveLog = async () => {
+        // If it was rejected, reset to Pending Supervisor on save
+        let statusToSave = editingId ? logForm.status! : SecurityStatus.PENDING_SUPERVISOR;
+        if (editingId && logForm.status === SecurityStatus.REJECTED) {
+            statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        }
+
         const newLog: SecurityLog = {
             id: editingId || generateUUID(),
             rowNumber: editingId ? logForm.rowNumber! : dailyLogs.length + 1,
@@ -230,7 +237,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             workDescription: logForm.workDescription || '',
             permitProvider: logForm.permitProvider || '',
             registrant: editingId ? logForm.registrant! : currentUser.fullName, 
-            status: editingId ? logForm.status! : SecurityStatus.PENDING_SUPERVISOR,
+            status: statusToSave,
             createdAt: editingId ? logForm.createdAt! : Date.now()
         };
         if (editingId) await updateSecurityLog(newLog); else await saveSecurityLog(newLog);
@@ -238,6 +245,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleSaveDelay = async () => {
+        let statusToSave = editingId ? delayForm.status! : SecurityStatus.PENDING_SUPERVISOR;
+        if (editingId && delayForm.status === SecurityStatus.REJECTED) {
+            statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        }
+
         const newDelay: PersonnelDelay = {
             id: editingId || generateUUID(),
             date: getIsoSelectedDate(),
@@ -246,7 +258,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             arrivalTime: delayForm.arrivalTime || '',
             delayAmount: delayForm.delayAmount || '',
             registrant: editingId ? delayForm.registrant! : currentUser.fullName,
-            status: editingId ? delayForm.status! : SecurityStatus.PENDING_SUPERVISOR,
+            status: statusToSave,
             createdAt: editingId ? delayForm.createdAt! : Date.now()
         };
         if (editingId) await updatePersonnelDelay(newDelay); else await savePersonnelDelay(newDelay);
@@ -254,6 +266,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleSaveIncident = async () => {
+        let statusToSave = editingId ? incidentForm.status! : SecurityStatus.PENDING_SUPERVISOR;
+        if (editingId && incidentForm.status === SecurityStatus.REJECTED) {
+            statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        }
+
         const newInc: SecurityIncident = {
             id: editingId || generateUUID(),
             reportNumber: editingId ? incidentForm.reportNumber! : (incidents.length + 100).toString(),
@@ -263,7 +280,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             shift: incidentForm.shift || 'صبح',
             registrant: editingId ? incidentForm.registrant! : currentUser.fullName,
             witnesses: incidentForm.witnesses,
-            status: editingId ? incidentForm.status! : SecurityStatus.PENDING_SUPERVISOR,
+            status: statusToSave,
             createdAt: editingId ? incidentForm.createdAt! : Date.now()
         };
         if (editingId) await updateSecurityIncident(newInc); else await saveSecurityIncident(newInc);
@@ -301,14 +318,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const handleDeleteItem = async (id: string, type: 'log' | 'delay' | 'incident') => {
         if (!confirm('حذف شود؟')) return;
         if (type === 'log') await updateSecurityLog({ ...logs.find(l=>l.id===id)!, status: SecurityStatus.REJECTED } as any); 
-        // Note: For real delete use delete service, but using rejection keeps history. 
-        // Based on user request "delete option in archive", we might need hard delete there.
-        // For standard flow, keep soft delete (rejection) or implement hard delete.
-        // Let's assume hard delete for Archive items:
-        if (activeTab === 'archive') {
-             // Logic to actually remove if needed, but 'update status to REJECTED' effectively removes from active lists.
-             // If user wants GONE, implement delete service calls here.
-        }
         loadData();
     };
 
@@ -490,8 +499,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 : 'بررسی جهت تایید / رد'}
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-green-700 shadow"><CheckCircle size={18}/> تایید</button>
-                            <button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-red-700 shadow"><XCircle size={18}/> رد</button>
+                            {viewCartableItem.mode !== 'view_only' && (
+                                <>
+                                    <button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-green-700 shadow"><CheckCircle size={18}/> تایید</button>
+                                    <button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-red-700 shadow"><XCircle size={18}/> رد</button>
+                                </>
+                            )}
                             <button onClick={() => setViewCartableItem(null)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-300">بستن</button>
                         </div>
                     </div>
@@ -588,7 +601,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                             <td className="p-3 border-l"><div>{log.driverName}</div><div className="font-mono text-gray-500">{log.plateNumber}</div></td>
                                             <td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td>
                                             <td className="p-3 border-l">{log.permitProvider}</td>
-                                            <td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.ARCHIVED ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}`}>{log.status}</span></td>
+                                            <td className="p-3 border-l">
+                                                <span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.ARCHIVED ? 'bg-green-100 text-green-700' : log.status === SecurityStatus.REJECTED ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                    {log.status}
+                                                </span>
+                                                {log.status === SecurityStatus.REJECTED && log.rejectionReason && (
+                                                    <div className="text-[9px] text-red-500 max-w-[100px] truncate" title={log.rejectionReason}>دلیل: {log.rejectionReason}</div>
+                                                )}
+                                            </td>
                                             <td className="p-3 flex justify-center gap-2">
                                                 {canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500 hover:text-amber-700"><Edit size={16}/></button>}
                                                 {canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>}
@@ -651,7 +671,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                         <div className="font-bold text-sm mb-1">{item.type === 'log' ? `تردد: ${item.driverName}` : item.type === 'delay' ? `تاخیر: ${item.personnelName}` : `واقعه: ${item.subject}`}</div>
                                         <div className="text-xs text-gray-500">تاریخ: {formatDate(item.date)} | وضعیت: {item.status}</div>
                                     </div>
-                                    <button onClick={() => setViewCartableItem(item)} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2 shadow-sm"><FileSymlink size={16}/> بررسی</button>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-1"><Eye size={16}/></button>
+                                        <button onClick={() => setViewCartableItem(item)} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2 shadow-sm"><FileSymlink size={16}/> بررسی</button>
+                                    </div>
                                 </div>
                             )})}
                             {getCartableItems().length === 0 && <div className="text-center text-gray-400 py-10">کارتابل شما خالی است.</div>}
