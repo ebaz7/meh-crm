@@ -1,5 +1,5 @@
 
-import { PaymentOrder, User, UserRole, OrderStatus, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, ExitPermit, ExitPermitStatus, WarehouseItem, WarehouseTransaction } from '../types';
+import { PaymentOrder, User, UserRole, OrderStatus, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, ExitPermit, ExitPermitStatus, WarehouseItem, WarehouseTransaction, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus } from '../types';
 import { apiCall } from './apiService';
 
 // ... Existing methods for Orders ...
@@ -97,6 +97,26 @@ export const getNextExitPermitNumber = async (): Promise<number> => {
         return (settings.currentExitPermitNumber || 1000) + 1;
     }
 };
+
+// --- SECURITY MODULE STORAGE ---
+
+// 1. Security Logs (Entry/Exit)
+export const getSecurityLogs = async (): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs'); };
+export const saveSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs', 'POST', log); };
+export const updateSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>(`/security/logs/${log.id}`, 'PUT', log); };
+export const deleteSecurityLog = async (id: string): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>(`/security/logs/${id}`, 'DELETE'); };
+
+// 2. Personnel Delays
+export const getPersonnelDelays = async (): Promise<PersonnelDelay[]> => { return await apiCall<PersonnelDelay[]>('/security/delays'); };
+export const savePersonnelDelay = async (delay: PersonnelDelay): Promise<PersonnelDelay[]> => { return await apiCall<PersonnelDelay[]>('/security/delays', 'POST', delay); };
+export const updatePersonnelDelay = async (delay: PersonnelDelay): Promise<PersonnelDelay[]> => { return await apiCall<PersonnelDelay[]>(`/security/delays/${delay.id}`, 'PUT', delay); };
+export const deletePersonnelDelay = async (id: string): Promise<PersonnelDelay[]> => { return await apiCall<PersonnelDelay[]>(`/security/delays/${id}`, 'DELETE'); };
+
+// 3. Incident Reports
+export const getSecurityIncidents = async (): Promise<SecurityIncident[]> => { return await apiCall<SecurityIncident[]>('/security/incidents'); };
+export const saveSecurityIncident = async (incident: SecurityIncident): Promise<SecurityIncident[]> => { return await apiCall<SecurityIncident[]>('/security/incidents', 'POST', incident); };
+export const updateSecurityIncident = async (incident: SecurityIncident): Promise<SecurityIncident[]> => { return await apiCall<SecurityIncident[]>(`/security/incidents/${incident.id}`, 'PUT', incident); };
+export const deleteSecurityIncident = async (id: string): Promise<SecurityIncident[]> => { return await apiCall<SecurityIncident[]>(`/security/incidents/${id}`, 'DELETE'); };
 
 // ... Existing methods for Settings ...
 export const getSettings = async (): Promise<SystemSettings> => {

@@ -57,13 +57,20 @@ const getDb = () => {
                 companyNames: [], companies: [], bankNames: [], rolePermissions: {}, savedContacts: [], warehouseSequences: {}
             }, 
             orders: [], exitPermits: [], warehouseItems: [], warehouseTransactions: [],
+            // Initialize security arrays
+            securityLogs: [], personnelDelays: [], securityIncidents: [],
             users: [{ id: '1', username: 'admin', password: '123', fullName: 'مدیر سیستم', role: 'admin', canManageTrade: true }], 
             messages: [], groups: [], tasks: [], tradeRecords: [] 
         };
         fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
         return initial;
     }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    // Migration: ensure security arrays exist
+    if (!data.securityLogs) data.securityLogs = [];
+    if (!data.personnelDelays) data.personnelDelays = [];
+    if (!data.securityIncidents) data.securityIncidents = [];
+    return data;
 };
 
 const saveDb = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
@@ -332,6 +339,38 @@ app.put('/api/warehouse/transactions/:id', async (req, res) => {
     }
 });
 app.delete('/api/warehouse/transactions/:id', (req, res) => { const db = getDb(); db.warehouseTransactions = db.warehouseTransactions.filter(x => x.id !== req.params.id); saveDb(db); res.json(db.warehouseTransactions); });
+
+// --- 4. SECURITY MODULE ROUTES ---
+
+// Logs
+app.get('/api/security/logs', (req, res) => res.json(getDb().securityLogs));
+app.post('/api/security/logs', (req, res) => { const db = getDb(); const item = req.body; item.id = item.id || Date.now().toString(); db.securityLogs.unshift(item); saveDb(db); res.json(db.securityLogs); });
+app.put('/api/security/logs/:id', (req, res) => { 
+    const db = getDb(); 
+    const idx = db.securityLogs.findIndex(x => x.id === req.params.id); 
+    if (idx !== -1) { db.securityLogs[idx] = { ...db.securityLogs[idx], ...req.body }; saveDb(db); res.json(db.securityLogs); } else res.sendStatus(404); 
+});
+app.delete('/api/security/logs/:id', (req, res) => { const db = getDb(); db.securityLogs = db.securityLogs.filter(x => x.id !== req.params.id); saveDb(db); res.json(db.securityLogs); });
+
+// Delays
+app.get('/api/security/delays', (req, res) => res.json(getDb().personnelDelays));
+app.post('/api/security/delays', (req, res) => { const db = getDb(); const item = req.body; item.id = item.id || Date.now().toString(); db.personnelDelays.unshift(item); saveDb(db); res.json(db.personnelDelays); });
+app.put('/api/security/delays/:id', (req, res) => { 
+    const db = getDb(); 
+    const idx = db.personnelDelays.findIndex(x => x.id === req.params.id); 
+    if (idx !== -1) { db.personnelDelays[idx] = { ...db.personnelDelays[idx], ...req.body }; saveDb(db); res.json(db.personnelDelays); } else res.sendStatus(404); 
+});
+app.delete('/api/security/delays/:id', (req, res) => { const db = getDb(); db.personnelDelays = db.personnelDelays.filter(x => x.id !== req.params.id); saveDb(db); res.json(db.personnelDelays); });
+
+// Incidents
+app.get('/api/security/incidents', (req, res) => res.json(getDb().securityIncidents));
+app.post('/api/security/incidents', (req, res) => { const db = getDb(); const item = req.body; item.id = item.id || Date.now().toString(); db.securityIncidents.unshift(item); saveDb(db); res.json(db.securityIncidents); });
+app.put('/api/security/incidents/:id', (req, res) => { 
+    const db = getDb(); 
+    const idx = db.securityIncidents.findIndex(x => x.id === req.params.id); 
+    if (idx !== -1) { db.securityIncidents[idx] = { ...db.securityIncidents[idx], ...req.body }; saveDb(db); res.json(db.securityIncidents); } else res.sendStatus(404); 
+});
+app.delete('/api/security/incidents/:id', (req, res) => { const db = getDb(); db.securityIncidents = db.securityIncidents.filter(x => x.id !== req.params.id); saveDb(db); res.json(db.securityIncidents); });
 
 
 // Other Standard Routes

@@ -12,6 +12,7 @@ import TradeModule from './components/TradeModule';
 import CreateExitPermit from './components/CreateExitPermit'; 
 import ManageExitPermits from './components/ManageExitPermits'; 
 import WarehouseModule from './components/WarehouseModule';
+import SecurityModule from './components/SecurityModule'; // Added
 import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
@@ -43,7 +44,7 @@ function App() {
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash && ['dashboard', 'create', 'manage', 'chat', 'trade', 'users', 'settings', 'create-exit', 'manage-exit', 'warehouse'].includes(hash)) {
+    if (hash && ['dashboard', 'create', 'manage', 'chat', 'trade', 'users', 'settings', 'create-exit', 'manage-exit', 'warehouse', 'security'].includes(hash)) {
         setActiveTabState(hash);
         safeReplaceState({ tab: hash }, '', `#${hash}`);
     } else {
@@ -142,14 +143,6 @@ function App() {
       setActiveTab('manage-exit');
   };
 
-  const handleGoToBijakApprovals = () => {
-      setActiveTab('warehouse'); // The WarehouseModule will default to 'approvals' tab if we pass a prop, or we can handle it there.
-      // We'll modify WarehouseModule to accept an initial tab prop better, or just use the existing one.
-      // But App.tsx doesn't dynamically pass initialTab based on state easily without a re-render.
-      // A simple way is to use a specific hash or prop.
-      // For now, let's rely on passing `initialTab="approvals"` when rendering WarehouseModule if a specific state is set.
-  };
-
   // State to track if we should open specific warehouse tab
   const [warehouseInitialTab, setWarehouseInitialTab] = useState<'dashboard' | 'approvals'>('dashboard');
 
@@ -189,6 +182,7 @@ function App() {
             {activeTab === 'trade' && <TradeModule currentUser={currentUser} />}
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
+            {activeTab === 'security' && <SecurityModule currentUser={currentUser} />}
             {activeTab === 'chat' && <ChatRoom currentUser={currentUser} onNotification={addAppNotification} />}
         </>
       )}

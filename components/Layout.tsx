@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
@@ -139,6 +139,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const canManageWarehouse = currentUser.role === UserRole.ADMIN || (perms && perms.canManageWarehouse === true);
   const canSeeTrade = perms?.canManageTrade ?? false;
   const canSeeSettings = currentUser.role === UserRole.ADMIN || (perms?.canManageSettings ?? false);
+  
+  // Security Module Check (Assuming everyone with role in system or specific permission)
+  const canSeeSecurity = currentUser.role === UserRole.ADMIN || 
+                         currentUser.role === UserRole.CEO || 
+                         currentUser.role === UserRole.FACTORY_MANAGER ||
+                         currentUser.role === UserRole.SECURITY_HEAD ||
+                         currentUser.role === UserRole.SECURITY_GUARD ||
+                         (perms && perms.canViewSecurity !== false);
 
   const navItems = [
     { id: 'dashboard', label: 'داشبورد', icon: LayoutDashboard },
@@ -165,7 +173,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       navItems.push({ id: 'warehouse', label: 'مدیریت انبار', icon: Package });
   }
 
-  // 4. GENERAL MODULES
+  // 4. SECURITY MODULE (NEW)
+  if (canSeeSecurity) {
+      navItems.push({ id: 'security', label: 'انتظامات', icon: Shield });
+  }
+
+  // 5. GENERAL MODULES
   navItems.push({ id: 'chat', label: 'گفتگو', icon: MessageSquare });
 
   if (canSeeTrade) navItems.push({ id: 'trade', label: 'بازرگانی', icon: Container });
@@ -248,6 +261,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
                           {item.id === 'create' && <div className="px-4 mt-4 mb-2 text-[10px] uppercase font-bold text-slate-500 tracking-wider">مدیریت پرداخت</div>}
                           {item.id === 'create-exit' && <div className="px-4 mt-4 mb-2 text-[10px] uppercase font-bold text-slate-500 tracking-wider">خروج کارخانه</div>}
                           {item.id === 'warehouse' && <div className="px-4 mt-4 mb-2 text-[10px] uppercase font-bold text-slate-500 tracking-wider">انبار</div>}
+                          {item.id === 'security' && <div className="px-4 mt-4 mb-2 text-[10px] uppercase font-bold text-slate-500 tracking-wider">حراست و انتظامات</div>}
                           
                           <button onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                               <Icon size={20} />

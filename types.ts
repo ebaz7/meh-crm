@@ -21,6 +21,15 @@ export enum ExitPermitStatus {
   REJECTED = 'رد شده'
 }
 
+// Security Module Statuses
+export enum SecurityStatus {
+  PENDING_SUPERVISOR = 'در انتظار تایید سرپرست انتظامات',
+  PENDING_FACTORY = 'تایید سرپرست / در انتظار مدیر کارخانه',
+  PENDING_CEO = 'تایید کارخانه / در انتظار مدیرعامل',
+  ARCHIVED = 'بایگانی شده (نهایی)',
+  REJECTED = 'رد شده'
+}
+
 export enum UserRole {
   ADMIN = 'admin',        
   CEO = 'ceo',            
@@ -29,6 +38,8 @@ export enum UserRole {
   SALES_MANAGER = 'sales_manager', 
   FACTORY_MANAGER = 'factory_manager',
   WAREHOUSE_KEEPER = 'warehouse_keeper', 
+  SECURITY_GUARD = 'security_guard', // Added
+  SECURITY_HEAD = 'security_head',   // Added
   USER = 'user'           
 }
 
@@ -163,6 +174,83 @@ export interface WarehouseTransaction {
     updatedAt?: number;
 }
 
+// --- SECURITY MODULE TYPES ---
+
+// 1. Daily Log (Vehicle/Goods Traffic) - فرم گزارش نگهبانی
+export interface SecurityLog {
+    id: string;
+    rowNumber: number;
+    date: string;
+    shift: string; // Morning, Evening, Night
+    
+    // Traffic Details
+    type: 'Entry' | 'Exit';
+    time: string;
+    originDestination: string; // Mabda/Maghsad
+    
+    // Driver/Vehicle
+    driverName: string;
+    driverPhone?: string;
+    plateNumber: string;
+    vehicleType?: string; // e.g. Nissan, Truck
+    
+    // Cargo
+    goodsName: string;
+    quantity: string;
+    
+    // Workflow
+    registrant: string; // Guard Name
+    status: SecurityStatus;
+    
+    approverSupervisor?: string;
+    approverFactory?: string;
+    approverCeo?: string;
+    rejectionReason?: string;
+    
+    createdAt: number;
+}
+
+// 2. Personnel Delay - فرم گزارش تاخیر ورود پرسنل
+export interface PersonnelDelay {
+    id: string;
+    date: string;
+    personnelName: string;
+    unit: string; // Unit/Department
+    arrivalTime: string;
+    delayAmount: string; // e.g. "15 min"
+    description?: string;
+    
+    registrant: string;
+    status: SecurityStatus;
+    
+    approverSupervisor?: string;
+    approverFactory?: string;
+    approverCeo?: string; // Usually Factory Manager is enough, but per request -> CEO -> Archive
+    rejectionReason?: string;
+    
+    createdAt: number;
+}
+
+// 3. Incident/Unit Report - فرم گزارش واحد انتظامات
+export interface SecurityIncident {
+    id: string;
+    reportNumber: number;
+    date: string;
+    subject: string;
+    description: string;
+    shift: string;
+    
+    registrant: string;
+    status: SecurityStatus;
+    
+    approverSupervisor?: string;
+    approverFactory?: string;
+    approverCeo?: string;
+    rejectionReason?: string;
+    
+    createdAt: number;
+}
+
 export interface RolePermissions {
     canViewAll: boolean;
     canCreatePaymentOrder: boolean; // New Permission
@@ -187,6 +275,11 @@ export interface RolePermissions {
     canManageWarehouse?: boolean; // Full Access
     canViewWarehouseReports?: boolean; // Read Only
     canApproveBijak?: boolean; // New Permission for Bijak Approval
+    
+    // Security Permissions
+    canViewSecurity?: boolean;
+    canCreateSecurityLog?: boolean;
+    canApproveSecuritySupervisor?: boolean;
 }
 
 export interface CompanyBank {
