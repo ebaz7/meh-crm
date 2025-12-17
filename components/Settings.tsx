@@ -329,6 +329,8 @@ const Settings: React.FC = () => {
       { id: UserRole.SALES_MANAGER, label: 'مدیر فروش' },
       { id: UserRole.FACTORY_MANAGER, label: 'مدیر کارخانه' },
       { id: UserRole.WAREHOUSE_KEEPER, label: 'انباردار' },
+      { id: UserRole.SECURITY_HEAD, label: 'سرپرست انتظامات' },
+      { id: UserRole.SECURITY_GUARD, label: 'نگهبان' },
       { id: UserRole.ADMIN, label: 'مدیر سیستم' }, 
   ];
 
@@ -355,7 +357,11 @@ const Settings: React.FC = () => {
       { id: 'canViewExitArchive', label: 'مشاهده بایگانی خروج بار' },
       { id: 'canEditExitArchive', label: 'اصلاح اسناد بایگانی خروج' },
       { id: 'canManageWarehouse', label: 'مدیریت انبار (ورود/خروج)' },
-      { id: 'canViewWarehouseReports', label: 'مشاهده گزارشات انبار' }
+      { id: 'canViewWarehouseReports', label: 'مشاهده گزارشات انبار' },
+      // New Security Permissions
+      { id: 'canViewSecurity', label: 'مشاهده ماژول انتظامات' },
+      { id: 'canCreateSecurityLog', label: 'ثبت گزارشات انتظامات' },
+      { id: 'canApproveSecuritySupervisor', label: 'تایید گزارشات به عنوان سرپرست' }
   ];
 
   const getMergedContactOptions = () => {

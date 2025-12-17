@@ -5,6 +5,7 @@ import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate } from '../constants';
 import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
+import { getRolePermissions } from '../services/authService';
 
 interface Props {
     currentUser: User;
@@ -36,6 +37,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // Shift Meta Form State
     const [metaForm, setMetaForm] = useState<DailySecurityMeta>({});
+
+    // Permissions
+    const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
 
     useEffect(() => { loadData(); }, []);
 
@@ -171,14 +175,18 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             incidents.filter(i => i.status === SecurityStatus.PENDING_CEO).forEach(i => allPending.push({...i, type: 'incident'}));
             
             if (role === UserRole.ADMIN) {
-                 // For Admin, show factory pending items too to debug/manage
-                 logs.filter(l => l.status === SecurityStatus.PENDING_FACTORY || l.status === SecurityStatus.APPROVED_FACTORY_CHECK).forEach(l => allPending.push({...l, type: 'log'}));
+                 // For Admin, also show individual pending items from lower levels to debug/manage
+                 // Logs waiting for Supervisor or Factory
+                 logs.filter(l => (l.status === SecurityStatus.PENDING_SUPERVISOR || l.status === SecurityStatus.PENDING_FACTORY || l.status === SecurityStatus.APPROVED_FACTORY_CHECK)).forEach(l => allPending.push({...l, type: 'log'}));
             }
 
         } else {
             // Standard individual items for other roles
             const check = (item: any, type: string) => {
-                if (role === UserRole.SECURITY_HEAD && item.status === SecurityStatus.PENDING_SUPERVISOR) {
+                // Check for Supervisor (Head of Security) Permission OR Role
+                const isSupervisor = role === UserRole.SECURITY_HEAD || (permissions && permissions.canApproveSecuritySupervisor);
+                
+                if (isSupervisor && item.status === SecurityStatus.PENDING_SUPERVISOR) {
                     allPending.push({ ...item, type });
                 } else if (role === UserRole.FACTORY_MANAGER && (item.status === SecurityStatus.PENDING_FACTORY || item.status === SecurityStatus.APPROVED_FACTORY_CHECK)) {
                     allPending.push({ ...item, type });
@@ -367,23 +375,23 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
 
         // Standard Item Approval (Supervisor to Factory)
-        if (confirm('آیا تایید می‌کنید؟')) {
-            let nextStatus = item.status;
-            let updates: any = {};
+        // Check both role AND permission
+        const isSupervisor = currentUser.role === UserRole.SECURITY_HEAD || (permissions && permissions.canApproveSecuritySupervisor);
+        
+        if (isSupervisor && item.status === SecurityStatus.PENDING_SUPERVISOR) {
+            if (confirm('آیا تایید می‌کنید؟')) {
+                let updates: any = {
+                    status: SecurityStatus.PENDING_FACTORY,
+                    approverSupervisor: currentUser.fullName
+                };
 
-            if (item.status === SecurityStatus.PENDING_SUPERVISOR) {
-                nextStatus = SecurityStatus.PENDING_FACTORY;
-                updates.approverSupervisor = currentUser.fullName;
+                if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
+                else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
+                else await updateSecurityIncident({ ...item, ...updates });
+                
+                setViewCartableItem(null); 
+                loadData();
             }
-
-            updates.status = nextStatus;
-
-            if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
-            else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
-            else await updateSecurityIncident({ ...item, ...updates });
-            
-            setViewCartableItem(null); 
-            loadData();
         }
     };
 

@@ -47,17 +47,16 @@ export const hasPermission = (user: User | null, permissionType: string): boolea
 
 export const getRolePermissions = (userRole: string, settings: SystemSettings | null, userObject?: User): RolePermissions => {
     const defaults: RolePermissions = {
-        canViewAll: userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER,
+        canViewAll: userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD,
         
-        // Creation Permission: Default False for Factory/Warehouse/Sales unless enabled
-        canCreatePaymentOrder: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER, 
+        // Creation Permission
+        canCreatePaymentOrder: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD, 
         
         // Default View Permissions for Payments
-        // CHANGE: SALES_MANAGER removed from default 'true'. Now defaults to 'false' to respect settings checkbox.
         canViewPaymentOrders: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.FINANCIAL,
         
         // Exit Permits
-        canViewExitPermits: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER,
+        canViewExitPermits: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.SECURITY_HEAD,
 
         canApproveFinancial: userRole === UserRole.FINANCIAL || userRole === UserRole.ADMIN,
         canApproveManager: userRole === UserRole.MANAGER || userRole === UserRole.ADMIN,
@@ -76,17 +75,21 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canApproveExitCeo: userRole === UserRole.CEO || userRole === UserRole.ADMIN,
         canApproveExitFactory: userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN,
         
-        canViewExitArchive: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER,
+        canViewExitArchive: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD,
         canEditExitArchive: userRole === UserRole.ADMIN,
 
         // Warehouse Permissions
-        // CHANGE: FACTORY_MANAGER removed from default 'true'. Now defaults to 'false' to respect settings checkbox.
         canManageWarehouse: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER, 
         
         canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER,
         
         // Bijak Approval
-        canApproveBijak: userRole === UserRole.ADMIN || userRole === UserRole.CEO
+        canApproveBijak: userRole === UserRole.ADMIN || userRole === UserRole.CEO,
+
+        // Security Defaults
+        canViewSecurity: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.SECURITY_GUARD,
+        canCreateSecurityLog: userRole === UserRole.SECURITY_GUARD || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN,
+        canApproveSecuritySupervisor: userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN
     };
 
     if (!settings || !settings.rolePermissions || !settings.rolePermissions[userRole]) {
