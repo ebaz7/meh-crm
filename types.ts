@@ -24,8 +24,9 @@ export enum ExitPermitStatus {
 // Security Module Statuses
 export enum SecurityStatus {
   PENDING_SUPERVISOR = 'در انتظار تایید سرپرست انتظامات',
+  APPROVED_SUPERVISOR_CHECK = 'تایید اولیه سرپرست (چک شد)', // New: Line-by-line approval for Supervisor (Delay)
   PENDING_FACTORY = 'تایید سرپرست / در انتظار مدیر کارخانه',
-  APPROVED_FACTORY_CHECK = 'تایید اولیه مدیر کارخانه (منتظر امضای نهایی)', // New: Line-by-line approval
+  APPROVED_FACTORY_CHECK = 'تایید اولیه مدیر کارخانه (منتظر امضای نهایی)', 
   PENDING_CEO = 'تایید کارخانه / در انتظار مدیرعامل',
   ARCHIVED = 'بایگانی شده (نهایی)',
   REJECTED = 'رد شده'
@@ -174,9 +175,15 @@ export interface DailySecurityMeta {
     morningGuard?: { name: string; entry: string; exit: string };
     eveningGuard?: { name: string; entry: string; exit: string };
     nightGuard?: { name: string; entry: string; exit: string };
-    // Approval Flags for Stamps
+    
+    // Log Approval Flags
     isFactoryDailyApproved?: boolean;
     isCeoDailyApproved?: boolean;
+
+    // Delay Approval Flags (Separate Workflow)
+    isDelaySupervisorApproved?: boolean;
+    isDelayFactoryApproved?: boolean;
+    isDelayCeoApproved?: boolean;
 }
 
 // 1. Daily Log (Vehicle/Goods Traffic) - فرم گزارش نگهبانی
@@ -224,6 +231,10 @@ export interface PersonnelDelay {
     unit: string; // واحد
     arrivalTime: string; // ساعت ورود
     delayAmount: string; // مدت تاخیر
+    
+    // New fields for the "Repeat Delay" section
+    repeatCount?: string; // تعداد تکرار
+    instruction?: string; // دستور
     
     registrant: string;
     status: SecurityStatus;

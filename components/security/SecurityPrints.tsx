@@ -2,6 +2,7 @@
 import React from 'react';
 import { SecurityLog, PersonnelDelay, SecurityIncident, DailySecurityMeta } from '../../types';
 import { formatDate } from '../../constants';
+import PrintPersonnelDelayForm from './PrintPersonnelDelayForm';
 
 interface DailyLogProps {
     date: string;
@@ -170,73 +171,10 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
     );
 };
 
-export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[] }> = ({ delays }) => {
-    const displayDelays = [...delays];
-    while(displayDelays.length < 15) displayDelays.push({} as any);
-
-    return (
-        <div className="w-[210mm] h-[297mm] bg-white p-4 mx-auto text-black font-sans relative" style={{ direction: 'rtl' }}>
-            <div className="border-2 border-black h-full flex flex-col">
-                <div className="flex border-b-2 border-black h-20">
-                    <div className="w-1/3 border-l-2 border-black p-2 flex flex-col justify-center">
-                        <div className="font-bold text-sm">شماره:</div>
-                        <div className="font-bold text-sm">تاریخ: {delays[0]?.date ? formatDate(delays[0].date) : ''}</div>
-                    </div>
-                    <div className="w-1/3 border-l-2 border-black flex items-center justify-center bg-gray-50">
-                        <h1 className="text-xl font-black">فرم گزارش تاخیر ورود پرسنل</h1>
-                    </div>
-                    <div className="w-1/3 flex items-center justify-center">
-                        <div className="font-bold">گروه تولیدی</div>
-                    </div>
-                </div>
-
-                <div className="flex-1">
-                    <table className="w-full border-collapse text-center">
-                        <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-black p-1 w-10">ردیف</th>
-                                <th className="border border-black p-1">نام و نام خانوادگی</th>
-                                <th className="border border-black p-1 w-24">واحد</th>
-                                <th className="border border-black p-1 w-24">ساعت ورود</th>
-                                <th className="border border-black p-1 w-32">مدت تاخیر</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {displayDelays.map((d, i) => (
-                                <tr key={i} className="h-10">
-                                    <td className="border border-black">{d.id ? i + 1 : ''}</td>
-                                    <td className="border border-black font-bold">{d.personnelName}</td>
-                                    <td className="border border-black">{d.unit}</td>
-                                    <td className="border border-black dir-ltr font-mono">{d.arrivalTime}</td>
-                                    <td className="border border-black">{d.delayAmount}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Footer */}
-                <div className="h-32 border-t-2 border-black flex text-xs">
-                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">امضا نگهبان:</div>
-                        {delays.length > 0 && <span>{delays[0].registrant}</span>}
-                    </div>
-                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">سرپرست انتظامات:</div>
-                        {delays.some(d => d.approverSupervisor) && <div className="border-2 border-blue-600 text-blue-600 p-1 rotate-[-5deg] font-bold rounded">تایید شد</div>}
-                    </div>
-                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">مدیر کارخانه:</div>
-                        {delays.some(d => d.approverFactory) && <div className="border-2 border-green-600 text-green-600 p-1 rotate-[-5deg] font-bold rounded">تایید نهایی</div>}
-                    </div>
-                    <div className="w-1/4 flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">مدیر عامل:</div>
-                        {delays.some(d => d.approverCeo) && <div className="border-2 border-purple-600 text-purple-600 p-1 rotate-[-5deg] font-bold rounded">تایید شد</div>}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[], meta?: DailySecurityMeta }> = ({ delays, meta }) => {
+    // If no delays, create a placeholder
+    const safeDelays = delays.length > 0 ? delays : [{ date: new Date().toISOString() } as PersonnelDelay];
+    return <PrintPersonnelDelayForm delays={delays} date={safeDelays[0].date} meta={meta} />;
 };
 
 export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ incident }) => {
