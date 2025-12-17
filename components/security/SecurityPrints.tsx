@@ -71,8 +71,8 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) =
                                 <tr key={index} className="h-8">
                                     <td className="border border-black">{log.id ? index + 1 : ''}</td>
                                     <td className="border border-black">{log.origin}</td>
-                                    <td className="border border-black">{log.entryTime}</td>
-                                    <td className="border border-black">{log.exitTime}</td>
+                                    <td className="border border-black font-mono">{log.entryTime}</td>
+                                    <td className="border border-black font-mono">{log.exitTime}</td>
                                     <td className="border border-black">{log.driverName}</td>
                                     <td className="border border-black font-mono">{log.plateNumber}</td>
                                     <td className="border border-black">{log.permitProvider}</td>
@@ -87,39 +87,40 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) =
                     </table>
                 </div>
 
-                {/* Footer Section */}
-                <div className="h-48 flex border-t-2 border-black">
-                    <div className="w-full flex flex-col">
-                        <div className="h-24 border-b border-black p-2">
-                            <span className="font-bold text-xs underline">گزارش مختصر از وقایع نگهبانی:</span>
-                            <div className="mt-1 text-xs">
-                                {/* Aggregated notes can go here */}
-                            </div>
+                {/* Footer Section - Updated to match image with empty space */}
+                <div className="h-48 flex flex-col border-t-2 border-black">
+                    {/* Notes Section */}
+                    <div className="h-24 border-b border-black p-2 flex flex-col">
+                        <span className="font-bold text-xs underline mb-1">گزارش مختصر از وقایع نگهبانی:</span>
+                        <div className="flex-1">
+                            {/* Empty space for handwriting */}
                         </div>
-                        <div className="flex-1 flex text-[10px]">
-                            <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                                <span className="font-bold">نگهبان صبح</span>
-                                <div>{/* Sign */}</div>
-                                <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
-                            </div>
-                            <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                                <span className="font-bold">نگهبان عصر</span>
-                                <div>{/* Sign */}</div>
-                                <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
-                            </div>
-                            <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                                <span className="font-bold">نگهبان شب</span>
-                                <div>{/* Sign */}</div>
-                                <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
-                            </div>
-                            <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2">
-                                <span className="font-bold">سرپرست انتظامات</span>
-                                {logs.some(l => l.approverSupervisor) && <div className="border-2 border-blue-700 text-blue-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید شد</div>}
-                            </div>
-                            <div className="w-2/6 p-1 text-center flex flex-col justify-between items-center pt-2">
-                                <span className="font-bold">مدیر کارخانه</span>
-                                {logs.some(l => l.approverFactory) && <div className="border-2 border-green-700 text-green-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید نهایی</div>}
-                            </div>
+                    </div>
+                    
+                    {/* Signatures */}
+                    <div className="flex-1 flex text-[10px]">
+                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
+                            <span className="font-bold">نگهبان صبح</span>
+                            <div>{/* Sign */}</div>
+                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
+                        </div>
+                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
+                            <span className="font-bold">نگهبان عصر</span>
+                            <div>{/* Sign */}</div>
+                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
+                        </div>
+                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
+                            <span className="font-bold">نگهبان شب</span>
+                            <div>{/* Sign */}</div>
+                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
+                        </div>
+                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2">
+                            <span className="font-bold">سرپرست انتظامات</span>
+                            {logs.some(l => l.approverSupervisor) && <div className="border-2 border-blue-700 text-blue-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید شد</div>}
+                        </div>
+                        <div className="w-2/6 p-1 text-center flex flex-col justify-between items-center pt-2">
+                            <span className="font-bold">مدیر کارخانه</span>
+                            {logs.some(l => l.approverFactory) && <div className="border-2 border-green-700 text-green-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید نهایی</div>}
                         </div>
                     </div>
                 </div>

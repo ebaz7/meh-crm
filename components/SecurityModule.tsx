@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, parsePersianDate } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, FileText, AlertTriangle, UserCheck, Eye, Calendar, Printer, Archive, Filter, X, Search } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, FileText, AlertTriangle, UserCheck, Eye, Calendar, Printer, Archive, Filter, X, Search, FileSymlink } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 
 interface Props {
@@ -26,7 +26,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     // Modal State
     const [showModal, setShowModal] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
-    const [printTarget, setPrintTarget] = useState<any>(null); // For incidents mostly
+    const [printTarget, setPrintTarget] = useState<any>(null); // For printing
+    
+    // Cartable View State
+    const [viewCartableItem, setViewCartableItem] = useState<any>(null); // For viewing details in cartable
 
     // Forms
     const [logForm, setLogForm] = useState<Partial<SecurityLog>>({});
@@ -51,6 +54,35 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             const d = jalaliToGregorian(selectedDate.year, selectedDate.month, selectedDate.day);
             return d.toISOString().split('T')[0];
         } catch { return new Date().toISOString().split('T')[0]; }
+    };
+
+    // --- HELPER FUNCTIONS FOR UX ---
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const form = e.currentTarget.closest('form');
+            if (form) {
+                const elements = Array.from(form.elements) as HTMLElement[];
+                const index = elements.indexOf(e.currentTarget as HTMLElement);
+                const nextElement = elements[index + 1];
+                if (nextElement) nextElement.focus();
+            }
+        }
+    };
+
+    const formatTime = (val: string) => {
+        const clean = val.replace(/\D/g, '');
+        if (clean.length === 3) return `0${clean[0]}:${clean.slice(1)}`;
+        if (clean.length === 4) return `${clean.slice(0,2)}:${clean.slice(2)}`;
+        return val; // Return original if not matching pattern or already formatted
+    };
+
+    const handleTimeBlur = (field: string, formSetter: any, currentForm: any) => (e: React.FocusEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        const formatted = formatTime(val);
+        if (formatted !== val) {
+            formSetter({ ...currentForm, [field]: formatted });
+        }
     };
 
     // --- FILTERED DATA FOR DAILY VIEW ---
@@ -171,6 +203,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
         else await updateSecurityIncident({ ...item, ...updates });
         
+        setViewCartableItem(null); // Close modal after action
         loadData();
     };
 
@@ -181,6 +214,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
             else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
             else await updateSecurityIncident({ ...item, ...updates });
+            setViewCartableItem(null); // Close modal after action
             loadData();
         }
     };
@@ -231,6 +265,41 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             {printTarget.type === 'daily_log' && <PrintSecurityDailyLog date={printTarget.date} logs={printTarget.logs} />}
                             {printTarget.type === 'daily_delay' && <PrintPersonnelDelay delays={printTarget.delays} />}
                             {printTarget.type === 'incident' && <PrintIncidentReport incident={printTarget.incident} />}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CARTABLE VIEW/APPROVE MODAL */}
+            {viewCartableItem && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
+                    <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print w-full max-w-2xl justify-between items-center">
+                        <div className="font-bold text-lg text-gray-800">بررسی و اقدام</div>
+                        <div className="flex gap-2">
+                            <button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-green-700 shadow"><CheckCircle size={18}/> تایید</button>
+                            <button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-red-700 shadow"><XCircle size={18}/> رد</button>
+                            <button onClick={() => setViewCartableItem(null)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-300">بستن</button>
+                        </div>
+                    </div>
+                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full max-w-5xl flex justify-center">
+                        <div className="scale-75 origin-top bg-white shadow-lg">
+                            {/* Render the appropriate print form based on item type */}
+                            {viewCartableItem.type === 'log' && (
+                                <PrintSecurityDailyLog 
+                                    date={viewCartableItem.date} 
+                                    // For visual context in approval, we might want to show just this row or the whole day. 
+                                    // Showing the whole day (all logs for that date) gives better context.
+                                    logs={logs.filter(l => l.date === viewCartableItem.date)} 
+                                />
+                            )}
+                            {viewCartableItem.type === 'delay' && (
+                                <PrintPersonnelDelay 
+                                    delays={delays.filter(d => d.date === viewCartableItem.date)} 
+                                />
+                            )}
+                            {viewCartableItem.type === 'incident' && (
+                                <PrintIncidentReport incident={viewCartableItem} />
+                            )}
                         </div>
                     </div>
                 </div>
@@ -381,7 +450,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                     </>
                 )}
 
-                {/* 4. CARTABLE (APPROVALS) */}
+                {/* 4. CARTABLE (APPROVALS) - MODIFIED */}
                 {activeTab === 'cartable' && (
                     <div className="p-4">
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><UserCheck size={20}/> کارتابل تایید ({getCartableItems().length})</h3>
@@ -396,10 +465,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                             تاریخ: {formatDate(item.date)} | وضعیت فعلی: {item.status}
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleApprove(item)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700">تایید</button>
-                                        <button onClick={() => handleReject(item)} className="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-200">رد</button>
-                                    </div>
+                                    <button 
+                                        onClick={() => setViewCartableItem(item)} 
+                                        className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2 shadow-sm"
+                                    >
+                                        <FileSymlink size={16}/> بررسی و اقدام
+                                    </button>
                                 </div>
                             ))}
                             {getCartableItems().length === 0 && <div className="text-center text-gray-400 py-10">کارتابل شما خالی است.</div>}
@@ -449,56 +520,56 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         </div>
 
                         {activeTab === 'logs' && (
-                            <div className="space-y-4">
+                            <form className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">مبدا</label><input className="w-full border rounded p-2" value={logForm.origin} onChange={e=>setLogForm({...logForm, origin: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">مقصد</label><input className="w-full border rounded p-2" value={logForm.destination} onChange={e=>setLogForm({...logForm, destination: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مبدا</label><input className="w-full border rounded p-2" value={logForm.origin} onChange={e=>setLogForm({...logForm, origin: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مقصد</label><input className="w-full border rounded p-2" value={logForm.destination} onChange={e=>setLogForm({...logForm, destination: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-center dir-ltr" placeholder="08:00" value={logForm.entryTime} onChange={e=>setLogForm({...logForm, entryTime: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">ساعت خروج</label><input className="w-full border rounded p-2 text-center dir-ltr" placeholder="10:30" value={logForm.exitTime} onChange={e=>setLogForm({...logForm, exitTime: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-center dir-ltr" placeholder="08:00" value={logForm.entryTime} onChange={e=>setLogForm({...logForm, entryTime: e.target.value})} onBlur={handleTimeBlur('entryTime', setLogForm, logForm)} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">ساعت خروج</label><input className="w-full border rounded p-2 text-center dir-ltr" placeholder="10:30" value={logForm.exitTime} onChange={e=>setLogForm({...logForm, exitTime: e.target.value})} onBlur={handleTimeBlur('exitTime', setLogForm, logForm)} onKeyDown={handleKeyDown}/></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">نام و نام خانوادگی راننده</label><input className="w-full border rounded p-2" value={logForm.driverName} onChange={e=>setLogForm({...logForm, driverName: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">شماره خودرو</label><input className="w-full border rounded p-2 dir-ltr text-center" value={logForm.plateNumber} onChange={e=>setLogForm({...logForm, plateNumber: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">نام و نام خانوادگی راننده</label><input className="w-full border rounded p-2" value={logForm.driverName} onChange={e=>setLogForm({...logForm, driverName: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">شماره خودرو</label><input className="w-full border rounded p-2 dir-ltr text-center" value={logForm.plateNumber} onChange={e=>setLogForm({...logForm, plateNumber: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">مشخصات کالا</label><input className="w-full border rounded p-2" value={logForm.goodsName} onChange={e=>setLogForm({...logForm, goodsName: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">مقدار</label><input className="w-full border rounded p-2" value={logForm.quantity} onChange={e=>setLogForm({...logForm, quantity: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مشخصات کالا</label><input className="w-full border rounded p-2" value={logForm.goodsName} onChange={e=>setLogForm({...logForm, goodsName: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مقدار</label><input className="w-full border rounded p-2" value={logForm.quantity} onChange={e=>setLogForm({...logForm, quantity: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">گیرنده کالا</label><input className="w-full border rounded p-2" value={logForm.receiver} onChange={e=>setLogForm({...logForm, receiver: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">مجوز دهنده</label><input className="w-full border rounded p-2" placeholder="مدیریت..." value={logForm.permitProvider} onChange={e=>setLogForm({...logForm, permitProvider: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">گیرنده کالا</label><input className="w-full border rounded p-2" value={logForm.receiver} onChange={e=>setLogForm({...logForm, receiver: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مجوز دهنده</label><input className="w-full border rounded p-2" placeholder="مدیریت..." value={logForm.permitProvider} onChange={e=>setLogForm({...logForm, permitProvider: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
-                                <div><label className="text-xs font-bold block mb-1">موارد انجام کار</label><input className="w-full border rounded p-2" value={logForm.workDescription} onChange={e=>setLogForm({...logForm, workDescription: e.target.value})}/></div>
-                                <button onClick={handleSaveLog} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-blue-700">ثبت در دفتر نگهبانی</button>
-                            </div>
+                                <div><label className="text-xs font-bold block mb-1">موارد انجام کار</label><input className="w-full border rounded p-2" value={logForm.workDescription} onChange={e=>setLogForm({...logForm, workDescription: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                <button type="button" onClick={handleSaveLog} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-blue-700">ثبت در دفتر نگهبانی</button>
+                            </form>
                         )}
 
                         {activeTab === 'delays' && (
-                            <div className="space-y-4">
+                            <form className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">نام و نام خانوادگی</label><input className="w-full border rounded p-2" value={delayForm.personnelName} onChange={e=>setDelayForm({...delayForm, personnelName: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">واحد</label><input className="w-full border rounded p-2" value={delayForm.unit} onChange={e=>setDelayForm({...delayForm, unit: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">نام و نام خانوادگی</label><input className="w-full border rounded p-2" value={delayForm.personnelName} onChange={e=>setDelayForm({...delayForm, personnelName: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">واحد</label><input className="w-full border rounded p-2" value={delayForm.unit} onChange={e=>setDelayForm({...delayForm, unit: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-center dir-ltr" value={delayForm.arrivalTime} onChange={e=>setDelayForm({...delayForm, arrivalTime: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">مدت تاخیر</label><input className="w-full border rounded p-2 text-center" placeholder="15 دقیقه" value={delayForm.delayAmount} onChange={e=>setDelayForm({...delayForm, delayAmount: e.target.value})}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-center dir-ltr" value={delayForm.arrivalTime} onChange={e=>setDelayForm({...delayForm, arrivalTime: e.target.value})} onBlur={handleTimeBlur('arrivalTime', setDelayForm, delayForm)} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">مدت تاخیر</label><input className="w-full border rounded p-2 text-center" placeholder="15 دقیقه" value={delayForm.delayAmount} onChange={e=>setDelayForm({...delayForm, delayAmount: e.target.value})} onKeyDown={handleKeyDown}/></div>
                                 </div>
-                                <button onClick={handleSaveDelay} className="w-full bg-orange-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-orange-700">ثبت در دفتر تاخیرات</button>
-                            </div>
+                                <button type="button" onClick={handleSaveDelay} className="w-full bg-orange-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-orange-700">ثبت در دفتر تاخیرات</button>
+                            </form>
                         )}
 
                         {activeTab === 'incidents' && (
-                            <div className="space-y-4">
+                            <form className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold block mb-1">موضوع گزارش</label><input className="w-full border rounded p-2" value={incidentForm.subject} onChange={e=>setIncidentForm({...incidentForm, subject: e.target.value})}/></div>
-                                    <div><label className="text-xs font-bold block mb-1">شیفت</label><select className="w-full border rounded p-2" value={incidentForm.shift} onChange={e=>setIncidentForm({...incidentForm, shift: e.target.value})}><option>صبح</option><option>عصر</option><option>شب</option></select></div>
+                                    <div><label className="text-xs font-bold block mb-1">موضوع گزارش</label><input className="w-full border rounded p-2" value={incidentForm.subject} onChange={e=>setIncidentForm({...incidentForm, subject: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                    <div><label className="text-xs font-bold block mb-1">شیفت</label><select className="w-full border rounded p-2" value={incidentForm.shift} onChange={e=>setIncidentForm({...incidentForm, shift: e.target.value})} onKeyDown={handleKeyDown}><option>صبح</option><option>عصر</option><option>شب</option></select></div>
                                 </div>
-                                <div><label className="text-xs font-bold block mb-1">شرح دقیق موضوع</label><textarea className="w-full border rounded p-2 h-40 resize-none" value={incidentForm.description} onChange={e=>setIncidentForm({...incidentForm, description: e.target.value})}/></div>
-                                <div><label className="text-xs font-bold block mb-1">شهود</label><input className="w-full border rounded p-2" placeholder="نام شهود..." value={incidentForm.witnesses} onChange={e=>setIncidentForm({...incidentForm, witnesses: e.target.value})}/></div>
-                                <button onClick={handleSaveIncident} className="w-full bg-red-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-red-700">ثبت و ارسال گزارش</button>
-                            </div>
+                                <div><label className="text-xs font-bold block mb-1">شرح دقیق موضوع</label><textarea className="w-full border rounded p-2 h-40 resize-none" value={incidentForm.description} onChange={e=>setIncidentForm({...incidentForm, description: e.target.value})} /></div>
+                                <div><label className="text-xs font-bold block mb-1">شهود</label><input className="w-full border rounded p-2" placeholder="نام شهود..." value={incidentForm.witnesses} onChange={e=>setIncidentForm({...incidentForm, witnesses: e.target.value})} onKeyDown={handleKeyDown}/></div>
+                                <button type="button" onClick={handleSaveIncident} className="w-full bg-red-600 text-white py-3 rounded-lg font-bold mt-4 hover:bg-red-700">ثبت و ارسال گزارش</button>
+                            </form>
                         )}
                     </div>
                 </div>
