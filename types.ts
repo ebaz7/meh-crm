@@ -237,6 +237,9 @@ export interface SystemSettings {
   // Warehouse Settings
   warehouseSequences?: Record<string, number>; // Company Name -> Next Bijak Number
   
+  // Exit Permit Settings (NEW)
+  exitPermitNotificationGroup?: string; // Group ID to notify on exit approval
+
   // Per-Company Notification Settings
   companyNotifications?: Record<string, {
       salesManager?: string; // WhatsApp ID/Number

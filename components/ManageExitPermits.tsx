@@ -98,24 +98,36 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               const element = document.getElementById(`print-permit-${updatedPermitMock.id}`);
               if (element) {
                   try {
-                      let targetRole: UserRole | null = null;
-                      let caption = '';
+                      // @ts-ignore
+                      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                      const base64 = canvas.toDataURL('image/png').split(',')[1];
 
+                      // A. NOTIFY FACTORY MANAGER (Standard Flow)
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
-                          targetRole = UserRole.FACTORY_MANAGER;
-                          caption = `🏭 *مجوز خروج تایید شد${suffix} (جهت اقدام)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n✍️ تایید کننده: ${currentUser.fullName}\n\nلطفا نسبت به خروج بار اقدام نمایید.`;
-                      } else if (nextStatus === ExitPermitStatus.EXITED) {
-                          targetRole = UserRole.CEO;
-                          caption = `✅ *بار از کارخانه خارج شد (بایگانی)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n🏭 تایید خروج: ${currentUser.fullName}\n\nفرآیند این مجوز تکمیل شد.`;
-                      }
-
-                      if (targetRole) {
+                          const caption = `🏭 *مجوز خروج تایید شد${suffix} (جهت اقدام)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n✍️ تایید کننده: ${currentUser.fullName}\n\nلطفا نسبت به خروج بار اقدام نمایید.`;
+                          
+                          // 1. Send to Factory Manager User
                           const users = await getUsers();
-                          const targetUser = users.find(u => u.role === targetRole && u.phoneNumber);
+                          const targetUser = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
                           if (targetUser) {
-                              // @ts-ignore
-                              const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                              const base64 = canvas.toDataURL('image/png').split(',')[1];
+                              await apiCall('/send-whatsapp', 'POST', { number: targetUser.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}.png` } });
+                          }
+
+                          // 2. Send to Exit Notification Group (Warehouse/Security) - NEW FEATURE
+                          if (settings?.exitPermitNotificationGroup) {
+                              await apiCall('/send-whatsapp', 'POST', { 
+                                  number: settings.exitPermitNotificationGroup, 
+                                  message: caption, 
+                                  mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}_WH.png` } 
+                              });
+                          }
+                      } 
+                      // B. NOTIFY CEO (Completion)
+                      else if (nextStatus === ExitPermitStatus.EXITED) {
+                          const caption = `✅ *بار از کارخانه خارج شد (بایگانی)*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n🏭 تایید خروج: ${currentUser.fullName}\n\nفرآیند این مجوز تکمیل شد.`;
+                          const users = await getUsers();
+                          const targetUser = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                          if (targetUser) {
                               await apiCall('/send-whatsapp', 'POST', { number: targetUser.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}.png` } });
                           }
                       }
@@ -237,7 +249,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
         
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
-                <thead className="bg-gray-50 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">کالا</th><th className="p-4">گیرنده</th><th className="p-4">تعداد/وزن</th><th className="p-4">وضعیت</th><th className="p-4 text-center">عملیات</th></tr></thead>
+                <thead className="bg-gray-5 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">کالا</th><th className="p-4">گیرنده</th><th className="p-4">تعداد/وزن</th><th className="p-4">وضعیت</th><th className="p-4 text-center">عملیات</th></tr></thead>
                 <tbody>
                     {filtered.length === 0 ? (
                         <tr><td colSpan={7} className="p-8 text-center text-gray-400">موردی یافت نشد.</td></tr>

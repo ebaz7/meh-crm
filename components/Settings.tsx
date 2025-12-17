@@ -38,7 +38,8 @@ const Settings: React.FC = () => {
       companyNotifications: {},
       defaultWarehouseGroup: '',
       defaultSalesManager: '',
-      insuranceCompanies: [] 
+      insuranceCompanies: [],
+      exitPermitNotificationGroup: '' // Init
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -395,6 +396,27 @@ const Settings: React.FC = () => {
                 {/* 3. WAREHOUSE SETTINGS */}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
+                        {/* New Exit Permit Group Setting */}
+                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+                            <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2"><Truck size={20}/> تنظیمات مجوز خروج</h3>
+                            <div>
+                                <label className="text-xs font-bold text-gray-700 block mb-1">گروه اطلاع‌رسانی مجوز خروج (انبار/نگهبانی)</label>
+                                <select 
+                                    className="w-full border rounded-lg p-2 text-sm bg-white" 
+                                    value={settings.exitPermitNotificationGroup || ''} 
+                                    onChange={e => setSettings({...settings, exitPermitNotificationGroup: e.target.value})}
+                                >
+                                    <option value="">-- ارسال نشود --</option>
+                                    {getMergedContactOptions().map(c => (
+                                        <option key={`exit_group_${c.number}`} value={c.number}>
+                                            {c.name} {c.isGroup ? '(گروه)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-gray-500 mt-1">پس از تایید مجوز خروج توسط مدیرعامل، تصویر مجوز به این گروه ارسال خواهد شد.</p>
+                            </div>
+                        </div>
+
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><Warehouse size={20}/> تنظیمات انبار و ارسال خودکار</h3>
                             <div className="space-y-6">
