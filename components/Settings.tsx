@@ -398,9 +398,9 @@ const Settings: React.FC = () => {
                     <div className="space-y-8 animate-fade-in">
                         {/* New Exit Permit Group Setting */}
                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-                            <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2"><Truck size={20}/> تنظیمات مجوز خروج</h3>
+                            <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2"><Truck size={20}/> تنظیمات خروج کارخانه</h3>
                             <div>
-                                <label className="text-xs font-bold text-gray-700 block mb-1">گروه اطلاع‌رسانی مجوز خروج (انبار/نگهبانی)</label>
+                                <label className="text-xs font-bold text-gray-700 block mb-1">گروه انبار (جهت دریافت خودکار مجوز)</label>
                                 <select 
                                     className="w-full border rounded-lg p-2 text-sm bg-white" 
                                     value={settings.exitPermitNotificationGroup || ''} 
