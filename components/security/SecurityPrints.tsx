@@ -9,7 +9,7 @@ interface DailyLogProps {
 }
 
 export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) => {
-    // Fill empty rows if less than 15 for full page feel
+    // Fill empty rows if less than 13 for full page feel
     const displayLogs = [...logs];
     while (displayLogs.length < 13) {
         displayLogs.push({} as any);
@@ -87,40 +87,63 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs }) =
                     </table>
                 </div>
 
-                {/* Footer Section - Updated to match image with empty space */}
+                {/* Footer Section */}
                 <div className="h-48 flex flex-col border-t-2 border-black">
                     {/* Notes Section */}
-                    <div className="h-24 border-b border-black p-2 flex flex-col">
-                        <span className="font-bold text-xs underline mb-1">گزارش مختصر از وقایع نگهبانی:</span>
-                        <div className="flex-1">
-                            {/* Empty space for handwriting */}
-                        </div>
+                    <div className="h-20 border-b border-black p-2 flex flex-col relative">
+                        <span className="font-bold text-xs underline mb-1 absolute top-2 right-2 bg-white px-1">گزارش مختصر از وقایع نگهبانی / توضیحات تکمیلی:</span>
+                        <div className="flex-1 mt-4 border-b border-dotted border-gray-400"></div>
+                        <div className="flex-1 border-b border-dotted border-gray-400"></div>
                     </div>
                     
                     {/* Signatures */}
                     <div className="flex-1 flex text-[10px]">
-                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                            <span className="font-bold">نگهبان صبح</span>
-                            <div>{/* Sign */}</div>
-                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
+                        {/* Guards */}
+                        <div className="w-1/4 border-l border-black flex">
+                            <div className="w-1/3 border-l border-gray-400 p-1 text-center flex flex-col justify-between">
+                                <span className="font-bold">نگهبان صبح</span>
+                                <div className="h-8"></div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                            </div>
+                            <div className="w-1/3 border-l border-gray-400 p-1 text-center flex flex-col justify-between">
+                                <span className="font-bold">نگهبان عصر</span>
+                                <div className="h-8"></div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                            </div>
+                            <div className="w-1/3 p-1 text-center flex flex-col justify-between">
+                                <span className="font-bold">نگهبان شب</span>
+                                <div className="h-8"></div>
+                                <div className="border-t border-black flex justify-between px-1 text-[8px]"><span>ورود</span><span>خروج</span></div>
+                            </div>
                         </div>
-                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                            <span className="font-bold">نگهبان عصر</span>
-                            <div>{/* Sign */}</div>
-                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
-                        </div>
-                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between">
-                            <span className="font-bold">نگهبان شب</span>
-                            <div>{/* Sign */}</div>
-                            <div className="border-t border-black flex justify-between px-1"><span>ورود</span><span>خروج</span></div>
-                        </div>
-                        <div className="w-1/6 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2">
+
+                        {/* Approvals */}
+                        <div className="w-1/4 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2 bg-yellow-50/50">
                             <span className="font-bold">سرپرست انتظامات</span>
-                            {logs.some(l => l.approverSupervisor) && <div className="border-2 border-blue-700 text-blue-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید شد</div>}
+                            {logs.some(l => l.approverSupervisor) && (
+                                <div className="border-2 border-blue-700 text-blue-700 text-[9px] p-1 rotate-[-5deg] font-bold rounded opacity-80">
+                                    تایید شد: {logs.find(l=>l.approverSupervisor)?.approverSupervisor?.split(' ')[0]}
+                                </div>
+                            )}
+                            <div className="w-full text-right text-[8px] mt-auto">امضا:</div>
                         </div>
-                        <div className="w-2/6 p-1 text-center flex flex-col justify-between items-center pt-2">
+                        <div className="w-1/4 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2 bg-blue-50/50">
                             <span className="font-bold">مدیر کارخانه</span>
-                            {logs.some(l => l.approverFactory) && <div className="border-2 border-green-700 text-green-700 text-[9px] p-1 rotate-[-10deg] font-bold rounded">تایید نهایی</div>}
+                            {logs.some(l => l.approverFactory) && (
+                                <div className="border-2 border-green-700 text-green-700 text-[9px] p-1 rotate-[-5deg] font-bold rounded opacity-80">
+                                    تایید شد: {logs.find(l=>l.approverFactory)?.approverFactory?.split(' ')[0]}
+                                </div>
+                            )}
+                            <div className="w-full text-right text-[8px] mt-auto">امضا:</div>
+                        </div>
+                        <div className="w-1/4 p-1 text-center flex flex-col justify-between items-center pt-2 bg-green-50/50">
+                            <span className="font-bold">مدیر عامل</span>
+                            {logs.some(l => l.approverCeo) && (
+                                <div className="border-2 border-purple-700 text-purple-700 text-[9px] p-1 rotate-[-5deg] font-bold rounded opacity-80">
+                                    تایید نهایی
+                                </div>
+                            )}
+                            <div className="w-full text-right text-[8px] mt-auto">امضا:</div>
                         </div>
                     </div>
                 </div>
@@ -175,18 +198,22 @@ export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[] }> = ({ de
                 </div>
 
                 {/* Footer */}
-                <div className="h-32 border-t-2 border-black flex">
-                    <div className="w-1/3 border-l border-black flex flex-col items-center justify-end pb-4">
+                <div className="h-32 border-t-2 border-black flex text-xs">
+                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
                         <div className="font-bold mb-8">امضا نگهبان:</div>
-                        {delays.length > 0 && <span className="text-xs">{delays[0].registrant}</span>}
+                        {delays.length > 0 && <span>{delays[0].registrant}</span>}
                     </div>
-                    <div className="w-1/3 border-l border-black flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">امضا سرپرست انتظامات:</div>
+                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
+                        <div className="font-bold mb-8">سرپرست انتظامات:</div>
                         {delays.some(d => d.approverSupervisor) && <div className="border-2 border-blue-600 text-blue-600 p-1 rotate-[-5deg] font-bold rounded">تایید شد</div>}
                     </div>
-                    <div className="w-1/3 flex flex-col items-center justify-end pb-4">
-                        <div className="font-bold mb-8">امضا مدیر کارخانه:</div>
+                    <div className="w-1/4 border-l border-black flex flex-col items-center justify-end pb-4">
+                        <div className="font-bold mb-8">مدیر کارخانه:</div>
                         {delays.some(d => d.approverFactory) && <div className="border-2 border-green-600 text-green-600 p-1 rotate-[-5deg] font-bold rounded">تایید نهایی</div>}
+                    </div>
+                    <div className="w-1/4 flex flex-col items-center justify-end pb-4">
+                        <div className="font-bold mb-8">مدیر عامل:</div>
+                        {delays.some(d => d.approverCeo) && <div className="border-2 border-purple-600 text-purple-600 p-1 rotate-[-5deg] font-bold rounded">تایید شد</div>}
                     </div>
                 </div>
             </div>
@@ -234,15 +261,20 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
 
                 {/* Approvals */}
                 <div className="grid grid-cols-1 border-b border-black">
-                    <div className="h-24 border-b border-black p-2 relative">
-                        <span className="font-bold">سرپرست انتظامات:</span>
-                        {incident.approverSupervisor && <div className="absolute top-8 left-1/2 border-2 border-blue-600 text-blue-600 p-1 rotate-[-5deg] font-bold rounded">تایید شد: {incident.approverSupervisor}</div>}
-                        <div className="absolute bottom-2 left-10 font-bold">امضاء:</div>
+                    <div className="h-24 border-b border-black p-2 relative grid grid-cols-2">
+                        <div className="border-l border-black pr-2">
+                            <span className="font-bold">سرپرست انتظامات:</span>
+                            {incident.approverSupervisor && <div className="mt-4 border-2 border-blue-600 text-blue-600 p-1 rotate-[-5deg] font-bold rounded w-fit">تایید شد: {incident.approverSupervisor}</div>}
+                        </div>
+                        <div className="pr-2">
+                            <span className="font-bold">دستور مدیریت:</span>
+                            {incident.approverFactory && <div className="mt-4 border-2 border-green-600 text-green-600 p-1 rotate-[-5deg] font-bold rounded w-fit">دستور اقدام: {incident.approverFactory}</div>}
+                        </div>
                     </div>
-                    <div className="h-24 border-b border-black p-2 relative">
-                        <span className="font-bold">دستور مدیریت:</span>
-                        {incident.approverFactory && <div className="absolute top-8 left-1/2 border-2 border-green-600 text-green-600 p-1 rotate-[-5deg] font-bold rounded">دستور اقدام: {incident.approverFactory}</div>}
-                        <div className="absolute bottom-2 left-10 font-bold">امضاء:</div>
+                    <div className="h-16 border-b border-black p-2">
+                        <span className="font-bold">دستور مدیرعامل:</span>
+                        {incident.approverCeo && <span className="mr-2 font-bold text-purple-700">{incident.approverCeo} (تایید نهایی)</span>}
+                        <div className="float-left font-bold mt-4">امضاء:</div>
                     </div>
                     <div className="h-16 border-b border-black p-2">
                         <span className="font-bold">اقدام کارگزینی:</span> {incident.hrAction}
