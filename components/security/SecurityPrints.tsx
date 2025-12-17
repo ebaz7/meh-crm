@@ -16,6 +16,13 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
         displayLogs.push({} as any);
     }
 
+    // Factory Manager Stamp logic: Only if daily approval flag is true
+    const factoryApproved = meta?.isFactoryDailyApproved === true;
+    const factoryApproverName = logs.find(l => l.approverFactory)?.approverFactory?.split(' ')[0] || 'مدیریت';
+
+    // CEO Stamp logic: Only if daily approval flag is true
+    const ceoApproved = meta?.isCeoDailyApproved === true;
+
     return (
         <div className="w-[297mm] h-[210mm] bg-white p-4 mx-auto text-black font-sans relative" style={{ direction: 'rtl' }}>
             {/* Header */}
@@ -140,16 +147,16 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
                         </div>
                         <div className="w-1/4 border-l border-black p-1 text-center flex flex-col justify-between items-center pt-2 bg-blue-50/50">
                             <span className="font-bold">مدیر کارخانه</span>
-                            {logs.some(l => l.approverFactory) && (
+                            {factoryApproved && (
                                 <div className="border-2 border-green-700 text-green-700 text-[9px] p-1 rotate-[-5deg] font-bold rounded opacity-80">
-                                    تایید شد: {logs.find(l=>l.approverFactory)?.approverFactory?.split(' ')[0]}
+                                    تایید شد: {factoryApproverName}
                                 </div>
                             )}
                             <div className="w-full text-right text-[8px] mt-auto">امضا:</div>
                         </div>
                         <div className="w-1/4 p-1 text-center flex flex-col justify-between items-center pt-2 bg-green-50/50">
                             <span className="font-bold">مدیر عامل</span>
-                            {logs.some(l => l.approverCeo) && (
+                            {ceoApproved && (
                                 <div className="border-2 border-purple-700 text-purple-700 text-[9px] p-1 rotate-[-5deg] font-bold rounded opacity-80">
                                     تایید نهایی
                                 </div>

@@ -25,6 +25,7 @@ export enum ExitPermitStatus {
 export enum SecurityStatus {
   PENDING_SUPERVISOR = 'در انتظار تایید سرپرست انتظامات',
   PENDING_FACTORY = 'تایید سرپرست / در انتظار مدیر کارخانه',
+  APPROVED_FACTORY_CHECK = 'تایید اولیه مدیر کارخانه (منتظر امضای نهایی)', // New: Line-by-line approval
   PENDING_CEO = 'تایید کارخانه / در انتظار مدیرعامل',
   ARCHIVED = 'بایگانی شده (نهایی)',
   REJECTED = 'رد شده'
@@ -173,6 +174,9 @@ export interface DailySecurityMeta {
     morningGuard?: { name: string; entry: string; exit: string };
     eveningGuard?: { name: string; entry: string; exit: string };
     nightGuard?: { name: string; entry: string; exit: string };
+    // Approval Flags for Stamps
+    isFactoryDailyApproved?: boolean;
+    isCeoDailyApproved?: boolean;
 }
 
 // 1. Daily Log (Vehicle/Goods Traffic) - فرم گزارش نگهبانی

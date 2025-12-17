@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 
 interface Props {
@@ -118,37 +118,23 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // --- PERMISSION LOGIC ---
     const canEdit = (item: any) => {
-        // 1. Admin & CEO can edit everything except fully archived/locked if needed (here allowed)
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-        
-        // 2. Archived Items: Normal users CANNOT edit
         if (item.status === SecurityStatus.ARCHIVED) return false;
-
-        // 3. Rejected Items: Creator CAN edit to resubmit
         if (item.status === SecurityStatus.REJECTED) {
             return item.registrant === currentUser.fullName;
         }
-
-        // 4. Workflow based editing
         if (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD) {
             return item.status === SecurityStatus.PENDING_SUPERVISOR;
         }
-
         if (currentUser.role === UserRole.FACTORY_MANAGER) {
-            return item.status === SecurityStatus.PENDING_FACTORY || item.status === SecurityStatus.PENDING_CEO;
+            return item.status === SecurityStatus.PENDING_FACTORY || item.status === SecurityStatus.APPROVED_FACTORY_CHECK || item.status === SecurityStatus.PENDING_CEO;
         }
-
         return false;
     };
 
     const canDelete = (item: any) => {
-        // Admin & CEO can delete
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-        
-        // Archived: No one else can delete
         if (item.status === SecurityStatus.ARCHIVED) return false;
-        
-        // Creator can delete if pending or rejected
         if (item.registrant === currentUser.fullName) {
             if (currentUser.role === UserRole.SECURITY_GUARD && item.status !== SecurityStatus.PENDING_SUPERVISOR && item.status !== SecurityStatus.REJECTED) return false;
             return true;
@@ -185,14 +171,16 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             incidents.filter(i => i.status === SecurityStatus.PENDING_CEO).forEach(i => allPending.push({...i, type: 'incident'}));
             
             if (role === UserRole.ADMIN) {
-                 logs.filter(l => l.status !== SecurityStatus.PENDING_CEO && l.status !== SecurityStatus.ARCHIVED && l.status !== SecurityStatus.REJECTED).forEach(l => allPending.push({...l, type: 'log'}));
+                 // For Admin, show factory pending items too to debug/manage
+                 logs.filter(l => l.status === SecurityStatus.PENDING_FACTORY || l.status === SecurityStatus.APPROVED_FACTORY_CHECK).forEach(l => allPending.push({...l, type: 'log'}));
             }
 
         } else {
+            // Standard individual items for other roles
             const check = (item: any, type: string) => {
                 if (role === UserRole.SECURITY_HEAD && item.status === SecurityStatus.PENDING_SUPERVISOR) {
                     allPending.push({ ...item, type });
-                } else if (role === UserRole.FACTORY_MANAGER && item.status === SecurityStatus.PENDING_FACTORY) {
+                } else if (role === UserRole.FACTORY_MANAGER && (item.status === SecurityStatus.PENDING_FACTORY || item.status === SecurityStatus.APPROVED_FACTORY_CHECK)) {
                     allPending.push({ ...item, type });
                 }
             };
@@ -204,17 +192,24 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         return allPending;
     };
 
+    // Updated Archive Logic: Group by Date for cleaner view
     const getArchivedItems = () => {
-        const allArchived: any[] = [];
-        logs.filter(l => l.status === SecurityStatus.ARCHIVED).forEach(l => allArchived.push({...l, type: 'log'}));
-        delays.filter(d => d.status === SecurityStatus.ARCHIVED).forEach(d => allArchived.push({...d, type: 'delay'}));
-        incidents.filter(i => i.status === SecurityStatus.ARCHIVED).forEach(i => allArchived.push({...i, type: 'incident'}));
-        return allArchived;
+        const archivedLogs = logs.filter(l => l.status === SecurityStatus.ARCHIVED);
+        // Group by Date
+        const groupedDates = new Set(archivedLogs.map(l => l.date));
+        const archiveGroups: any[] = [];
+        groupedDates.forEach(date => {
+            archiveGroups.push({ date, type: 'daily_archive', count: archivedLogs.filter(l => l.date === date).length });
+        });
+        
+        // Add individual incidents as they might be separate
+        incidents.filter(i => i.status === SecurityStatus.ARCHIVED).forEach(i => archiveGroups.push({...i, type: 'incident'}));
+        
+        return archiveGroups.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
     };
 
     // --- ACTIONS ---
     const handleSaveLog = async () => {
-        // If it was rejected, reset to Pending Supervisor on save
         let statusToSave = editingId ? logForm.status! : SecurityStatus.PENDING_SUPERVISOR;
         if (editingId && logForm.status === SecurityStatus.REJECTED) {
             statusToSave = SecurityStatus.PENDING_SUPERVISOR;
@@ -322,17 +317,27 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleApprove = async (item: any) => {
-        if (!confirm('آیا تایید می‌کنید؟')) return;
-        
         // CEO Batch Approval Logic
         if (item.type === 'daily_approval') {
+            if (!confirm('آیا تایید نهایی و بایگانی می‌کنید؟ این عملیات مهر امضای نهایی را اعمال می‌کند.')) return;
             const date = item.date;
-            // Approve all logs for this date
+            
+            // 1. Mark Meta as CEO Approved
+            if (settings) {
+                const currentMeta = settings.dailySecurityMeta?.[date] || {};
+                const updatedMeta = { ...currentMeta, isCeoDailyApproved: true };
+                await saveSettings({
+                    ...settings,
+                    dailySecurityMeta: { ...settings.dailySecurityMeta, [date]: updatedMeta }
+                });
+            }
+
+            // 2. Approve all logs for this date
             const logsToApprove = logs.filter(l => l.date === date && l.status === SecurityStatus.PENDING_CEO);
             for (const log of logsToApprove) {
                 await updateSecurityLog({ ...log, status: SecurityStatus.ARCHIVED, approverCeo: currentUser.fullName });
             }
-            // Approve all delays for this date
+            // 3. Approve all delays for this date
             const delaysToApprove = delays.filter(d => d.date === date && d.status === SecurityStatus.PENDING_CEO);
             for (const delay of delaysToApprove) {
                 await updatePersonnelDelay({ ...delay, status: SecurityStatus.ARCHIVED, approverCeo: currentUser.fullName });
@@ -343,28 +348,77 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             return;
         }
 
-        // Standard Item Approval
-        let nextStatus = item.status;
-        let updates: any = {};
-
-        if (item.status === SecurityStatus.PENDING_SUPERVISOR) {
-            nextStatus = SecurityStatus.PENDING_FACTORY;
-            updates.approverSupervisor = currentUser.fullName;
-        } else if (item.status === SecurityStatus.PENDING_FACTORY) {
-            nextStatus = SecurityStatus.PENDING_CEO;
-            updates.approverFactory = currentUser.fullName;
-        } else if (item.status === SecurityStatus.PENDING_CEO) {
-            nextStatus = SecurityStatus.ARCHIVED;
-            updates.approverCeo = currentUser.fullName;
+        // Factory Manager Approval Logic (Two Stage)
+        if (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) {
+            // Stage 1: Line Approval
+            if (item.status === SecurityStatus.PENDING_FACTORY) {
+                // Change status to "Approved Check" (Checked but not finalized for the day)
+                const updates = { 
+                    status: SecurityStatus.APPROVED_FACTORY_CHECK,
+                    approverFactory: currentUser.fullName 
+                };
+                if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
+                else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
+                
+                // Don't close modal, allow checking next lines
+                loadData();
+                return;
+            }
         }
 
-        updates.status = nextStatus;
+        // Standard Item Approval (Supervisor to Factory)
+        if (confirm('آیا تایید می‌کنید؟')) {
+            let nextStatus = item.status;
+            let updates: any = {};
 
-        if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
-        else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
-        else await updateSecurityIncident({ ...item, ...updates });
+            if (item.status === SecurityStatus.PENDING_SUPERVISOR) {
+                nextStatus = SecurityStatus.PENDING_FACTORY;
+                updates.approverSupervisor = currentUser.fullName;
+            }
+
+            updates.status = nextStatus;
+
+            if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
+            else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
+            else await updateSecurityIncident({ ...item, ...updates });
+            
+            setViewCartableItem(null); 
+            loadData();
+        }
+    };
+
+    // New: Factory Manager Final Daily Submit
+    const handleFactoryDailySubmit = async () => {
+        if (!confirm("آیا تایید نهایی روزانه را انجام می‌دهید؟ با این کار مهر شما اعمال شده و گزارش برای مدیرعامل ارسال می‌شود.")) return;
         
-        setViewCartableItem(null); 
+        // 1. Get all items in 'APPROVED_FACTORY_CHECK' state
+        const readyLogs = logs.filter(l => l.status === SecurityStatus.APPROVED_FACTORY_CHECK);
+        const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_FACTORY_CHECK);
+        
+        if (readyLogs.length === 0 && readyDelays.length === 0) {
+            alert("هیچ آیتمی برای ارسال نهایی وجود ندارد. لطفا ابتدا آیتم‌ها را تایید کنید.");
+            return;
+        }
+
+        // 2. Mark Meta as Factory Approved
+        const datesToApprove = new Set([...readyLogs.map(l=>l.date), ...readyDelays.map(d=>d.date)]);
+        if (settings) {
+            let newMeta = { ...settings.dailySecurityMeta };
+            datesToApprove.forEach(date => {
+                newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true };
+            });
+            await saveSettings({ ...settings, dailySecurityMeta: newMeta });
+        }
+
+        // 3. Move items to PENDING_CEO
+        for (const log of readyLogs) {
+            await updateSecurityLog({ ...log, status: SecurityStatus.PENDING_CEO });
+        }
+        for (const delay of readyDelays) {
+            await updatePersonnelDelay({ ...delay, status: SecurityStatus.PENDING_CEO });
+        }
+
+        alert("گزارش روزانه تایید نهایی شد و برای مدیرعامل ارسال گردید.");
         loadData();
     };
 
@@ -494,14 +548,20 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print w-full max-w-2xl justify-between items-center">
                         <div className="font-bold text-lg text-gray-800">
-                            {viewCartableItem.type === 'daily_approval' 
-                                ? `تایید نهایی گزارش روزانه ${formatDate(viewCartableItem.date)}` 
+                            {viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive'
+                                ? `گزارش روزانه ${formatDate(viewCartableItem.date)}` 
                                 : 'بررسی جهت تایید / رد'}
                         </div>
                         <div className="flex gap-2">
                             {viewCartableItem.mode !== 'view_only' && (
                                 <>
-                                    <button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-green-700 shadow"><CheckCircle size={18}/> تایید</button>
+                                    {/* Factory Manager View: Check items individually */}
+                                    {(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && (viewCartableItem.status === SecurityStatus.PENDING_FACTORY) ? (
+                                        <button onClick={() => handleApprove(viewCartableItem)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-blue-700 shadow"><CheckSquare size={18}/> تایید اولیه (چک شد)</button>
+                                    ) : (
+                                        <button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-green-700 shadow"><CheckCircle size={18}/> تایید</button>
+                                    )}
+                                    
                                     <button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 hover:bg-red-700 shadow"><XCircle size={18}/> رد</button>
                                 </>
                             )}
@@ -510,7 +570,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                     </div>
                     <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full max-w-5xl flex justify-center">
                         <div className="scale-75 origin-top bg-white shadow-lg">
-                            {viewCartableItem.type === 'daily_approval' && (
+                            {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && (
                                 <PrintSecurityDailyLog 
                                     date={viewCartableItem.date} 
                                     logs={logs.filter(l => l.date === viewCartableItem.date)} 
@@ -602,8 +662,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                             <td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td>
                                             <td className="p-3 border-l">{log.permitProvider}</td>
                                             <td className="p-3 border-l">
-                                                <span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.ARCHIVED ? 'bg-green-100 text-green-700' : log.status === SecurityStatus.REJECTED ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                    {log.status}
+                                                <span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.ARCHIVED ? 'bg-green-100 text-green-700' : log.status === SecurityStatus.REJECTED ? 'bg-red-100 text-red-700' : log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                    {log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'تایید اولیه (چک شد)' : log.status}
                                                 </span>
                                                 {log.status === SecurityStatus.REJECTED && log.rejectionReason && (
                                                     <div className="text-[9px] text-red-500 max-w-[100px] truncate" title={log.rejectionReason}>دلیل: {log.rejectionReason}</div>
@@ -649,6 +709,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 {/* CARTABLE */}
                 {activeTab === 'cartable' && (
                     <div className="p-4">
+                        {/* Factory Manager Daily Submit Button */}
+                        {(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && getCartableItems().filter(i => i.status === SecurityStatus.APPROVED_FACTORY_CHECK).length > 0 && (
+                            <button onClick={handleFactoryDailySubmit} className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-md mb-6 transition-transform hover:scale-[1.01]">
+                                <FileSymlink size={24}/> ارسال نهایی و امضای گزارش امروز برای مدیرعامل
+                            </button>
+                        )}
+
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><UserCheck size={20}/> کارتابل تایید ({getCartableItems().length})</h3>
                         <div className="space-y-3">
                             {getCartableItems().map((item, idx) => {
@@ -666,15 +733,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 }
                                 
                                 return (
-                                <div key={idx} className="border p-4 rounded-xl flex justify-between items-center hover:bg-orange-50 transition-colors bg-white">
+                                <div key={idx} className={`border p-4 rounded-xl flex justify-between items-center transition-colors bg-white ${item.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'border-green-300 bg-green-50' : 'hover:bg-orange-50'}`}>
                                     <div>
                                         <div className="font-bold text-sm mb-1">{item.type === 'log' ? `تردد: ${item.driverName}` : item.type === 'delay' ? `تاخیر: ${item.personnelName}` : `واقعه: ${item.subject}`}</div>
-                                        <div className="text-xs text-gray-500">تاریخ: {formatDate(item.date)} | وضعیت: {item.status}</div>
+                                        <div className="text-xs text-gray-500">تاریخ: {formatDate(item.date)} | وضعیت: {item.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'تایید اولیه شده' : item.status}</div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-1"><Eye size={16}/></button>
-                                        <button onClick={() => setViewCartableItem(item)} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2 shadow-sm"><FileSymlink size={16}/> بررسی</button>
-                                    </div>
+                                    <button onClick={() => setViewCartableItem(item)} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2 shadow-sm"><FileSymlink size={16}/> بررسی</button>
                                 </div>
                             )})}
                             {getCartableItems().length === 0 && <div className="text-center text-gray-400 py-10">کارتابل شما خالی است.</div>}
@@ -685,7 +749,24 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 {/* ARCHIVE */}
                 {activeTab === 'archive' && (
                     <div className="p-4 space-y-2">
-                        {getArchivedItems().map((item, idx) => (
+                        {getArchivedItems().map((item, idx) => {
+                            if (item.type === 'daily_archive') {
+                                return (
+                                    <div key={idx} className="border-2 border-green-100 bg-green-50 p-4 rounded-xl flex justify-between items-center hover:shadow-md transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-200 text-green-700 rounded-lg"><Archive size={20}/></div>
+                                            <div>
+                                                <div className="font-bold text-green-900 mb-1">آرشیو روزانه: {formatDate(item.date)}</div>
+                                                <div className="text-xs text-green-700">شامل {item.count} رکورد</div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center gap-2 shadow-sm"><Eye size={16}/> مشاهده و چاپ</button>
+                                    </div>
+                                )
+                            }
+                            
+                            // Incidents or fallback
+                            return (
                             <div key={idx} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50">
                                 <div className="flex items-center gap-3">
                                     <div className={`p-2 rounded-lg ${item.type==='log'?'bg-blue-100 text-blue-600':item.type==='delay'?'bg-orange-100 text-orange-600':'bg-red-100 text-red-600'}`}>{item.type==='log'?<Truck size={16}/>:item.type==='delay'?<Clock size={16}/>:<AlertTriangle size={16}/>}</div>
@@ -700,7 +781,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                     <button onClick={() => { if(item.type==='incident') handlePrintIncident(item); else alert('برای مشاهده جزئیات روزانه به تب گزارش نگهبانی بروید.'); }} className="text-gray-400 hover:text-blue-600"><Eye size={18}/></button>
                                 </div>
                             </div>
-                        ))}
+                        )})}
                     </div>
                 )}
             </div>
