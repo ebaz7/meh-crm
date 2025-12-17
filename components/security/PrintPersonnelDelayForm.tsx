@@ -97,9 +97,9 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 </div>
 
                 {/* Footer Signatures */}
-                <div className="h-32 border-t-2 border-black flex mt-4">
+                <div className="h-32 border-t-2 border-black flex mt-4 text-[10px]">
                     {/* Guard Signature */}
-                    <div className="w-1/3 border-l-2 border-black relative p-2">
+                    <div className="w-1/4 border-l-2 border-black relative p-2">
                         <div className="font-bold absolute top-2 right-2">امضا نگهبان:</div>
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-bold text-sm">
                             {delays.length > 0 ? delays[0].registrant : ''}
@@ -107,21 +107,31 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                     </div>
 
                     {/* Supervisor Signature */}
-                    <div className="w-1/3 border-l-2 border-black relative p-2 flex flex-col items-center justify-center">
-                        <div className="font-bold absolute top-2 right-2">امضا سرپرست انتظامات:</div>
+                    <div className="w-1/4 border-l-2 border-black relative p-2 flex flex-col items-center justify-center bg-yellow-50/30">
+                        <div className="font-bold absolute top-2 right-2">امضا سرپرست:</div>
                         {isSupervisorApproved && (
-                            <div className="border-2 border-blue-800 text-blue-800 p-2 rounded rotate-[-10deg] font-bold text-sm mt-4 opacity-80">
+                            <div className="border-2 border-blue-800 text-blue-800 p-1 rounded rotate-[-10deg] font-bold text-xs mt-4 opacity-80">
                                 تایید شد
                             </div>
                         )}
                     </div>
 
                     {/* Factory Manager Signature */}
-                    <div className="w-1/3 relative p-2 flex flex-col items-center justify-center">
+                    <div className="w-1/4 border-l-2 border-black relative p-2 flex flex-col items-center justify-center bg-green-50/30">
                         <div className="font-bold absolute top-2 right-2">امضا مدیر کارخانه:</div>
                         {isFactoryApproved && (
-                            <div className="border-2 border-green-800 text-green-800 p-2 rounded rotate-[-5deg] font-bold text-sm mt-4 opacity-80">
+                            <div className="border-2 border-green-800 text-green-800 p-1 rounded rotate-[-5deg] font-bold text-xs mt-4 opacity-80">
                                 تایید نهایی
+                            </div>
+                        )}
+                    </div>
+
+                    {/* CEO Signature */}
+                    <div className="w-1/4 relative p-2 flex flex-col items-center justify-center bg-purple-50/30">
+                        <div className="font-bold absolute top-2 right-2">امضا مدیرعامل:</div>
+                        {isCeoApproved && (
+                            <div className="border-2 border-purple-800 text-purple-800 p-1 rounded rotate-[-5deg] font-bold text-xs mt-4 opacity-80">
+                                دستور اقدام / تایید
                             </div>
                         )}
                     </div>

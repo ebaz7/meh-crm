@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 import { getRolePermissions } from '../services/authService';
 
@@ -12,7 +12,7 @@ interface Props {
 }
 
 const SecurityModule: React.FC<Props> = ({ currentUser }) => {
-    const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive'>('logs');
+    const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive' | 'in_progress'>('logs');
     
     const currentShamsi = getCurrentShamsiDate();
     const [selectedDate, setSelectedDate] = useState({ year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day });
@@ -122,7 +122,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // --- PERMISSION LOGIC (UPDATED) ---
     const canEdit = (item: any) => {
-        // Admin & CEO can ALWAYS edit, even archived items
+        // Admin & CEO can ALWAYS edit, even archived/final items
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
         
         // Locked/Archived items can't be edited by others
@@ -160,6 +160,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     // --- RESET DAILY STAMPS LOGIC ---
     // Use this when a new item is added or edited on an already approved day
     const resetDailyApprovalIfNeeded = async (date: string, type: 'log' | 'delay') => {
+        // If CEO is editing, DO NOT reset approvals.
+        if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) return;
+
         if (!settings) return;
         const currentMeta = settings.dailySecurityMeta?.[date];
         if (!currentMeta) return;
@@ -253,6 +256,21 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         return allPending;
     };
 
+    // Get Active / In-Progress Items (Not Archived, Not Rejected)
+    const getInProgressItems = () => {
+        const allActive: any[] = [];
+        const checkActive = (item: any, type: string) => {
+            if (item.status !== SecurityStatus.ARCHIVED && item.status !== SecurityStatus.REJECTED) {
+                allActive.push({ ...item, type });
+            }
+        };
+        logs.forEach(l => checkActive(l, 'log'));
+        delays.forEach(d => checkActive(d, 'delay'));
+        incidents.forEach(i => checkActive(i, 'incident'));
+
+        return allActive.sort((a,b) => b.createdAt - a.createdAt);
+    };
+
     const getArchivedItems = () => {
         const archivedLogs = logs.filter(l => l.status === SecurityStatus.ARCHIVED);
         const archivedDelays = delays.filter(d => d.status === SecurityStatus.ARCHIVED);
@@ -277,9 +295,20 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     // --- ACTIONS ---
     const handleSaveLog = async () => {
-        let statusToSave = editingId ? logForm.status! : SecurityStatus.PENDING_SUPERVISOR;
-        if (editingId && logForm.status === SecurityStatus.REJECTED) {
-            statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        // If editing, keep original status if CEO/Admin, else reset to start
+        let statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        
+        if (editingId) {
+             const originalItem = logs.find(l => l.id === editingId);
+             if (originalItem) {
+                 if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
+                     statusToSave = originalItem.status; // Keep existing status for CEO edits
+                 } else if (originalItem.status === SecurityStatus.REJECTED) {
+                     statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+                 } else {
+                     statusToSave = originalItem.status; // Default behavior: keep status unless rejected
+                 }
+             }
         }
 
         const isoDate = getIsoSelectedDate();
@@ -310,9 +339,19 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleSaveDelay = async () => {
-        let statusToSave = editingId ? delayForm.status! : SecurityStatus.PENDING_SUPERVISOR;
-        if (editingId && delayForm.status === SecurityStatus.REJECTED) {
-            statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+        let statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+
+        if (editingId) {
+             const originalItem = delays.find(d => d.id === editingId);
+             if (originalItem) {
+                 if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
+                     statusToSave = originalItem.status; // Keep status
+                 } else if (originalItem.status === SecurityStatus.REJECTED) {
+                     statusToSave = SecurityStatus.PENDING_SUPERVISOR;
+                 } else {
+                     statusToSave = originalItem.status;
+                 }
+             }
         }
 
         const isoDate = getIsoSelectedDate();
@@ -325,8 +364,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             unit: delayForm.unit || '',
             arrivalTime: delayForm.arrivalTime || '',
             delayAmount: delayForm.delayAmount || '',
-            repeatCount: delayForm.repeatCount || '', // New field
-            instruction: delayForm.instruction || '', // New field
+            repeatCount: delayForm.repeatCount || '', 
+            instruction: delayForm.instruction || '', 
             registrant: editingId ? delayForm.registrant! : currentUser.fullName,
             status: statusToSave,
             createdAt: editingId ? delayForm.createdAt! : Date.now()
@@ -389,6 +428,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         if (!confirm('حذف شود؟')) return;
         if (type === 'log') await updateSecurityLog({ ...logs.find(l=>l.id===id)!, status: SecurityStatus.REJECTED } as any); 
         else if (type === 'delay') await updatePersonnelDelay({ ...delays.find(d=>d.id===id)!, status: SecurityStatus.REJECTED } as any);
+        else if (type === 'incident') await updateSecurityIncident({ ...incidents.find(i=>i.id===id)!, status: SecurityStatus.REJECTED } as any);
         loadData();
     };
 
@@ -404,7 +444,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 const currentMeta = settings.dailySecurityMeta?.[date] || {};
                 const updatedMeta = { ...currentMeta };
                 if (category === 'log') updatedMeta.isCeoDailyApproved = true;
-                else updatedMeta.isDelayCeoApproved = true;
+                else updatedMeta.isDelayCeoApproved = true; // Set CEO delay stamp
 
                 await saveSettings({
                     ...settings,
@@ -470,11 +510,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         
         // Incident Approval
         if (item.type === 'incident') {
-             // ... existing incident logic ...
              let nextStatus = item.status;
              if (item.status === SecurityStatus.PENDING_SUPERVISOR) nextStatus = SecurityStatus.PENDING_FACTORY;
-             // ...
-             // Simplified for brevity, assume standard flow
+             
              await updateSecurityIncident({ ...item, status: nextStatus, approverSupervisor: currentUser.fullName });
              setViewCartableItem(null); 
              loadData();
@@ -669,6 +707,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 : 'بررسی جهت تایید / رد'}
                         </div>
                         <div className="flex gap-2">
+                            {/* PRINT BUTTON */}
+                             <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded font-bold flex items-center gap-2 hover:bg-blue-700 shadow"><Printer size={18}/> چاپ</button>
+
                             {viewCartableItem.mode !== 'view_only' && (
                                 <>
                                     {/* Factory Manager View: Check items individually */}
@@ -690,26 +731,26 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 <PrintSecurityDailyLog 
                                     date={viewCartableItem.date} 
                                     logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[viewCartableItem.date]}
+                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
                                 />
                             )}
                             {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'delay' && (
                                 <PrintPersonnelDelay 
                                     delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[viewCartableItem.date]}
+                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'log' && (
                                 <PrintSecurityDailyLog 
                                     date={viewCartableItem.date} 
                                     logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[viewCartableItem.date]}
+                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'delay' && (
                                 <PrintPersonnelDelay 
                                     delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[viewCartableItem.date]}
+                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'incident' && (
@@ -742,6 +783,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <button onClick={() => setActiveTab('incidents')} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${activeTab === 'incidents' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>گزارش وقایع</button>
                         <div className="w-px bg-gray-300 mx-1"></div>
                         <button onClick={() => setActiveTab('cartable')} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${activeTab === 'cartable' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}><UserCheck size={14}/> کارتابل ({getCartableItems().length})</button>
+                         <button onClick={() => setActiveTab('in_progress')} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${activeTab === 'in_progress' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}><Activity size={14}/> در جریان</button>
                         <button onClick={() => setActiveTab('archive')} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${activeTab === 'archive' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}><Archive size={14}/> بایگانی</button>
                     </div>
                 </div>
@@ -875,6 +917,29 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             )})}
                             {getCartableItems().length === 0 && <div className="text-center text-gray-400 py-10">کارتابل شما خالی است.</div>}
                         </div>
+                    </div>
+                )}
+
+                {/* IN PROGRESS TAB (NEW) */}
+                {activeTab === 'in_progress' && (
+                    <div className="p-4 space-y-3">
+                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Activity size={20}/> موارد در جریان (فعال)</h3>
+                        {getInProgressItems().length === 0 ? (
+                             <div className="text-center text-gray-400 py-10">هیچ مورد فعالی یافت نشد.</div>
+                        ) : (
+                            getInProgressItems().map((item, idx) => (
+                                <div key={idx} className="border p-4 rounded-xl flex justify-between items-center transition-colors bg-white hover:bg-indigo-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${item.type==='log'?'bg-blue-100 text-blue-600':item.type==='delay'?'bg-orange-100 text-orange-600':'bg-red-100 text-red-600'}`}>{item.type==='log'?<Truck size={16}/>:item.type==='delay'?<Clock size={16}/>:<AlertTriangle size={16}/>}</div>
+                                        <div>
+                                            <div className="font-bold text-sm mb-1">{item.type === 'log' ? `تردد: ${item.driverName}` : item.type === 'delay' ? `تاخیر: ${item.personnelName}` : `واقعه: ${item.subject}`}</div>
+                                            <div className="text-xs text-gray-500">تاریخ: {formatDate(item.date)} | وضعیت: <span className="bg-gray-100 px-1 rounded">{item.status}</span></div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-sm"><Eye size={14}/> مشاهده / چاپ</button>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
 
