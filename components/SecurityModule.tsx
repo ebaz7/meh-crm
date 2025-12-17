@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, getSettings, saveSettings } from '../services/storageService';
-import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity } from 'lucide-react';
+import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, getShamsiDateFromIso } from '../constants';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 import { getRolePermissions } from '../services/authService';
 
@@ -28,6 +28,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [printTarget, setPrintTarget] = useState<any>(null);
     
     const [viewCartableItem, setViewCartableItem] = useState<any>(null);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     // Edit/New State
     const [editingId, setEditingId] = useState<string | null>(null); // Track which item is being edited
@@ -611,6 +612,38 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         setShowPrintModal(true);
     };
 
+    const handleDownloadPDF = async () => {
+        setIsGeneratingPdf(true);
+        const element = document.getElementById('printable-area-view');
+        if (!element) { setIsGeneratingPdf(false); return; }
+        
+        try {
+            // @ts-ignore
+            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+            const imgData = canvas.toDataURL('image/png');
+            // @ts-ignore
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('l', 'mm', 'a4'); // A4 Landscape default for these reports
+            const pdfWidth = 297;
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Security_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert("خطا در ایجاد PDF");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
+        const shamsi = getShamsiDateFromIso(dateString);
+        setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
+        setActiveTab(category === 'log' ? 'logs' : 'delays');
+        setViewCartableItem(null); // Close modal
+    };
+
     const DateFilter = () => (
         <div className="flex gap-1 items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
             <Calendar size={16} className="text-gray-500 ml-1"/>
@@ -707,8 +740,19 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 : 'بررسی جهت تایید / رد'}
                         </div>
                         <div className="flex gap-2">
-                            {/* PRINT BUTTON */}
+                            {/* PRINT & PDF BUTTONS */}
                              <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded font-bold flex items-center gap-2 hover:bg-blue-700 shadow"><Printer size={18}/> چاپ</button>
+                             <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-4 py-2 rounded font-bold flex items-center gap-2 hover:bg-red-700 shadow">{isGeneratingPdf ? <Loader2 size={18} className="animate-spin"/> : <FileDown size={18}/>} PDF</button>
+
+                            {/* EDIT BUTTON FOR ARCHIVE/CEO */}
+                            {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && viewCartableItem.type === 'daily_archive' && (
+                                <button 
+                                    onClick={() => handleJumpToEdit(String(viewCartableItem.date), viewCartableItem.category)} 
+                                    className="bg-amber-100 text-amber-700 px-4 py-2 rounded font-bold flex items-center gap-2 hover:bg-amber-200 shadow border border-amber-300"
+                                >
+                                    <Pencil size={18}/> ویرایش اقلام این روز
+                                </button>
+                            )}
 
                             {viewCartableItem.mode !== 'view_only' && (
                                 <>
@@ -726,31 +770,31 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         </div>
                     </div>
                     <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full max-w-5xl flex justify-center">
-                        <div className="scale-75 origin-top bg-white shadow-lg">
+                        <div id="printable-area-view" className="scale-75 origin-top bg-white shadow-lg flex justify-center">
                             {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'log' && (
                                 <PrintSecurityDailyLog 
                                     date={viewCartableItem.date} 
                                     logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                 />
                             )}
                             {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'delay' && (
                                 <PrintPersonnelDelay 
                                     delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'log' && (
                                 <PrintSecurityDailyLog 
                                     date={viewCartableItem.date} 
                                     logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'delay' && (
                                 <PrintPersonnelDelay 
                                     delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                    meta={settings?.dailySecurityMeta?.[String(viewCartableItem.date)]}
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                 />
                             )}
                             {viewCartableItem.type === 'incident' && (

@@ -25,17 +25,17 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
     while(displayRepeat.length < 3) displayRepeat.push({} as any);
 
     return (
-        <div className="w-[210mm] h-[297mm] bg-white p-4 mx-auto text-black font-sans relative" style={{ direction: 'rtl' }}>
-            <div className="border-2 border-black h-full flex flex-col">
+        <div className="w-[210mm] h-[297mm] bg-white p-8 mx-auto text-black font-sans relative flex flex-col box-border" style={{ direction: 'rtl' }}>
+            <div className="border-2 border-black flex-1 flex flex-col">
                 
                 {/* Header */}
-                <div className="flex border-b-2 border-black h-24">
+                <div className="flex border-b-2 border-black h-24 shrink-0">
                     <div className="w-1/3 border-l-2 border-black p-2 flex flex-col justify-center gap-2">
                         <div className="font-bold text-sm">شماره:</div>
                         <div className="font-bold text-sm">تاریخ: {formatDate(date)}</div>
                     </div>
                     <div className="w-1/3 border-l-2 border-black flex items-center justify-center">
-                        <h1 className="text-xl font-black">فرم گزارش تاخیر ورود پرسنل</h1>
+                        <h1 className="text-xl font-black text-center">فرم گزارش تاخیر ورود پرسنل</h1>
                     </div>
                     <div className="w-1/3 flex items-center justify-center p-2">
                         <div className="text-center font-bold text-lg">گروه تولیدی</div>
@@ -57,7 +57,7 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                         </thead>
                         <tbody>
                             {displayDelays.map((d, i) => (
-                                <tr key={i} className="h-12">
+                                <tr key={i} className="h-10">
                                     <td className="border border-black">{d.id ? i + 1 : ''}</td>
                                     <td className="border border-black font-bold">{d.personnelName}</td>
                                     <td className="border border-black">{d.unit}</td>
@@ -70,7 +70,7 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 </div>
 
                 {/* Repeat Delay Section */}
-                <div className="mt-2">
+                <div className="mt-2 shrink-0">
                     <div className="text-center font-bold bg-gray-100 border border-black border-b-0 p-1">تکرار تاخیر</div>
                     <table className="w-full border-collapse text-center">
                         <thead>
@@ -84,7 +84,7 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                         </thead>
                         <tbody>
                             {displayRepeat.map((d, i) => (
-                                <tr key={i} className="h-12">
+                                <tr key={i} className="h-10">
                                     <td className="border border-black">{d.id ? i + 1 : ''}</td>
                                     <td className="border border-black font-bold">{d.personnelName}</td>
                                     <td className="border border-black">{d.unit}</td>
@@ -97,7 +97,7 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 </div>
 
                 {/* Footer Signatures */}
-                <div className="h-32 border-t-2 border-black flex mt-4 text-[10px]">
+                <div className="h-32 border-t-2 border-black flex mt-auto shrink-0 text-[10px]">
                     {/* Guard Signature */}
                     <div className="w-1/4 border-l-2 border-black relative p-2">
                         <div className="font-bold absolute top-2 right-2">امضا نگهبان:</div>
