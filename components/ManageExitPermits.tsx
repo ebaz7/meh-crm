@@ -25,6 +25,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   
   // State for Auto-Send Rendering (Hidden)
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
+  // State for Deleted Permit Rendering
+  const [deletedPermitForAutoSend, setDeletedPermitForAutoSend] = useState<ExitPermit | null>(null);
   
   const permissions = getRolePermissions(currentUser.role, settings || null);
 
@@ -147,7 +149,74 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       }
   };
 
-  const handleDelete = async (id: string) => { if(confirm('حذف شود؟')) { await deleteExitPermit(id); loadData(); } };
+  const handleDelete = async (id: string) => {
+      if(!confirm('آیا مطمئن هستید که می‌خواهید این مجوز را حذف کنید؟ این عملیات غیرقابل بازگشت است.')) return;
+
+      const permitToDelete = permits.find(p => p.id === id);
+      
+      // If it was already approved (sent to factory/exit), we must notify cancellation
+      if (permitToDelete && (permitToDelete.status === ExitPermitStatus.PENDING_FACTORY || permitToDelete.status === ExitPermitStatus.EXITED)) {
+          
+          // Prepare deleted mock object for rendering with "DELETED" status
+          const deletedMock = { ...permitToDelete, status: 'DELETED' as any };
+          setDeletedPermitForAutoSend(deletedMock);
+
+          // Wait for render, capture, send, THEN delete
+          setTimeout(async () => {
+              const element = document.getElementById(`print-permit-del-${id}`);
+              if (element) {
+                  try {
+                      // @ts-ignore
+                      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                      const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+                      let warningCaption = `❌❌ *هشدار: مجوز خروج ابطال شد* ❌❌\n`;
+                      warningCaption += `⛔ *خروج بار ممنوع*\n`;
+                      warningCaption += `🔢 شماره: ${permitToDelete.permitNumber}\n`;
+                      warningCaption += `👤 گیرنده: ${permitToDelete.recipientName}\n`;
+                      warningCaption += `🗑️ ابطال توسط: ${currentUser.fullName}\n`;
+                      warningCaption += `⚠️ *این مجوز از سیستم حذف شده و فاقد اعتبار است.*`;
+
+                      const users = await getUsers();
+                      const factoryManager = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
+                      const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+
+                      // 1. Notify Factory Manager
+                      if (factoryManager) {
+                          await apiCall('/send-whatsapp', 'POST', { number: factoryManager.phoneNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_VOID_${permitToDelete.permitNumber}.png` } });
+                      }
+                      
+                      // 2. Notify CEO
+                      if (ceo) {
+                          await apiCall('/send-whatsapp', 'POST', { number: ceo.phoneNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_VOID_${permitToDelete.permitNumber}.png` } });
+                      }
+
+                      // 3. Notify Group
+                      if (settings?.exitPermitNotificationGroup) {
+                          await apiCall('/send-whatsapp', 'POST', { 
+                              number: settings.exitPermitNotificationGroup, 
+                              message: warningCaption, 
+                              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_VOID_${permitToDelete.permitNumber}_Grp.png` } 
+                          });
+                      }
+
+                  } catch (e) { console.error("Error sending delete notification", e); }
+              }
+
+              // Proceed with deletion
+              await deleteExitPermit(id);
+              setDeletedPermitForAutoSend(null);
+              loadData();
+              alert("مجوز حذف و پیام ابطال ارسال شد.");
+
+          }, 1500);
+
+      } else {
+          // Simple delete for pending/rejected/draft
+          await deleteExitPermit(id);
+          loadData();
+      }
+  };
 
   const handleEditSave = () => {
       setEditingPermit(null);
@@ -216,10 +285,19 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in relative">
-        {/* Hidden Render for Auto Send - Add class hidden-print-export */}
+        {/* Hidden Render for Auto Send (Approval) - Add class hidden-print-export */}
         {permitForAutoSend && (
             <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
                 <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} />
+            </div>
+        )}
+
+        {/* Hidden Render for Auto Send (Deletion/Cancellation) */}
+        {deletedPermitForAutoSend && (
+            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
+                <div id={`print-permit-del-${deletedPermitForAutoSend.id}`}>
+                    <PrintExitPermit permit={deletedPermitForAutoSend} onClose={()=>{}} embed settings={settings} />
+                </div>
             </div>
         )}
 
@@ -271,7 +349,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                         </button>
                                     )}
 
-                                    {(currentUser.role === UserRole.ADMIN || (activeTab === 'current' && p.status === ExitPermitStatus.PENDING_CEO && p.requester === currentUser.fullName)) && <button onClick={() => handleDelete(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
+                                    {(currentUser.role === UserRole.ADMIN || (activeTab === 'current' && (p.status === ExitPermitStatus.PENDING_CEO || p.status === ExitPermitStatus.PENDING_FACTORY) && (p.requester === currentUser.fullName || currentUser.role === UserRole.CEO))) && 
+                                        <button onClick={() => handleDelete(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200" title="حذف/ابطال"><Trash2 size={16}/></button>
+                                    }
                                     
                                     {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید سریع"><CheckCircle size={16}/></button>}
                                 </td>

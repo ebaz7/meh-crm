@@ -41,7 +41,19 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
       setTimeout(() => { window.print(); setProcessing(false); }, 500); 
   };
-  const handleDownloadImage = async () => { /* ... existing ... */ };
+  const handleDownloadImage = async () => { 
+      setProcessing(true);
+      const element = document.getElementById(embed ? `print-permit-${permit.id}` : "print-area-exit");
+      if (!element) { setProcessing(false); return; }
+      try {
+          // @ts-ignore
+          const canvas = await window.html2canvas(element, { scale: 3, backgroundColor: '#ffffff' });
+          const link = document.createElement('a');
+          link.download = `Permit_${permit.permitNumber}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+      } catch (e) { alert('خطا'); } finally { setProcessing(false); }
+  };
   const handleSendWhatsApp = async (target: string) => { /* ... existing ... */ };
 
   const displayItems = permit.items && permit.items.length > 0 ? permit.items : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0 }];
@@ -61,17 +73,24 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             padding: '8mm', // Proper padding
             boxSizing: 'border-box'
         }}>
-            <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
+            {/* Watermark for Deleted */}
+            {((permit.status as any) === 'DELETED') && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-8xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap opacity-50">
+                    ابطال شد<br/><span className="text-4xl block text-center">DELETED</span>
+                </div>
+            )}
+
+            <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4 relative z-10">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">شرکت تولیدی صنعتی</p></div></div>
                 <div className="text-left space-y-1"><div className="text-lg font-black">شماره: {permit.permitNumber}</div><div className="text-sm">تاریخ: {formatDate(permit.date)}</div></div>
             </div>
-            <div className="flex-1 space-y-6">
+            <div className="flex-1 space-y-6 relative z-10">
                 <div><h3 className="font-bold text-sm mb-2 border-b border-gray-300 pb-1 flex items-center gap-2"><Package size={16}/> مشخصات کالا</h3><table className="w-full text-sm border-collapse border border-gray-400"><thead className="bg-gray-100"><tr><th className="border border-gray-400 p-2 w-10 text-center">ردیف</th><th className="border border-gray-400 p-2">شرح کالا</th><th className="border border-gray-400 p-2 w-24 text-center">تعداد کارتن</th><th className="border border-gray-400 p-2 w-24 text-center">وزن (KG)</th></tr></thead><tbody>{displayItems.map((item, idx) => (<tr key={idx}><td className="border border-gray-400 p-2 text-center">{idx + 1}</td><td className="border border-gray-400 p-2 font-bold">{item.goodsName}</td><td className="border border-gray-400 p-2 text-center">{item.cartonCount}</td><td className="border border-gray-400 p-2 text-center">{item.weight}</td></tr>))}<tr className="bg-gray-50 font-bold"><td colSpan={2} className="border border-gray-400 p-2 text-left pl-4">جمع کل:</td><td className="border border-gray-400 p-2 text-center">{totalCartons}</td><td className="border border-gray-400 p-2 text-center">{totalWeight}</td></tr></tbody></table></div>
                 <div><h3 className="font-bold text-sm mb-2 border-b border-gray-300 pb-1 flex items-center gap-2"><MapPin size={16}/> مقصد و گیرنده</h3><div className="space-y-2">{displayDestinations.map((dest, idx) => (<div key={idx} className="border border-gray-300 rounded p-2 flex gap-4 text-sm bg-gray-50"><div className="font-bold min-w-[150px] flex items-center gap-1"><User size={14}/> {dest.recipientName}</div>{dest.phone && <div className="font-mono text-gray-600 flex items-center gap-1"><Phone size={12}/> {dest.phone}</div>}<div className="flex-1 flex items-start gap-1"><MapPin size={14} className="mt-0.5 text-gray-500"/> {dest.address}</div></div>))}</div></div>
                 {(permit.driverName || permit.plateNumber) && (<div className="grid grid-cols-2 gap-4 border rounded p-3 bg-gray-50 text-sm"><div><span className="text-gray-500 ml-2">نام راننده:</span> <span className="font-bold">{permit.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">شماره پلاک:</span> <span className="font-bold font-mono text-lg">{permit.plateNumber || '-'}</span></div></div>)}
                 {permit.description && (<div className="border rounded p-3 text-sm"><span className="font-bold text-xs text-gray-500 block mb-1">توضیحات:</span>{permit.description}</div>)}
             </div>
-            <div className="mt-8 pt-4 border-t-2 border-black grid grid-cols-3 gap-4 text-center">
+            <div className="mt-8 pt-4 border-t-2 border-black grid grid-cols-3 gap-4 text-center relative z-10">
                 <div className="flex flex-col items-center justify-end h-24"><div className="mb-2 font-bold text-sm">{permit.requester}</div><div className="text-xs text-gray-500 border-t w-full pt-1">مدیر فروش (درخواست کننده)</div></div>
                 <div className="flex flex-col items-center justify-end h-24"><div className="mb-2">{permit.approverCeo ? <Stamp title="تایید مدیریت عامل" name={permit.approverCeo} /> : <span className="text-gray-300 text-xs">امضا نشده</span>}</div><div className="text-xs text-gray-500 border-t w-full pt-1">مدیر عامل</div></div>
                 <div className="flex flex-col items-center justify-end h-24"><div className="mb-2">{permit.approverFactory ? <Stamp title="خروج از کارخانه" name={permit.approverFactory} /> : <span className="text-gray-300 text-xs">امضا نشده</span>}</div><div className="text-xs text-gray-500 border-t w-full pt-1">مدیر کارخانه / انتظامات</div></div>

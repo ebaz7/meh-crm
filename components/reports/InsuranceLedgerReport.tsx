@@ -1,26 +1,35 @@
 
 import React, { useState, useEffect } from 'react';
-import { TradeRecord } from '../../types';
+import { TradeRecord, SystemSettings } from '../../types';
 import { formatCurrency, formatNumberString, parsePersianDate } from '../../constants';
 import { Printer, FileDown, Search, Filter, X, Loader2 } from 'lucide-react';
 
 interface Props {
     records: TradeRecord[];
+    settings?: SystemSettings; // Added settings prop
 }
 
-const InsuranceLedgerReport: React.FC<Props> = ({ records }) => {
+const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [selectedInsCompany, setSelectedInsCompany] = useState<string>('');
 
-    // Extract unique insurance companies from records only
+    // Extract unique insurance companies from records AND settings (Merged)
     const insuranceCompanies = React.useMemo(() => {
         const companies = new Set<string>();
+        
+        // 1. Add from settings
+        if (settings?.insuranceCompanies) {
+            settings.insuranceCompanies.forEach(c => companies.add(c));
+        }
+
+        // 2. Add from existing records (legacy support)
         records.forEach(r => {
             if (r.insuranceData?.company) companies.add(r.insuranceData.company);
         });
-        return Array.from(companies);
-    }, [records]);
+        
+        return Array.from(companies).sort();
+    }, [records, settings]);
 
     useEffect(() => {
         if (insuranceCompanies.length > 0 && !selectedInsCompany) {

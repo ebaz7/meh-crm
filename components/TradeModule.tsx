@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem } from '../types';
+import { User, TradeRecord, TradeStage, TradeItem, SystemSettings, InsuranceEndorsement, CurrencyPurchaseData, TradeTransaction, CurrencyTranche, TradeStageData, ShippingDocument, ShippingDocType, DocStatus, InvoiceItem, InspectionData, InspectionPayment, InspectionCertificate, ClearanceData, WarehouseReceipt, ClearancePayment, GreenLeafData, GreenLeafCustomsDuty, GreenLeafGuarantee, GreenLeafTax, GreenLeafRoadToll, InternalShippingData, ShippingPayment, AgentData, AgentPayment, PackingItem, UserRole } from '../types';
 import { getTradeRecords, saveTradeRecord, updateTradeRecord, deleteTradeRecord, getSettings, uploadFile } from '../services/storageService';
 import { generateUUID, formatCurrency, formatNumberString, deformatNumberString, parsePersianDate, formatDate, calculateDaysDiff, getStatusLabel } from '../constants';
 import { Container, Plus, Search, CheckCircle2, Save, Trash2, X, Package, ArrowRight, History, Banknote, Coins, Wallet, FileSpreadsheet, Shield, LayoutDashboard, Printer, FileDown, Paperclip, Building2, FolderOpen, Home, Calculator, FileText, Microscope, ListFilter, Warehouse, Calendar as CalendarIcon, PieChart, BarChart, Clock, Leaf, Scale, ShieldCheck, Percent, Truck, CheckSquare, Square, ToggleLeft, ToggleRight, DollarSign, UserCheck, Check, Archive, AlertCircle, RefreshCw, Box, Loader2, Share2, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Info, ArrowLeftRight, Edit2, Edit, Undo2 } from 'lucide-react';
@@ -297,7 +297,14 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     };
 
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
-    const handleDeleteRecord = async (id: string) => { if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
+    const handleDeleteRecord = async (id: string, e: React.MouseEvent) => { 
+        e.stopPropagation(); // Prevent card click
+        if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { 
+            await deleteTradeRecord(id); 
+            if (selectedRecord?.id === id) setSelectedRecord(null); 
+            loadRecords(); 
+        } 
+    };
     
     // UPDATED: Sync to state list to handle persistence on back
     const handleUpdateProforma = async (field: keyof TradeRecord, value: string | number) => { 
@@ -553,7 +560,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     };
 
     const renderReportContent = useMemo(() => {
-        const safeSettings = settings || { currentTrackingNumber: 1000, currentExitPermitNumber: 1000, companyNames: [], companies: [], defaultCompany: '', bankNames: [], operatingBankNames: [], commodityGroups: [], rolePermissions: {}, savedContacts: [], warehouseSequences: {}, companyNotifications: {} };
+        const safeSettings = settings || { currentTrackingNumber: 1000, currentExitPermitNumber: 1000, companyNames: [], companies: [], defaultCompany: '', bankNames: [], operatingBankNames: [], commodityGroups: [], rolePermissions: {}, savedContacts: [], warehouseSequences: {}, companyNotifications: {}, insuranceCompanies: [] };
 
         switch (activeReport) {
             case 'general':
@@ -597,7 +604,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             case 'company_performance':
                 return <CompanyPerformanceReport records={records} />;
             case 'insurance_ledger':
-                return <InsuranceLedgerReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} />; 
+                return <InsuranceLedgerReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} settings={safeSettings} />; 
             default:
                 return <div className="p-8 text-center text-gray-500">گزارش در حال تکمیل است...</div>;
         }
@@ -1605,9 +1612,18 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                     records
                         .filter(r => (showArchived ? r.isArchived : !r.isArchived) && (r.company === selectedCompany) && (r.commodityGroup === selectedGroup) && (r.goodsName.includes(searchTerm) || r.fileNumber.includes(searchTerm)))
                         .map(record => (
-                            <div key={record.id} onClick={() => { setSelectedRecord(record); setViewMode('details'); setActiveTab('timeline'); }} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-blue-500">
+                            <div key={record.id} onClick={() => { setSelectedRecord(record); setViewMode('details'); setActiveTab('timeline'); }} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-blue-500 relative">
+                                {/* DELETE BUTTON ADDED HERE */}
+                                <button 
+                                    onClick={(e) => handleDeleteRecord(record.id, e)} 
+                                    className="absolute top-4 left-4 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                                    title="حذف پرونده"
+                                >
+                                    <Trash2 size={18}/>
+                                </button>
+
                                 <div className="flex justify-between items-start mb-3">
-                                    <h3 className="font-bold text-gray-800 line-clamp-1" title={record.goodsName}>{record.goodsName}</h3>
+                                    <h3 className="font-bold text-gray-800 line-clamp-1 pr-8" title={record.goodsName}>{record.goodsName}</h3>
                                     <span className={`text-[10px] px-2 py-1 rounded-lg ${record.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'}`}>{record.status === 'Completed' ? 'تکمیل شده' : 'جاری'}</span>
                                 </div>
                                 <div className="space-y-1.5 text-xs text-gray-500">
