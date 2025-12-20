@@ -6,7 +6,7 @@ import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatNumberStri
 import { Package, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, FileText, BarChart3, Eye, Loader2, AlertTriangle, Settings, ArrowLeftRight, Search, FileClock, Printer, FileDown, Share2, LayoutGrid, Archive, Edit, Save, X, Container, CheckCircle, XCircle } from 'lucide-react';
 import PrintBijak from './PrintBijak';
 import PrintStockReport from './print/PrintStockReport'; 
-import WarehouseKardexReport from './reports/WarehouseKardexReport'; // NEW IMPORT
+import WarehouseKardexReport from './reports/WarehouseKardexReport';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
 
@@ -67,7 +67,19 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
     const loadData = async () => { setLoadingData(true); try { const [i, t] = await Promise.all([getWarehouseItems(), getWarehouseTransactions()]); setItems(i || []); setTransactions(t || []); } catch (e) { console.error(e); } finally { setLoadingData(false); } };
     const updateNextBijak = async () => { if(selectedCompany) { const num = await getNextBijakNumber(selectedCompany); setNextBijakNum(num); } };
-    const getIsoDate = () => { try { const date = jalaliToGregorian(txDate.year, txDate.month, txDate.day); return date.toISOString(); } catch { return new Date().toISOString(); } };
+    
+    // FIX: Set hours to noon (12:00) to avoid timezone shifts making the date jump back one day
+    const getIsoDate = () => { 
+        try { 
+            const date = jalaliToGregorian(txDate.year, txDate.month, txDate.day); 
+            date.setHours(12, 0, 0, 0); 
+            return date.toISOString(); 
+        } catch { 
+            const d = new Date();
+            d.setHours(12, 0, 0, 0);
+            return d.toISOString(); 
+        } 
+    };
     
     // --- ITEM MANAGEMENT ---
     const handleAddItem = async () => { 
@@ -132,7 +144,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
             }
             setTxItems([{ itemId: '', quantity: 0, weight: 0, unitPrice: 0 }]);
         } catch (e: any) {
-            // Check for specific error message regarding duplicates
             if (e.message && e.message.includes('409')) {
                 alert('خطا: شماره بیجک تکراری است. لطفاً صفحه را رفرش کنید تا شماره جدید دریافت شود.');
             } else {
@@ -141,26 +152,23 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
         }
     };
 
+    // ... rest of the file ...
     const handleApproveBijak = async (tx: WarehouseTransaction) => {
         if (!confirm('آیا تایید می‌کنید؟ پس از تایید، بیجک به صورت خودکار برای انبار و مدیریت ارسال می‌شود.')) return;
         
         try {
-            // Check if this is a Correction (Edited) by comparing updatedAt and createdAt
-            const isCorrection = tx.updatedAt && tx.updatedAt > (tx.createdAt + 60000); // 1 minute buffer
+            const isCorrection = tx.updatedAt && tx.updatedAt > (tx.createdAt + 60000); 
             const titleSuffix = isCorrection ? ' (اصلاحیه)' : '';
 
-            // 1. Update Status
             const updatedTx = { ...tx, status: 'APPROVED' as const, approvedBy: currentUser.fullName };
             await updateWarehouseTransaction(updatedTx);
             
-            // 2. Trigger Auto-Send
             setApprovedTxForAutoSend(updatedTx);
             
             setTimeout(async () => {
                 const managerElement = document.getElementById(`print-bijak-${updatedTx.id}-price`);
                 const warehouseElement = document.getElementById(`print-bijak-${updatedTx.id}-noprice`);
                 
-                // Construct Common Details
                 let commonDetails = `🔢 شماره: ${updatedTx.number}\n`;
                 commonDetails += `📅 تاریخ: ${formatDate(updatedTx.date)}\n`;
                 commonDetails += `👤 گیرنده: ${updatedTx.recipientName}\n`;
@@ -174,37 +182,23 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     const managerNumber = companyConfig?.salesManager;
                     const groupNumber = companyConfig?.warehouseGroup;
 
-                    if (!managerNumber && !groupNumber) {
-                        console.warn("No destination numbers configured for company:", updatedTx.company);
-                    }
-
                     try {
-                        // 1. Send to SALES MANAGER (With Price)
                         if (managerNumber && managerElement) {
                             // @ts-ignore
                             const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff' });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
                             const managerCaption = `🏭 *شرکت: ${updatedTx.company}*\n📑 *حواله خروج - تایید شده${titleSuffix}*\n${commonDetails}`;
                             
-                            await apiCall('/send-whatsapp', 'POST', { 
-                                number: managerNumber, 
-                                message: managerCaption, 
-                                mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_${updatedTx.number}_Price.png` } 
-                            });
+                            await apiCall('/send-whatsapp', 'POST', { number: managerNumber, message: managerCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_${updatedTx.number}_Price.png` } });
                         }
 
-                        // 2. Send to WAREHOUSE GROUP (No Price)
                         if (groupNumber && warehouseElement) {
                             // @ts-ignore
                             const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff' });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
-                            const warehouseCaption = `🏭 *شرکت: ${updatedTx.company}*\n📦 *حواله خروج - نسخه انبار${titleSuffix}*\n${commonDetails}`;
+                            const warehouseCaption = `🏭 *شرکت: ${updatedTx.company}*\n📦 *حواله خروج (انبار)*\n${commonDetails}`;
 
-                            await apiCall('/send-whatsapp', 'POST', { 
-                                number: groupNumber, 
-                                message: warehouseCaption, 
-                                mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_${updatedTx.number}.png` } 
-                            });
+                            await apiCall('/send-whatsapp', 'POST', { number: groupNumber, message: warehouseCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_${updatedTx.number}.png` } });
                         }
                     } catch(e) { console.error("Auto send error", e); }
                 }
@@ -213,7 +207,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 loadData();
                 setViewBijak(null);
                 alert("تایید و ارسال شد.");
-            }, 2000); // Increased timeout to ensure rendering
+            }, 2000); 
 
         } catch (e) { alert("خطا در عملیات تایید"); }
     };
@@ -233,14 +227,10 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
         const txToDelete = transactions.find(t => t.id === id);
         
-        // If it's a Bijak (OUT), send notification before deleting
         if (txToDelete && txToDelete.type === 'OUT' && settings && settings.companyNotifications) {
-            // Prepare deleted mock object for rendering with "DELETED" status
-            // We use 'DELETED' string which TypeScript might complain about if not in enum, casting as any
             const deletedMock = { ...txToDelete, status: 'DELETED' as any };
             setDeletedTxForAutoSend(deletedMock);
 
-            // Wait for render, capture, send, THEN delete
             setTimeout(async () => {
                 const managerElement = document.getElementById(`print-bijak-del-${id}-price`);
                 const warehouseElement = document.getElementById(`print-bijak-del-${id}-noprice`);
@@ -271,32 +261,27 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     }
                 } catch(e) { console.error("Error sending delete notification", e); }
                 
-                // Proceed with deletion after notification attempt
                 await deleteWarehouseTransaction(id);
                 setDeletedTxForAutoSend(null);
                 loadData();
-                setViewBijak(null); // Close modal if open
+                setViewBijak(null); 
                 alert("تراکنش حذف و اطلاع‌رسانی شد.");
 
             }, 1500);
         } else {
-            // Normal delete for receipts or if no settings
             await deleteWarehouseTransaction(id);
             loadData();
         }
     };
     
-    // ... (Edit handlers same) ...
     const handleEditBijakSave = async (updatedTx: WarehouseTransaction) => {
         try { 
-            // Reset status to PENDING on edit to re-trigger approval workflow
             updatedTx.status = 'PENDING';
             updatedTx.updatedAt = Date.now();
             
             await updateWarehouseTransaction(updatedTx); 
             setEditingBijak(null); 
             
-            // Auto Send Notification to CEO for re-approval
             setEditedBijakForAutoSend(updatedTx);
 
             setTimeout(async () => {
@@ -316,11 +301,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                             caption += `ویرایش توسط: ${currentUser.fullName}\n\n`;
                             caption += `لطفا بررسی نمایید.`;
 
-                            await apiCall('/send-whatsapp', 'POST', { 
-                                number: ceo.phoneNumber, 
-                                message: caption, 
-                                mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_Edit_${updatedTx.number}.png` } 
-                            });
+                            await apiCall('/send-whatsapp', 'POST', { number: ceo.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_Edit_${updatedTx.number}.png` } });
                          }
                      } catch(e) { console.error(e); }
                  }
@@ -343,7 +324,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
         try { await updateWarehouseTransaction(updatedTx); setEditingReceipt(null); loadData(); alert('رسید با موفقیت ویرایش شد.'); } catch (e) { console.error(e); alert('خطا در ویرایش رسید.'); }
     };
 
-    // ... (Stock Report Logic same) ...
     const allWarehousesStock = useMemo(() => {
         const companies = settings?.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
         const result = companies.map(company => {
@@ -370,10 +350,8 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     const filteredArchiveBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && (!archiveFilterCompany || t.company === archiveFilterCompany) && (String(t.number).includes(reportSearch) || t.recipientName?.includes(reportSearch))), [transactions, archiveFilterCompany, reportSearch]);
     const filteredArchiveReceipts = useMemo(() => transactions.filter(t => t.type === 'IN' && (!archiveFilterCompany || t.company === archiveFilterCompany) && (String(t.proformaNumber).includes(reportSearch))), [transactions, archiveFilterCompany, reportSearch]);
     
-    // Approval Filter
     const pendingBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING'), [transactions]);
 
-    // ... (Export handlers same) ...
     const handlePrintStock = () => { setShowPrintStockReport(true); };
     const handleDownloadStockPDF = async () => { /* ... */ };
 
@@ -387,23 +365,18 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border h-[calc(100vh-100px)] flex flex-col overflow-hidden animate-fade-in relative">
-            {/* Show Print Overlay */}
             {showPrintStockReport && (<PrintStockReport data={allWarehousesStock} onClose={() => setShowPrintStockReport(false)} />)}
 
-            {/* Hidden Rendering Area for Auto-Send */}
             <div className="hidden-print-export" style={{position:'absolute', top:'-9999px', left:'-9999px'}}>
-                {/* Approval Render */}
                 {approvedTxForAutoSend && (
                     <>
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-price`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                         <div id={`print-bijak-${approvedTxForAutoSend.id}-noprice`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
                     </>
                 )}
-                {/* Edit Render */}
                 {editedBijakForAutoSend && (
                      <div id={`print-bijak-edit-${editedBijakForAutoSend.id}`}><PrintBijak tx={editedBijakForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                 )}
-                {/* Deletion Render */}
                 {deletedTxForAutoSend && (
                     <>
                         <div id={`print-bijak-del-${deletedTxForAutoSend.id}-price`}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
@@ -414,7 +387,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
             <div className="bg-gray-100 p-2 flex gap-2 border-b overflow-x-auto no-print">
                 {activeTab === 'approvals' ? (
-                    // Only show approvals tab button if active (simple view for approvers)
                     <button onClick={() => setActiveTab('approvals')} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-white text-orange-600 shadow`}>کارتابل تایید بیجک</button>
                 ) : (
                     <>
@@ -432,25 +404,16 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
             <div className="flex-1 overflow-y-auto p-6">
                 
-                {/* --- REPORTS TAB (REPLACED WITH NEW COMPONENT) --- */}
                 {activeTab === 'reports' && (
-                    <WarehouseKardexReport 
-                        items={items}
-                        transactions={transactions}
-                        companies={companyList}
-                    />
+                    <WarehouseKardexReport items={items} transactions={transactions} companies={companyList} />
                 )}
 
-                {/* APPROVALS TAB */}
                 {activeTab === 'approvals' && (
                     <div className="space-y-4">
                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex justify-between items-center">
                             <h3 className="font-bold text-orange-800 flex items-center gap-2"><CheckCircle size={24}/> کارتابل تایید بیجک</h3>
-                            <div className="text-sm font-bold text-orange-700 bg-white px-3 py-1 rounded-lg border border-orange-200">
-                                تعداد در انتظار: {pendingBijaks.length}
-                            </div>
+                            <div className="text-sm font-bold text-orange-700 bg-white px-3 py-1 rounded-lg border border-orange-200">تعداد در انتظار: {pendingBijaks.length}</div>
                         </div>
-                        
                         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                             <table className="w-full text-sm text-right">
                                 <thead className="bg-gray-100 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">شرکت</th><th className="p-4">گیرنده</th><th className="p-4 text-center">عملیات</th></tr></thead>
@@ -512,7 +475,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     </div>
                 )}
                 
-                {/* ... (Items, Entry kept hidden) ... */}
                 {activeTab === 'items' && (<div className="max-w-4xl mx-auto"><div className="bg-gray-50 p-4 rounded-xl border mb-6 flex items-end gap-3 flex-wrap"><div className="flex-1 min-w-[200px] space-y-1"><label className="text-xs font-bold text-gray-500">نام کالا</label><input className="w-full border rounded p-2" value={newItemName} onChange={e=>setNewItemName(e.target.value)}/></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">کد کالا</label><input className="w-full border rounded p-2" value={newItemCode} onChange={e=>setNewItemCode(e.target.value)}/></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">واحد</label><select className="w-full border rounded p-2 bg-white" value={newItemUnit} onChange={e=>setNewItemUnit(e.target.value)}><option>عدد</option><option>کارتن</option><option>کیلوگرم</option><option>دستگاه</option></select></div><div className="w-32 space-y-1"><label className="text-xs font-bold text-gray-500">گنجایش کانتینر</label><input type="number" className="w-full border rounded p-2 dir-ltr" placeholder="تعداد" value={newItemContainerCapacity} onChange={e=>setNewItemContainerCapacity(e.target.value)}/></div><button onClick={handleAddItem} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 h-[42px] w-12 flex items-center justify-center"><Plus/></button></div><div className="bg-white border rounded-xl overflow-hidden"><table className="w-full text-sm text-right"><thead className="bg-gray-100"><tr><th className="p-3">کد</th><th className="p-3">نام کالا</th><th className="p-3">واحد</th><th className="p-3">ظرفیت کانتینر</th><th className="p-3 text-center">عملیات</th></tr></thead><tbody>{items.map(i => (<tr key={i.id} className="border-t hover:bg-gray-50"><td className="p-3 font-mono">{i.code}</td><td className="p-3 font-bold">{i.name}</td><td className="p-3">{i.unit}</td><td className="p-3 font-mono">{i.containerCapacity ? i.containerCapacity : '-'}</td><td className="p-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => setEditingItem(i)} className="text-amber-500 hover:text-amber-700" title="ویرایش"><Edit size={16}/></button><button onClick={()=>handleDeleteItem(i.id)} className="text-red-500 hover:text-red-700" title="حذف"><Trash2 size={16}/></button></div></td></tr>))}</tbody></table></div></div>)}
                 {activeTab === 'entry' && (<div className="max-w-4xl mx-auto bg-green-50 p-6 rounded-2xl border border-green-200"><h3 className="font-bold text-green-800 mb-4 flex items-center gap-2"><ArrowDownCircle/> ثبت ورود کالا (رسید انبار)</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"><div><label className="block text-xs font-bold mb-1">شرکت مالک</label><select className="w-full border rounded p-2 bg-white" value={selectedCompany} onChange={e=>setSelectedCompany(e.target.value)}><option value="">انتخاب...</option>{companyList.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold mb-1">شماره پروفرما / سند</label><input className="w-full border rounded p-2 bg-white" value={proformaNumber} onChange={e=>setProformaNumber(e.target.value)}/></div><div><label className="block text-xs font-bold mb-1">تاریخ ورود</label><div className="flex gap-1 dir-ltr"><select className="border rounded p-1 text-sm flex-1" value={txDate.year} onChange={e=>setTxDate({...txDate, year:Number(e.target.value)})}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.month} onChange={e=>setTxDate({...txDate, month:Number(e.target.value)})}>{months.map(m=><option key={m} value={m}>{m}</option>)}</select><select className="border rounded p-1 text-sm flex-1" value={txDate.day} onChange={e=>setTxDate({...txDate, day:Number(e.target.value)})}>{days.map(d=><option key={d} value={d}>{d}</option>)}</select></div></div></div><div className="space-y-2 bg-white p-4 rounded-xl border">{txItems.map((row, idx) => (<div key={idx} className="flex gap-2 items-end"><div className="flex-1"><label className="text-[10px] text-gray-500">کالا</label><select className="w-full border rounded p-2 text-sm" value={row.itemId} onChange={e=>updateTxItem(idx, 'itemId', e.target.value)}><option value="">انتخاب کالا...</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="w-20"><label className="text-[10px] text-gray-500">تعداد</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.quantity} onChange={e=>updateTxItem(idx, 'quantity', e.target.value)}/></div><div className="w-20"><label className="text-[10px] text-gray-500">وزن</label><input type="number" className="w-full border rounded p-2 text-sm dir-ltr" value={row.weight} onChange={e=>updateTxItem(idx, 'weight', e.target.value)}/></div><div className="w-32"><label className="text-[10px] text-gray-500">فی (ریال)</label><input type="text" className="w-full border rounded p-2 text-sm dir-ltr font-bold text-blue-600" value={formatNumberString(row.unitPrice)} onChange={e=>updateTxItem(idx, 'unitPrice', deformatNumberString(e.target.value))}/></div>{idx > 0 && <button onClick={()=>handleRemoveTxItemRow(idx)} className="text-red-500 p-2"><Trash2 size={16}/></button>}</div>))}<button onClick={handleAddTxItemRow} className="text-xs text-blue-600 font-bold flex items-center gap-1 mt-2"><Plus size={14}/> افزودن ردیف کالا</button></div><button onClick={()=>handleSubmitTx('IN')} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl mt-4 hover:bg-green-700 shadow-lg">ثبت رسید انبار</button></div>)}
                 
@@ -524,7 +486,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     </div>
                 )}
 
-                {/* ... (Stock report and Archive) ... */}
                 {activeTab === 'stock_report' && (
                     <div className="flex flex-col h-full">
                         <div className="flex justify-between items-center mb-4 no-print">
@@ -606,7 +567,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                         </div>
                     </div>
                 )}
-                {/* ... (Other tabs kept as is) ... */}
                 {activeTab === 'entry_archive' && (<div className="bg-white rounded-xl border shadow-sm overflow-hidden"><table className="w-full text-sm text-right"><thead className="bg-gray-100 text-gray-600"><tr><th className="p-4">تاریخ ورود</th><th className="p-4">شرکت مالک</th><th className="p-4">شماره پروفرما</th><th className="p-4">خلاصه کالا</th><th className="p-4 text-center">عملیات</th></tr></thead><tbody className="divide-y">{filteredArchiveReceipts.map(tx => (<tr key={tx.id} className="hover:bg-gray-50"><td className="p-4 text-xs font-mono">{formatDate(tx.date)}</td><td className="p-4 text-xs font-bold">{tx.company}</td><td className="p-4 text-xs font-mono">{tx.proformaNumber}</td><td className="p-4 text-xs text-gray-600">{tx.items.length} قلم ({tx.items[0]?.itemName}...)</td><td className="p-4 text-center flex justify-center gap-2"><button onClick={() => setEditingReceipt(tx)} className="bg-amber-100 text-amber-600 p-2 rounded hover:bg-amber-200" title="ویرایش"><Edit size={16}/></button><button onClick={() => handleDeleteTx(tx.id)} className="bg-red-100 text-red-600 p-2 rounded hover:bg-red-200" title="حذف"><Trash2 size={16}/></button></td></tr>))}</tbody></table></div>)}
             </div>
             
@@ -652,12 +612,12 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     );
 };
 
-// ... (EditBijakForm and EditReceiptForm remain same) ...
 const EditBijakForm: React.FC<{ bijak: WarehouseTransaction, items: WarehouseItem[], companyList: string[], onSave: (tx: WarehouseTransaction) => void, onCancel: () => void }> = ({ bijak, items, companyList, onSave, onCancel }) => {
     const safeDate = bijak.date || new Date().toISOString();
     const [dateParts, setDateParts] = useState(() => { try { return getShamsiDateFromIso(safeDate); } catch { const d = getCurrentShamsiDate(); return { year: d.year, month: d.month, day: d.day }; } });
     const [formData, setFormData] = useState({ ...bijak, items: bijak.items || [] });
-    const handleSave = () => { try { const isoDate = jalaliToGregorian(dateParts.year, dateParts.month, dateParts.day).toISOString(); const validatedItems = formData.items.map(item => ({ ...item, quantity: Number(item.quantity) || 0, weight: Number(item.weight) || 0, unitPrice: Number(item.unitPrice) || 0 })); if (!formData.company) { alert("لطفا شرکت را انتخاب کنید"); return; } onSave({ ...formData, items: validatedItems, date: isoDate }); } catch(e) { alert("خطا در ذخیره سازی: تاریخ نامعتبر است."); } };
+    // FIX: Use noon time for saving to prevent date rollback
+    const handleSave = () => { try { const d = jalaliToGregorian(dateParts.year, dateParts.month, dateParts.day); d.setHours(12,0,0,0); const isoDate = d.toISOString(); const validatedItems = formData.items.map(item => ({ ...item, quantity: Number(item.quantity) || 0, weight: Number(item.weight) || 0, unitPrice: Number(item.unitPrice) || 0 })); if (!formData.company) { alert("لطفا شرکت را انتخاب کنید"); return; } onSave({ ...formData, items: validatedItems, date: isoDate }); } catch(e) { alert("خطا در ذخیره سازی: تاریخ نامعتبر است."); } };
     const updateItem = (idx: number, field: string, val: any) => { const newItems = [...formData.items]; if (!newItems[idx]) return; /* @ts-ignore */ newItems[idx][field] = val; if(field === 'itemId') { const found = items.find(i => i.id === val); if(found) newItems[idx].itemName = found.name; } setFormData({ ...formData, items: newItems }); };
     const addItem = () => setFormData({ ...formData, items: [...formData.items, { itemId: '', itemName: '', quantity: 0, weight: 0, unitPrice: 0 }] });
     const removeItem = (idx: number) => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) });
@@ -669,7 +629,8 @@ const EditReceiptForm: React.FC<{ receipt: WarehouseTransaction, items: Warehous
     const safeDate = receipt.date || new Date().toISOString();
     const [dateParts, setDateParts] = useState(() => { try { return getShamsiDateFromIso(safeDate); } catch { const d = getCurrentShamsiDate(); return { year: d.year, month: d.month, day: d.day }; } });
     const [formData, setFormData] = useState({ ...receipt, items: receipt.items || [] });
-    const handleSave = () => { try { const isoDate = jalaliToGregorian(dateParts.year, dateParts.month, dateParts.day).toISOString(); const validatedItems = formData.items.map(item => ({ ...item, quantity: Number(item.quantity) || 0, weight: Number(item.weight) || 0 })); if (!formData.company) { alert("لطفا شرکت را انتخاب کنید"); return; } onSave({ ...formData, items: validatedItems, date: isoDate }); } catch(e) { alert("خطا در ذخیره سازی: تاریخ نامعتبر است."); } };
+    // FIX: Use noon time for saving
+    const handleSave = () => { try { const d = jalaliToGregorian(dateParts.year, dateParts.month, dateParts.day); d.setHours(12,0,0,0); const isoDate = d.toISOString(); const validatedItems = formData.items.map(item => ({ ...item, quantity: Number(item.quantity) || 0, weight: Number(item.weight) || 0 })); if (!formData.company) { alert("لطفا شرکت را انتخاب کنید"); return; } onSave({ ...formData, items: validatedItems, date: isoDate }); } catch(e) { alert("خطا در ذخیره سازی: تاریخ نامعتبر است."); } };
     const updateItem = (idx: number, field: string, val: any) => { const newItems = [...formData.items]; if (!newItems[idx]) return; /* @ts-ignore */ newItems[idx][field] = val; if(field === 'itemId') { const found = items.find(i => i.id === val); if(found) newItems[idx].itemName = found.name; } setFormData({ ...formData, items: newItems }); };
     const addItem = () => setFormData({ ...formData, items: [...formData.items, { itemId: '', itemName: '', quantity: 0, weight: 0, unitPrice: 0 }] });
     const removeItem = (idx: number) => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) });

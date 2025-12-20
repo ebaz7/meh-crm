@@ -20,7 +20,6 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
     while(displayRepeat.length < 3) displayRepeat.push({} as any);
 
     // Extract Names if approved
-    // Note: We take the approver name from the first approved record as a representative for the daily sheet
     const supervisorName = delays.find(d => d.approverSupervisor)?.approverSupervisor;
     const factoryName = delays.find(d => d.approverFactory)?.approverFactory;
     const ceoName = delays.find(d => d.approverCeo)?.approverCeo;
@@ -39,28 +38,28 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
             style={{ 
                 width: '297mm', 
                 height: '210mm', 
-                padding: '10mm',
                 direction: 'rtl',
-                backgroundColor: 'white'
+                backgroundColor: 'white',
+                padding: '0' // Remove padding from container, handle inside
             }}
         >
-            <div className="border-2 border-black flex flex-col h-full">
+            <div className="border-2 border-black flex flex-col h-full m-2">
                 
-                {/* 1. HEADER SECTION */}
-                <div className="flex h-20 border-b-2 border-black">
-                    <div className="w-[20%] border-l-2 border-black p-2 flex flex-col justify-center text-sm font-bold gap-1">
-                        <div className="flex justify-between"><span>شماره:</span><span>........</span></div>
-                        <div className="flex justify-between"><span>تاریخ:</span><span className="font-mono font-bold text-base">{formatDate(date)}</span></div>
-                        <div className="flex justify-between"><span>پیوست:</span><span>........</span></div>
+                {/* 1. HEADER SECTION (MATCHING SECURITY LOG STYLE) */}
+                <div className="flex h-24 border-b-2 border-black">
+                    <div className="w-48 border-l-2 border-black p-2 flex flex-col justify-center gap-1 text-xs font-bold bg-white">
+                        <div className="flex justify-between items-center"><span>شماره:</span><span className="font-mono text-gray-400">........</span></div>
+                        <div className="flex justify-between items-center"><span>تاریخ:</span><span className="font-mono font-bold text-sm">{formatDate(date)}</span></div>
+                        <div className="flex justify-between items-center"><span>پیوست:</span><span className="font-mono text-gray-400">........</span></div>
                     </div>
-                    <div className="w-[60%] flex flex-col items-center justify-center border-l-2 border-black">
-                        <h1 className="text-2xl font-black mb-2">گروه تولیدی</h1>
-                        <div className="inline-block border-t-2 border-black pt-1 px-4">
+                    <div className="flex-1 flex flex-col items-center justify-center bg-gray-50">
+                        <h1 className="text-2xl font-black mb-2 tracking-wide">گروه تولیدی</h1>
+                        <div className="border-2 border-black bg-white px-8 py-1.5 rounded-lg shadow-sm">
                             <h2 className="text-xl font-bold">فرم گزارش تاخیر ورود پرسنل</h2>
                         </div>
                     </div>
-                    <div className="w-[20%] p-2 flex items-center justify-center">
-                        <div className="font-bold text-gray-300 text-sm border border-dashed border-gray-400 rounded-lg p-2">
+                    <div className="w-48 border-r-2 border-black flex items-center justify-center p-2 bg-white">
+                        <div className="border border-dashed border-gray-400 w-full h-full rounded flex items-center justify-center text-gray-300 font-bold text-sm">
                             محل درج لوگو
                         </div>
                     </div>
@@ -70,8 +69,8 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 <div className="flex-1 flex flex-col">
                     <table className="w-full border-collapse text-center text-sm" style={{ tableLayout: 'fixed' }}>
                         <thead>
-                            <tr className="bg-gray-200">
-                                <th className="border border-black p-1 w-10">ردیف</th>
+                            <tr className="bg-gray-200 h-10">
+                                <th className="border border-black p-1 w-12">ردیف</th>
                                 <th className="border border-black p-1">نام و نام خانوادگی</th>
                                 <th className="border border-black p-1 w-48">واحد / بخش</th>
                                 <th className="border border-black p-1 w-32">ساعت ورود</th>
@@ -80,9 +79,9 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                         </thead>
                         <tbody>
                             {displayDelays.map((d, i) => (
-                                <tr key={i} style={{ height: '28px' }}>
+                                <tr key={i} className="h-8 hover:bg-gray-50">
                                     <td className="border border-black font-bold">{d.id ? i + 1 : ''}</td>
-                                    <td className="border border-black font-bold text-right pr-2">{d.personnelName}</td>
+                                    <td className="border border-black font-bold text-right pr-4">{d.personnelName}</td>
                                     <td className="border border-black">{d.unit}</td>
                                     <td className="border border-black dir-ltr font-mono font-bold">{d.arrivalTime}</td>
                                     <td className="border border-black font-bold">{d.delayAmount}</td>
@@ -93,13 +92,13 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
 
                     {/* 3. REPEAT DELAYS SECTION */}
                     <div className="mt-auto">
-                        <div className="text-center font-black bg-gray-200 border-t-2 border-b border-black p-1 text-sm">
+                        <div className="text-center font-black bg-gray-200 border-t-2 border-b border-black py-1 text-sm">
                             تکرار تاخیر (سابقه پرسنل در ماه جاری)
                         </div>
                         <table className="w-full border-collapse text-center text-sm" style={{ tableLayout: 'fixed' }}>
                             <thead>
-                                <tr className="bg-gray-100">
-                                    <th className="border border-black p-1 w-10">ردیف</th>
+                                <tr className="bg-gray-100 h-8">
+                                    <th className="border border-black p-1 w-12">ردیف</th>
                                     <th className="border border-black p-1">نام و نام خانوادگی</th>
                                     <th className="border border-black p-1 w-48">واحد</th>
                                     <th className="border border-black p-1 w-32">تعداد تکرار</th>
@@ -108,9 +107,9 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                             </thead>
                             <tbody>
                                 {displayRepeat.map((d, i) => (
-                                    <tr key={i} style={{ height: '28px' }}>
+                                    <tr key={i} className="h-8">
                                         <td className="border border-black">{d.id ? i + 1 : ''}</td>
-                                        <td className="border border-black font-bold text-right pr-2">{d.personnelName}</td>
+                                        <td className="border border-black font-bold text-right pr-4">{d.personnelName}</td>
                                         <td className="border border-black">{d.unit}</td>
                                         <td className="border border-black font-bold">{d.repeatCount}</td>
                                         <td className="border border-black text-right pr-2 text-xs font-medium">{d.instruction}</td>
@@ -135,19 +134,19 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                     {/* Supervisor Signature */}
                     <div className="w-1/4 border-l-2 border-black p-2 flex flex-col items-center justify-between bg-yellow-50/20">
                         <div className="font-bold border-b border-gray-400 w-full text-center pb-1">سرپرست انتظامات</div>
-                        {supervisorName ? <Stamp title="تایید شد" name={supervisorName} color="blue" /> : <div className="text-gray-300 mt-4">محل امضاء</div>}
+                        {supervisorName ? <Stamp title="تایید شد" name={supervisorName} color="blue" /> : <div className="text-gray-300 mt-4 text-[9px]">(امضاء)</div>}
                     </div>
 
                     {/* Factory Manager Signature */}
                     <div className="w-1/4 border-l-2 border-black p-2 flex flex-col items-center justify-between bg-green-50/20">
                         <div className="font-bold border-b border-gray-400 w-full text-center pb-1">مدیر کارخانه</div>
-                        {factoryName ? <Stamp title="تایید نهایی" name={factoryName} color="green" /> : <div className="text-gray-300 mt-4">محل امضاء</div>}
+                        {factoryName ? <Stamp title="تایید نهایی" name={factoryName} color="green" /> : <div className="text-gray-300 mt-4 text-[9px]">(امضاء)</div>}
                     </div>
 
                     {/* CEO Signature */}
                     <div className="w-1/4 p-2 flex flex-col items-center justify-between bg-purple-50/20">
                         <div className="font-bold border-b border-gray-400 w-full text-center pb-1">مدیریت عامل</div>
-                        {ceoName ? <Stamp title="ملاحظه شد" name={ceoName} color="purple" /> : <div className="text-gray-300 mt-4">محل امضاء</div>}
+                        {ceoName ? <Stamp title="ملاحظه شد" name={ceoName} color="purple" /> : <div className="text-gray-300 mt-4 text-[9px]">(امضاء)</div>}
                     </div>
                 </div>
             </div>
