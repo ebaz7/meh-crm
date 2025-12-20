@@ -165,6 +165,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
             
             setApprovedTxForAutoSend(updatedTx);
             
+            // Wait slightly longer for React to render the hidden component
             setTimeout(async () => {
                 const managerElement = document.getElementById(`print-bijak-${updatedTx.id}-price`);
                 const warehouseElement = document.getElementById(`print-bijak-${updatedTx.id}-noprice`);
@@ -185,7 +186,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                     try {
                         if (managerNumber && managerElement) {
                             // @ts-ignore
-                            const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff' });
+                            const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff', windowWidth: 1200 });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
                             const managerCaption = `🏭 *شرکت: ${updatedTx.company}*\n📑 *حواله خروج - تایید شده${titleSuffix}*\n${commonDetails}`;
                             
@@ -194,7 +195,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
 
                         if (groupNumber && warehouseElement) {
                             // @ts-ignore
-                            const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff' });
+                            const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff', windowWidth: 1200 });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
                             const warehouseCaption = `🏭 *شرکت: ${updatedTx.company}*\n📦 *حواله خروج (انبار)*\n${commonDetails}`;
 
@@ -207,7 +208,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 loadData();
                 setViewBijak(null);
                 alert("تایید و ارسال شد.");
-            }, 2000); 
+            }, 2500); 
 
         } catch (e) { alert("خطا در عملیات تایید"); }
     };
@@ -249,13 +250,13 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 try {
                     if (managerNumber && managerElement) {
                         // @ts-ignore
-                        const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff' });
+                        const canvas = await window.html2canvas(managerElement, { scale: 2, backgroundColor: '#ffffff', windowWidth: 1200 });
                         const base64 = canvas.toDataURL('image/png').split(',')[1];
                         await apiCall('/send-whatsapp', 'POST', { number: managerNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_DELETED_${txToDelete.number}.png` } });
                     }
                     if (groupNumber && warehouseElement) {
                         // @ts-ignore
-                        const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff' });
+                        const canvas = await window.html2canvas(warehouseElement, { scale: 2, backgroundColor: '#ffffff', windowWidth: 1200 });
                         const base64 = canvas.toDataURL('image/png').split(',')[1];
                         await apiCall('/send-whatsapp', 'POST', { number: groupNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `Bijak_DELETED_${txToDelete.number}.png` } });
                     }
@@ -267,7 +268,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                 setViewBijak(null); 
                 alert("تراکنش حذف و اطلاع‌رسانی شد.");
 
-            }, 1500);
+            }, 2500);
         } else {
             await deleteWarehouseTransaction(id);
             loadData();
@@ -292,7 +293,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                          const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
                          if (ceo) {
                              // @ts-ignore
-                            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', windowWidth: 1200 });
                             const base64 = canvas.toDataURL('image/png').split(',')[1];
                             
                             let caption = `📝 *اصلاحیه بیجک (جهت تایید مجدد)*\n`;
@@ -308,7 +309,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                  setEditedBijakForAutoSend(null);
                  loadData(); 
                  alert('بیجک ویرایش و جهت تایید مجدد به مدیریت ارسال شد.'); 
-            }, 1500);
+            }, 2500);
 
         } catch (e: any) { 
             console.error(e); 
@@ -370,17 +371,17 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
             <div className="hidden-print-export" style={{position:'absolute', top:'-9999px', left:'-9999px'}}>
                 {approvedTxForAutoSend && (
                     <>
-                        <div id={`print-bijak-${approvedTxForAutoSend.id}-price`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
-                        <div id={`print-bijak-${approvedTxForAutoSend.id}-noprice`}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
+                        <div id={`print-bijak-${approvedTxForAutoSend.id}-price`} style={{ width: '210mm' }}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
+                        <div id={`print-bijak-${approvedTxForAutoSend.id}-noprice`} style={{ width: '210mm' }}><PrintBijak tx={approvedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
                     </>
                 )}
                 {editedBijakForAutoSend && (
-                     <div id={`print-bijak-edit-${editedBijakForAutoSend.id}`}><PrintBijak tx={editedBijakForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
+                     <div id={`print-bijak-edit-${editedBijakForAutoSend.id}`} style={{ width: '210mm' }}><PrintBijak tx={editedBijakForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
                 )}
                 {deletedTxForAutoSend && (
                     <>
-                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-price`}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
-                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-noprice`}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
+                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-price`} style={{ width: '210mm' }}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={false} embed /></div>
+                        <div id={`print-bijak-del-${deletedTxForAutoSend.id}-noprice`} style={{ width: '210mm' }}><PrintBijak tx={deletedTxForAutoSend} onClose={()=>{}} settings={settings} forceHidePrices={true} embed /></div>
                     </>
                 )}
             </div>

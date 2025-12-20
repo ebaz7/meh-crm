@@ -58,7 +58,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
               message: caption,
               mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` }
           });
-          alert('ارسال شد.');
+          if (!embed) alert('ارسال شد.');
           setShowContactSelect(false);
       } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
   };
