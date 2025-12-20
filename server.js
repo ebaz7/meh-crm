@@ -307,15 +307,28 @@ app.post('/api/warehouse/transactions', async (req, res) => {
     const tx = req.body;
     tx.updatedAt = Date.now();
     
-    // Bijak Numbering logic
+    // Bijak Numbering logic (Unique per Company)
     if (tx.type === 'OUT') {
-        const currentSeq = db.settings.warehouseSequences?.[tx.company] || 1000;
-        const nextSeq = currentSeq + 1;
-        db.settings.warehouseSequences[tx.company] = nextSeq;
-        tx.number = nextSeq;
+        const companyName = tx.company;
+        const currentBase = db.settings.warehouseSequences?.[companyName] || 1000;
         
-        // --- NEW APPROVAL LOGIC ---
-        // Ensure status is PENDING and NOT sent to WhatsApp yet
+        // Find existing transactions for this company to determine strictly next number
+        // We use 'findNextAvailableNumber' but scoped to this company
+        const companyTransactions = db.warehouseTransactions.filter(t => t.type === 'OUT' && t.company === companyName);
+        const nextSeq = findNextAvailableNumber(companyTransactions, 'number', currentBase);
+        
+        // Check for duplicates just in case (though findNext should avoid it)
+        const exists = companyTransactions.find(t => t.number === nextSeq);
+        if (exists) {
+            // Should not happen with findNextAvailableNumber logic, but failsafe
+            return res.status(409).json({ error: "خطا در تولید شماره بیجک. شماره تکراری است." });
+        }
+
+        // Update settings sequence
+        if (!db.settings.warehouseSequences) db.settings.warehouseSequences = {};
+        db.settings.warehouseSequences[companyName] = nextSeq;
+        
+        tx.number = nextSeq;
         tx.status = 'PENDING';
         
         // Notify CEO via Telegram
@@ -327,10 +340,28 @@ app.post('/api/warehouse/transactions', async (req, res) => {
 
     res.json(db.warehouseTransactions);
 });
+
 app.put('/api/warehouse/transactions/:id', async (req, res) => { 
     const db = getDb(); 
     const idx = db.warehouseTransactions.findIndex(x => x.id === req.params.id); 
     if(idx !== -1) {
+        // Validation: If it's a Bijak and number is changed, ensure uniqueness per company
+        if (req.body.type === 'OUT' && req.body.number && req.body.number !== db.warehouseTransactions[idx].number) {
+            const newNumber = Number(req.body.number);
+            const companyName = req.body.company || db.warehouseTransactions[idx].company;
+            
+            const duplicate = db.warehouseTransactions.find(t => 
+                t.type === 'OUT' && 
+                t.company === companyName && 
+                t.number === newNumber && 
+                t.id !== req.params.id
+            );
+
+            if (duplicate) {
+                return res.status(409).json({ error: `شماره بیجک ${newNumber} برای شرکت ${companyName} تکراری است.` });
+            }
+        }
+
         db.warehouseTransactions[idx] = { ...db.warehouseTransactions[idx], ...req.body, updatedAt: Date.now() }; 
         saveDb(db); 
         res.json(db.warehouseTransactions); 

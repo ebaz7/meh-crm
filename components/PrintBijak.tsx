@@ -136,6 +136,17 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   const filteredContacts = allContacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.number.includes(contactSearch));
 
+  // Helper Stamp Component
+  const Stamp = ({ title, name, color = 'blue' }: { title: string, name: string, color?: 'blue' | 'green' | 'gray' }) => {
+      const colorClass = color === 'blue' ? 'border-blue-800 text-blue-800' : color === 'green' ? 'border-green-800 text-green-800' : 'border-gray-500 text-gray-500';
+      return (
+          <div className={`border-2 ${colorClass} rounded-lg p-1 rotate-[-5deg] opacity-90 inline-block bg-white/80 print:bg-transparent shadow-sm min-w-[80px]`}>
+              <div className="text-[9px] font-bold border-b border-current mb-0.5 pb-0.5 text-center">{title}</div>
+              <div className="text-xs font-black text-center px-1">{name}</div>
+          </div>
+      );
+  };
+
   // The Invoice Content - Use flexible width but stick to A5 dimensions
   const content = (
       <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none`} 
@@ -165,21 +176,27 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
             </div>
             <div className="border rounded-lg p-3 mb-4 bg-gray-50 text-sm print:bg-white print:border-black relative z-10"><div className="grid grid-cols-2 gap-4"><div><span className="text-gray-500 ml-2">تحویل گیرنده:</span> <span className="font-bold">{tx.recipientName}</span></div><div><span className="text-gray-500 ml-2">مقصد:</span> <span className="font-bold">{tx.destination || '-'}</span></div><div><span className="text-gray-500 ml-2">راننده:</span> <span className="font-bold">{tx.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">پلاک:</span> <span className="font-bold font-mono dir-ltr">{tx.plateNumber || '-'}</span></div></div></div>
             <div className="flex-1 relative z-10"><table className="w-full text-sm border-collapse border border-black"><thead className="bg-gray-200 print:bg-gray-100"><tr><th className="border border-black p-2 w-10 text-center">#</th><th className="border border-black p-2">شرح کالا</th><th className="border border-black p-2 w-20 text-center">تعداد</th><th className="border border-black p-2 w-24 text-center">وزن (KG)</th>{!hidePrices && <th className="border border-black p-2 w-28 text-center">فی (ریال)</th>}</tr></thead><tbody>{tx.items.map((item, idx) => (<tr key={idx}><td className="border border-black p-2 text-center">{idx + 1}</td><td className="border border-black p-2 font-bold">{item.itemName}</td><td className="border border-black p-2 text-center">{item.quantity}</td><td className="border border-black p-2 text-center">{item.weight}</td>{!hidePrices && <td className="border border-black p-2 text-center font-mono">{item.unitPrice ? formatCurrency(item.unitPrice).replace('ریال', '') : '-'}</td>}</tr>))}<tr className="bg-gray-100 font-bold print:bg-white"><td colSpan={2} className="border border-black p-2 text-left pl-4">جمع کل:</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.quantity,0)}</td><td className="border border-black p-2 text-center">{tx.items.reduce((a,b)=>a+b.weight,0)}</td>{!hidePrices && <td className="border border-black p-2 bg-gray-200"></td>}</tr></tbody></table>{tx.description && <div className="mt-4 border p-2 rounded text-sm"><span className="font-bold block mb-1">توضیحات:</span>{tx.description}</div>}</div>
-            <div className="mt-8 pt-8 border-t-2 border-black grid grid-cols-3 gap-8 text-center relative z-10">
-                <div>
-                    <div className="mb-8 font-bold text-sm">ثبت کننده (انبار)</div>
-                    <div className="mb-2 font-bold text-xs">{tx.createdBy || 'کاربر انبار'}</div>
-                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+            
+            {/* STAMP SIGNATURES */}
+            <div className="mt-8 pt-4 border-t-2 border-black grid grid-cols-3 gap-4 text-center relative z-10 h-24">
+                <div className="flex flex-col items-center justify-between">
+                    <div className="mb-1 flex items-center justify-center h-full">
+                        <Stamp title="انباردار (ثبت)" name={tx.createdBy || 'کاربر انبار'} color="blue" />
+                    </div>
+                    <div className="w-full border-t border-gray-400 pt-1 text-[9px] font-bold text-gray-600">امضا انباردار</div>
                 </div>
-                <div>
-                    <div className="mb-8 font-bold text-sm">تایید مدیریت</div>
-                    <div className="mb-2 font-bold text-xs min-h-[16px]">{tx.approvedBy || ''}</div>
-                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+                <div className="flex flex-col items-center justify-between">
+                    <div className="mb-1 flex items-center justify-center h-full">
+                        {tx.approvedBy ? <Stamp title="تایید مدیریت" name={tx.approvedBy} color="green" /> : <span className="text-gray-300 text-[10px]">منتظر تایید</span>}
+                    </div>
+                    <div className="w-full border-t border-gray-400 pt-1 text-[9px] font-bold text-gray-600">امضا مدیریت</div>
                 </div>
-                <div>
-                    <div className="mb-8 font-bold text-sm">تحویل گیرنده (راننده)</div>
-                    <div className="mb-2 font-bold text-xs min-h-[16px]"></div>
-                    <div className="border-b border-gray-400 w-2/3 mx-auto"></div>
+                <div className="flex flex-col items-center justify-between">
+                    <div className="mb-1 flex items-center justify-center h-full">
+                        {/* Placeholder for recipient signature - no digital stamp usually */}
+                        <div className="h-10 w-24"></div>
+                    </div>
+                    <div className="w-full border-t border-gray-400 pt-1 text-[9px] font-bold text-gray-600">امضا تحویل گیرنده</div>
                 </div>
             </div>
       </div>
