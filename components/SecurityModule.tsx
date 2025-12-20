@@ -224,8 +224,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()));
-    const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()));
+    // MODIFIED: Exclude ARCHIVED items from the active daily view
+    const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()) && l.status !== SecurityStatus.ARCHIVED);
+    const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()) && d.status !== SecurityStatus.ARCHIVED);
     
     const getCartableItems = () => {
         const role = currentUser.role;
