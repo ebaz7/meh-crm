@@ -110,9 +110,26 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                               }
                           }
                           else if (nextStatus === ExitPermitStatus.EXITED) {
-                              const caption = `✅ *خروج نهایی بار از کارخانه ثبت شد*\n🔹 شماره مجوز: ${updatedPermitMock.permitNumber}\n🕒 ساعت خروج: ${extra.exitTime}\n✍️ تایید نهایی انتظامات: ${currentUser.fullName}`;
+                              // FULL CAPTION FOR FINAL EXIT
+                              let caption = `✅ *خروج نهایی بار از کارخانه ثبت شد*\n`;
+                              caption += `🔹 شماره مجوز: ${updatedPermitMock.permitNumber}\n`;
+                              caption += `📅 تاریخ: ${formatDate(updatedPermitMock.date)}\n`;
+                              caption += `📦 کالا: ${updatedPermitMock.goodsName}\n`;
+                              caption += `🔢 تعداد: ${updatedPermitMock.cartonCount || 0} کارتن\n`;
+                              caption += `⚖️ وزن: ${updatedPermitMock.weight || 0} کیلوگرم\n`;
+                              caption += `👤 گیرنده: ${updatedPermitMock.recipientName}\n`;
+                              caption += `🚛 راننده: ${updatedPermitMock.driverName || '-'}\n`;
+                              caption += `🔢 پلاک: ${updatedPermitMock.plateNumber || '-'}\n`;
+                              caption += `🕒 ساعت خروج: ${extra.exitTime}\n`;
+                              caption += `✍️ تایید نهایی انتظامات: ${currentUser.fullName}`;
+
                               const target = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                               if (target) await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                              
+                              // Send to Notification Group if configured
+                              if (settings?.exitPermitNotificationGroup) {
+                                  await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                              }
                           }
                       } catch (e) { console.error(e); }
                   }
