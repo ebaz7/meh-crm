@@ -47,6 +47,23 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     useEffect(() => { loadData(); }, []);
 
+    // Effect to update print page size dynamically
+    useEffect(() => {
+        const style = document.getElementById('page-size-style');
+        if (style) {
+            // Determine if current view requires Landscape
+            const isLandscape = 
+                (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'daily_delay')) || 
+                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.category === 'delay' || viewCartableItem.type === 'log' || viewCartableItem.type === 'delay'));
+            
+            if (isLandscape) {
+                style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
+            } else {
+                style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
+            }
+        }
+    }, [printTarget, viewCartableItem]);
+
     const loadData = async () => {
         try {
             const [l, d, i, s] = await Promise.all([getSecurityLogs(), getPersonnelDelays(), getSecurityIncidents(), getSettings()]);
@@ -524,18 +541,28 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             return; 
         }
         try {
+            // Determine orientation based on printTarget type or viewCartableItem category
+            const isLandscape = 
+                (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'daily_delay')) || 
+                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.category === 'delay' || viewCartableItem.type === 'log' || viewCartableItem.type === 'delay'));
+
             // @ts-ignore
             const canvas = await window.html2canvas(element, { 
                 scale: 2, 
                 backgroundColor: '#ffffff', 
                 useCORS: true, 
-                windowWidth: 1200 
+                windowWidth: isLandscape ? 1400 : 1200 
             });
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4'); // Portrait
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            
+            const orientation = isLandscape ? 'l' : 'p';
+            const w = isLandscape ? 297 : 210;
+            const h = isLandscape ? 210 : 297;
+
+            const pdf = new jsPDF(orientation, 'mm', 'a4');
+            pdf.addImage(imgData, 'PNG', 0, 0, w, h);
             pdf.save(`Security_Report.pdf`);
         } catch (e) { console.error(e); alert("خطا در ایجاد PDF"); } finally { setIsGeneratingPdf(false); }
     };
