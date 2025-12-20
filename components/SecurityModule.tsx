@@ -75,17 +75,31 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // FIX: Updated Jump to Edit logic - Opens Shift Modal Automatically
+    // FIX: Updated Jump to Edit logic - Explicitly loads data into form BEFORE opening modal
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
-        setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
-        setActiveTab(category === 'log' ? 'logs' : 'delays');
         
-        // Close view/print modals
+        // 1. Set the date picker to the target date
+        setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
+        
+        // 2. Explicitly load the metadata for this specific date into the form state
+        if (settings?.dailySecurityMeta && settings.dailySecurityMeta[dateString]) {
+            setMetaForm({ ...settings.dailySecurityMeta[dateString] });
+        } else {
+            setMetaForm({ 
+                dailyDescription: '',
+                morningGuard: { name: '', entry: '', exit: '' },
+                eveningGuard: { name: '', entry: '', exit: '' },
+                nightGuard: { name: '', entry: '', exit: '' }
+            });
+        }
+
+        // 3. Handle UI transitions
+        setActiveTab(category === 'log' ? 'logs' : 'delays');
         setViewCartableItem(null);
         setShowPrintModal(false);
         
-        // OPEN Shift Modal as requested to edit day details immediately
+        // 4. Open the modal immediately with the data loaded
         setShowShiftModal(true);
     };
 
@@ -109,6 +123,19 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const formatted = formatTime(val);
         if (formatted !== val) {
             formSetter({ ...currentForm, [field]: formatted });
+        }
+    };
+
+    // Navigation with Enter Key
+    const handleEnterKey = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const form = (e.target as HTMLElement).closest('form');
+            if (form) {
+                const index = Array.prototype.indexOf.call(form, e.target);
+                const nextElement = form.elements[index + 1] as HTMLElement;
+                if (nextElement) nextElement.focus();
+            }
         }
     };
 
@@ -249,6 +276,18 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleSaveLog = async () => {
+        // VALIDATION: Check if shift is registered
+        const currentShift = logForm.shift || 'صبح';
+        let guardName = '';
+        if (currentShift === 'صبح') guardName = metaForm.morningGuard?.name || '';
+        else if (currentShift === 'عصر') guardName = metaForm.eveningGuard?.name || '';
+        else if (currentShift === 'شب') guardName = metaForm.nightGuard?.name || '';
+
+        if (!guardName.trim()) {
+            alert(`خطا: شیفت "${currentShift}" هنوز ثبت نشده است. لطفاً ابتدا دکمه "شیفت" را زده و نام نگهبان را وارد کنید.`);
+            return;
+        }
+
         let statusToSave = SecurityStatus.PENDING_SUPERVISOR;
         if (editingId) {
              const originalItem = logs.find(l => l.id === editingId);
@@ -264,7 +303,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             id: editingId || generateUUID(),
             rowNumber: editingId ? logForm.rowNumber! : dailyLogs.length + 1,
             date: isoDate,
-            shift: logForm.shift || 'صبح',
+            shift: currentShift,
             origin: logForm.origin || '',
             entryTime: logForm.entryTime || '',
             exitTime: logForm.exitTime || '',
@@ -474,8 +513,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('printable-area-view'); 
-        if (!element) { setIsGeneratingPdf(false); return; }
+        // Corrected ID to match the new component ID
+        const element = document.getElementById('print-delay-form') || document.getElementById('printable-area-view');
+        
+        if (!element) { 
+            setIsGeneratingPdf(false); 
+            return; 
+        }
         try {
             // @ts-ignore
             const canvas = await window.html2canvas(element, { 
@@ -487,10 +531,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('l', 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, 297, (canvas.height * 297) / canvas.width);
+            const pdf = new jsPDF('p', 'mm', 'a4'); // Portrait
+            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
             pdf.save(`Security_Report.pdf`);
-        } catch (e) { alert("خطا در ایجاد PDF"); } finally { setIsGeneratingPdf(false); }
+        } catch (e) { console.error(e); alert("خطا در ایجاد PDF"); } finally { setIsGeneratingPdf(false); }
     };
 
     const DateFilter = () => (
@@ -623,37 +667,51 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-bold text-lg">{editingId ? 'ویرایش' : 'ثبت جدید'}</h3><button onClick={resetForms}><XCircle size={24}/></button></div>
                         {activeTab === 'logs' && (
                             <form className="grid grid-cols-2 gap-4">
-                                <input className="border rounded p-2 text-sm" placeholder="مبدا" value={logForm.origin || ''} onChange={e=>setLogForm({...logForm, origin: e.target.value})}/>
-                                <input className="border rounded p-2 text-sm" placeholder="مقصد" value={logForm.destination || ''} onChange={e=>setLogForm({...logForm, destination: e.target.value})}/>
-                                <input className="border rounded p-2 text-sm text-center dir-ltr" placeholder="ورود (08:00)" value={logForm.entryTime || ''} onChange={handleTimeChange('entryTime', setLogForm, logForm)} onBlur={handleTimeBlur('entryTime', setLogForm, logForm)}/>
-                                <input className="border rounded p-2 text-sm text-center dir-ltr" placeholder="خروج (10:30)" value={logForm.exitTime || ''} onChange={handleTimeChange('exitTime', setLogForm, logForm)} onBlur={handleTimeBlur('exitTime', setLogForm, logForm)}/>
-                                <input className="border rounded p-2 text-sm" placeholder="راننده" value={logForm.driverName || ''} onChange={e=>setLogForm({...logForm, driverName: e.target.value})}/>
-                                <input className="border rounded p-2 text-sm" placeholder="شماره خودرو" value={logForm.plateNumber || ''} onChange={e=>setLogForm({...logForm, plateNumber: e.target.value})}/>
-                                <input className="border rounded p-2 text-sm" placeholder="کالا" value={logForm.goodsName || ''} onChange={e=>setLogForm({...logForm, goodsName: e.target.value})}/>
-                                <input className="border rounded p-2 text-sm" placeholder="مقدار" value={logForm.quantity || ''} onChange={e=>setLogForm({...logForm, quantity: e.target.value})}/>
-                                <div className="col-span-2"><input className="w-full border rounded p-2 text-sm" placeholder="موارد انجام کار" value={logForm.workDescription || ''} onChange={e=>setLogForm({...logForm, workDescription: e.target.value})}/></div>
+                                <div className="col-span-2">
+                                    <label className="text-sm font-bold block mb-1">شیفت کاری</label>
+                                    <select 
+                                        className="w-full border rounded p-2 text-sm bg-white" 
+                                        value={logForm.shift || 'صبح'} 
+                                        onChange={e => setLogForm({...logForm, shift: e.target.value})}
+                                        onKeyDown={handleEnterKey}
+                                    >
+                                        <option value="صبح">صبح</option>
+                                        <option value="عصر">عصر</option>
+                                        <option value="شب">شب</option>
+                                    </select>
+                                </div>
+                                <input className="border rounded p-2 text-sm" placeholder="مبدا" value={logForm.origin || ''} onChange={e=>setLogForm({...logForm, origin: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm" placeholder="مقصد" value={logForm.destination || ''} onChange={e=>setLogForm({...logForm, destination: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm text-center dir-ltr" placeholder="ورود (08:00)" value={logForm.entryTime || ''} onChange={handleTimeChange('entryTime', setLogForm, logForm)} onBlur={handleTimeBlur('entryTime', setLogForm, logForm)} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm text-center dir-ltr" placeholder="خروج (10:30)" value={logForm.exitTime || ''} onChange={handleTimeChange('exitTime', setLogForm, logForm)} onBlur={handleTimeBlur('exitTime', setLogForm, logForm)} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm" placeholder="راننده" value={logForm.driverName || ''} onChange={e=>setLogForm({...logForm, driverName: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm" placeholder="شماره خودرو" value={logForm.plateNumber || ''} onChange={e=>setLogForm({...logForm, plateNumber: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm" placeholder="کالا" value={logForm.goodsName || ''} onChange={e=>setLogForm({...logForm, goodsName: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="border rounded p-2 text-sm" placeholder="مقدار" value={logForm.quantity || ''} onChange={e=>setLogForm({...logForm, quantity: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <input className="col-span-2 w-full border rounded p-2 text-sm" placeholder="مجوز دهنده" value={logForm.permitProvider || ''} onChange={e=>setLogForm({...logForm, permitProvider: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <div className="col-span-2"><input className="w-full border rounded p-2 text-sm" placeholder="موارد انجام کار" value={logForm.workDescription || ''} onChange={e=>setLogForm({...logForm, workDescription: e.target.value})} onKeyDown={handleEnterKey}/></div>
                                 <button type="button" onClick={handleSaveLog} className="col-span-2 bg-blue-600 text-white py-3 rounded-lg font-bold">ذخیره</button>
                             </form>
                         )}
                         {activeTab === 'delays' && (
                             <form className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input className="border rounded p-2" placeholder="نام پرسنل" value={delayForm.personnelName || ''} onChange={e=>setDelayForm({...delayForm, personnelName: e.target.value})}/>
-                                    <input className="border rounded p-2" placeholder="واحد" value={delayForm.unit || ''} onChange={e=>setDelayForm({...delayForm, unit: e.target.value})}/>
-                                    <input className="border rounded p-2 text-center dir-ltr" placeholder="ورود (08:00)" value={delayForm.arrivalTime || ''} onChange={handleTimeChange('arrivalTime', setDelayForm, delayForm)} onBlur={handleTimeBlur('arrivalTime', setDelayForm, delayForm)}/>
-                                    <input className="border rounded p-2" placeholder="میزان تاخیر" value={delayForm.delayAmount || ''} onChange={e=>setDelayForm({...delayForm, delayAmount: e.target.value})}/>
+                                    <input className="border rounded p-2" placeholder="نام پرسنل" value={delayForm.personnelName || ''} onChange={e=>setDelayForm({...delayForm, personnelName: e.target.value})} onKeyDown={handleEnterKey}/>
+                                    <input className="border rounded p-2" placeholder="واحد" value={delayForm.unit || ''} onChange={e=>setDelayForm({...delayForm, unit: e.target.value})} onKeyDown={handleEnterKey}/>
+                                    <input className="border rounded p-2 text-center dir-ltr" placeholder="ورود (08:00)" value={delayForm.arrivalTime || ''} onChange={handleTimeChange('arrivalTime', setDelayForm, delayForm)} onBlur={handleTimeBlur('arrivalTime', setDelayForm, delayForm)} onKeyDown={handleEnterKey}/>
+                                    <input className="border rounded p-2" placeholder="میزان تاخیر" value={delayForm.delayAmount || ''} onChange={e=>setDelayForm({...delayForm, delayAmount: e.target.value})} onKeyDown={handleEnterKey}/>
                                     
                                     {/* Added Missing Fields for Delay Form */}
-                                    <input className="border rounded p-2" placeholder="تعداد تکرار" value={delayForm.repeatCount || ''} onChange={e=>setDelayForm({...delayForm, repeatCount: e.target.value})}/>
-                                    <input className="border rounded p-2" placeholder="دستور / اقدام" value={delayForm.instruction || ''} onChange={e=>setDelayForm({...delayForm, instruction: e.target.value})}/>
+                                    <input className="border rounded p-2" placeholder="تعداد تکرار" value={delayForm.repeatCount || ''} onChange={e=>setDelayForm({...delayForm, repeatCount: e.target.value})} onKeyDown={handleEnterKey}/>
+                                    <input className="border rounded p-2" placeholder="دستور / اقدام" value={delayForm.instruction || ''} onChange={e=>setDelayForm({...delayForm, instruction: e.target.value})} onKeyDown={handleEnterKey}/>
                                 </div>
                                 <button type="button" onClick={handleSaveDelay} className="w-full bg-orange-600 text-white py-3 rounded-lg font-bold">ذخیره</button>
                             </form>
                         )}
                         {activeTab === 'incidents' && (
                             <form className="space-y-4">
-                                <input className="w-full border rounded p-2" placeholder="موضوع" value={incidentForm.subject || ''} onChange={e=>setPartialIncidentForm({...incidentForm, subject: e.target.value})}/>
-                                <textarea className="w-full border rounded p-2 h-32" placeholder="شرح" value={incidentForm.description || ''} onChange={e=>setPartialIncidentForm({...incidentForm, description: e.target.value})}/>
+                                <input className="w-full border rounded p-2" placeholder="موضوع" value={incidentForm.subject || ''} onChange={e=>setPartialIncidentForm({...incidentForm, subject: e.target.value})} onKeyDown={handleEnterKey}/>
+                                <textarea className="w-full border rounded p-2 h-32" placeholder="شرح" value={incidentForm.description || ''} onChange={e=>setPartialIncidentForm({...incidentForm, description: e.target.value})} onKeyDown={handleEnterKey}/>
                                 <button type="button" onClick={handleSaveIncident} className="w-full bg-red-600 text-white py-3 rounded-lg font-bold">ذخیره</button>
                             </form>
                         )}
