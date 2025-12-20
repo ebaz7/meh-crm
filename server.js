@@ -9,11 +9,7 @@ import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import cron from 'node-cron';
 
-// ... (Existing crash handlers and imports)
-
-// ... (DB helper same)
-
-// ... (Bots init same)
+// ... سایر کدهای سرور (crash handlers, helpers, bots init) بدون تغییر
 
 app.put('/api/exit-permits/:id', async (req, res) => {
     const db = getDb();
@@ -30,24 +26,21 @@ app.put('/api/exit-permits/:id', async (req, res) => {
             let targetPhones = [];
             let msg = '';
 
-            // 1. CEO Approved -> Notify Factory Manager
+            // ۱. تایید مدیرعامل -> اطلاع به مدیر کارخانه
             if (newStatus === 'تایید مدیرعامل / در انتظار مدیر کارخانه') {
                 const phone = findUserPhoneByRole(db, 'factory_manager');
                 if (phone) targetPhones.push(phone);
                 msg = `🚛 *مجوز خروج تایید شد (مدیرعامل)*\nشماره: ${newPermit.permitNumber}\nدر انتظار تایید مدیر کارخانه.`;
             }
-            // 2. Factory Approved -> Notify Security/Group
+            // ۲. تایید مدیر کارخانه -> اطلاع به انتظامات/گروه
             else if (newStatus === 'تایید کارخانه / در انتظار انتظامات (خروج)') {
                 if (db.settings?.exitPermitNotificationGroup) targetPhones.push(db.settings.exitPermitNotificationGroup);
-                msg = `🏭 *تایید مدیر کارخانه صادر شد*\nشماره مجوز: ${newPermit.permitNumber}\nانتظامات محترم، لطفا پس از خروج بار ساعت را ثبت و تایید نهایی نمایید.`;
+                msg = `🏭 *تایید مدیر کارخانه صادر شد*\nشماره مجوز: ${newPermit.permitNumber}\nانتظامات محترم، بار آماده خروج است. پس از خروج ساعت را ثبت و تایید نمایید.`;
             }
-            // 3. Security Approved -> EXITED -> Notify Sales Manager & Group
+            // ۳. خروج نهایی (تایید انتظامات) -> اطلاع به مدیر فروش و گروه
             else if (newStatus === 'خارج شده (بایگانی)') {
-                // Notify Sales Manager (Requester)
                 const salesPhone = findUserPhoneByName(db, newPermit.requester);
                 if (salesPhone) targetPhones.push(salesPhone);
-                
-                // Notify Group
                 if (db.settings?.exitPermitNotificationGroup) targetPhones.push(db.settings.exitPermitNotificationGroup);
                 
                 msg = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${newPermit.permitNumber}\n👤 گیرنده: ${newPermit.recipientName}\n⏰ ساعت خروج: ${newPermit.exitTime || '-'}\n🏁 فرآیند تکمیل شد.`;
@@ -62,4 +55,5 @@ app.put('/api/exit-permits/:id', async (req, res) => {
     } else res.sendStatus(404);
 });
 
-// ... (Rest of server.js same)
+// بقیه فایل سرور بدون تغییر
+// ...

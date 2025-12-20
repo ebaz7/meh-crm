@@ -43,13 +43,13 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const canApprove = (p: ExitPermit) => {
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
 
-      // Stage 1: CEO
+      // مرحله ۱: تایید مدیرعامل
       if (p.status === ExitPermitStatus.PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
       
-      // Stage 2: Factory Manager
+      // مرحله ۲: تایید مدیر کارخانه
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
 
-      // Stage 3: Security (Final Exit)
+      // مرحله ۳: تایید انتظامات
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
 
       return false;
@@ -61,17 +61,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return canApprove(p);
   };
 
-  const canEdit = (p: ExitPermit) => {
-      if (currentUser.role === UserRole.ADMIN) return true;
-      if (p.status === ExitPermitStatus.EXITED) return false; 
-      if (currentUser.role === UserRole.USER) {
-          return permissions.canEditOwn && p.requester === currentUser.fullName;
-      }
-      if (permissions.canEditAll) return true;
-      if (permissions.canEditOwn && p.requester === currentUser.fullName) return true;
-      return false;
-  };
-
   const handleApprove = async (id: string, currentStatus: ExitPermitStatus) => {
       let nextStatus = currentStatus;
       let exitTime: string | undefined;
@@ -81,6 +70,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       } else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) {
           nextStatus = ExitPermitStatus.PENDING_SECURITY;
       } else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
+          // مرحله نهایی: دریافت ساعت خروج
           const time = prompt('لطفا ساعت خروج بار را وارد کنید (مثلا ۱۴:۳۰):', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
           if (time === null) return; 
           exitTime = time;
@@ -128,14 +118,12 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                           }
                       }
                       else if (nextStatus === ExitPermitStatus.EXITED) {
-                          const caption = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 انتظامات: ${currentUser.fullName}\n\nفرآیند تکمیل و بایگانی شد.`;
-                          
+                          const caption = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 انتظامات: ${currentUser.fullName}`;
                           const users = await getUsers();
                           const salesManager = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                           if (salesManager) {
                               await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
-
                           if (settings?.exitPermitNotificationGroup) {
                               await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
@@ -157,48 +145,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   };
 
   const handleDelete = async (id: string) => {
-      if(!confirm('آیا مطمئن هستید که می‌خواهید این مجوز را حذف کنید؟ این عملیات غیرقابل بازگشت است.')) return;
-      const permitToDelete = permits.find(p => p.id === id);
-      if (permitToDelete && (permitToDelete.status !== ExitPermitStatus.PENDING_CEO)) {
-          const deletedMock = { ...permitToDelete, status: 'DELETED' as any };
-          setDeletedPermitForAutoSend(deletedMock);
-          setTimeout(async () => {
-              const element = document.getElementById(`print-permit-del-${id}`);
-              if (element) {
-                  try {
-                      // @ts-ignore
-                      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                      const base64 = canvas.toDataURL('image/png').split(',')[1];
-                      let warningCaption = `❌❌ *هشدار: مجوز خروج ابطال شد* ❌❌\n⛔ خروج بار ممنوع\n🔢 شماره: ${permitToDelete.permitNumber}\n🗑️ ابطال توسط: ${currentUser.fullName}`;
-                      const users = await getUsers();
-                      const fm = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
-                      if (fm) await apiCall('/send-whatsapp', 'POST', { number: fm.phoneNumber, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `VOID_${permitToDelete.permitNumber}.png` } });
-                      if (settings?.exitPermitNotificationGroup) await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: warningCaption, mediaData: { data: base64, mimeType: 'image/png', filename: `VOID_${permitToDelete.permitNumber}.png` } });
-                  } catch (e) { }
-              }
-              await deleteExitPermit(id);
-              setDeletedPermitForAutoSend(null);
-              loadData();
-          }, 1500);
-      } else {
-          await deleteExitPermit(id);
-          loadData();
-      }
-  };
-
-  const handleEditSave = () => { setEditingPermit(null); loadData(); };
-
-  const getSearchString = (p: ExitPermit) => {
-      const itemsGoods = p.items?.map(i => i.goodsName).join(' ') || p.goodsName || '';
-      const destsRec = p.destinations?.map(d => d.recipientName).join(' ') || p.recipientName || '';
-      return `${p.permitNumber} ${itemsGoods} ${destsRec} ${p.requester}`;
+      if(!confirm('آیا مطمئن هستید؟')) return;
+      await deleteExitPermit(id);
+      loadData();
   };
 
   const filtered = permits.filter(p => {
       if (activeTab === 'current') { if (p.status === ExitPermitStatus.EXITED || p.status === ExitPermitStatus.REJECTED) return false; }
       else { if (p.status !== ExitPermitStatus.EXITED && p.status !== ExitPermitStatus.REJECTED) return false; }
       if (activeStatusFilter === 'pending') { if (p.status === ExitPermitStatus.EXITED || p.status === ExitPermitStatus.REJECTED) return false; }
-      return getSearchString(p).toLowerCase().includes(searchTerm.toLowerCase());
+      return p.goodsName?.toLowerCase().includes(searchTerm.toLowerCase()) || p.permitNumber.toString().includes(searchTerm);
   });
 
   const getStatusBadge = (status: ExitPermitStatus) => {
@@ -218,14 +174,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} />
             </div>
         )}
-        {deletedPermitForAutoSend && (
-            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
-                <div id={`print-permit-del-${deletedPermitForAutoSend.id}`}>
-                    <PrintExitPermit permit={deletedPermitForAutoSend} onClose={()=>{}} embed settings={settings} />
-                </div>
-            </div>
-        )}
-
         <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Truck size={24} className="text-orange-600"/> کارتابل خروج بار</h2>
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
@@ -239,32 +187,26 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 </div>
             </div>
         </div>
-        
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
-                <thead className="bg-gray-5 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">کالا</th><th className="p-4">تعداد/وزن</th><th className="p-4">وضعیت</th><th className="p-4 text-center">عملیات</th></tr></thead>
+                <thead className="bg-gray-5 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">کالا</th><th className="p-4">وضعیت</th><th className="p-4 text-center">عملیات</th></tr></thead>
                 <tbody>
-                    {filtered.length === 0 ? (<tr><td colSpan={6} className="p-8 text-center text-gray-400">موردی یافت نشد.</td></tr>) : (
-                        filtered.map(p => (
-                            <tr key={p.id} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-bold text-orange-600">#{p.permitNumber}</td>
-                                <td className="p-4">{formatDate(p.date)}</td>
-                                <td className="p-4 font-bold">{p.items?.[0]?.goodsName || p.goodsName} {p.items?.length > 1 ? `(+${p.items.length-1})` : ''}</td>
-                                <td className="p-4">{p.items?.reduce((a,b)=>a+(Number(b.cartonCount)||0),0) || p.cartonCount} کارتن</td>
-                                <td className="p-4">{getStatusBadge(p.status)}</td>
-                                <td className="p-4 text-center flex justify-center gap-2">
-                                    <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
-                                    {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید"><CheckCircle size={16}/></button>}
-                                    {canEdit(p) && <button onClick={() => setEditingPermit(p)} className="bg-amber-100 text-amber-600 p-2 rounded-lg hover:bg-amber-200"><Edit size={16}/></button>}
-                                    {canReject(p) && <button onClick={() => handleDelete(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
-                                </td>
-                            </tr>
-                        ))
-                    )}
+                    {filtered.map(p => (
+                        <tr key={p.id} className="border-b hover:bg-gray-50">
+                            <td className="p-4 font-bold text-orange-600">#{p.permitNumber}</td>
+                            <td className="p-4">{formatDate(p.date)}</td>
+                            <td className="p-4 font-bold">{p.items?.[0]?.goodsName || p.goodsName}</td>
+                            <td className="p-4">{getStatusBadge(p.status)}</td>
+                            <td className="p-4 text-center flex justify-center gap-2">
+                                <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
+                                {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید"><CheckCircle size={16}/></button>}
+                                {canReject(p) && <button onClick={() => handleDelete(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>
-        
         {viewPermit && (
             <PrintExitPermit 
                 permit={viewPermit} 
@@ -274,7 +216,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 settings={settings}
             />
         )}
-        {editingPermit && <EditExitPermitModal permit={editingPermit} onClose={() => setEditingPermit(null)} onSave={handleEditSave} />}
     </div>
   );
 };

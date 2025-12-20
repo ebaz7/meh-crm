@@ -42,15 +42,9 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
         className="printable-content bg-white w-full mx-auto p-8 shadow-2xl rounded-sm relative text-gray-900 flex flex-col" 
         style={{ direction: 'rtl', width: '209mm', height: '147mm', margin: '0 auto', padding: '8mm', boxSizing: 'border-box' }}>
             
-            {((permit.status as any) === 'DELETED') && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-                    <div className="border-8 border-red-600/30 text-red-600/30 font-black text-8xl rotate-[-25deg] p-4 rounded-3xl whitespace-nowrap">ابطال شد</div>
-                </div>
-            )}
-
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4 relative z-10">
                 <div className="flex items-center gap-4">{settings?.pwaIcon && <img src={settings.pwaIcon} className="w-16 h-16 object-contain"/>}<div><h1 className="text-2xl font-black mb-1">مجوز خروج کالا</h1><p className="text-sm font-bold text-gray-600">گروه تولیدی صنعتی</p></div></div>
-                <div className="text-left space-y-1"><div className="text-lg font-black">شماره: {permit.permitNumber}</div><div className="text-sm">تاریخ: {formatDate(permit.date)}</div>{permit.exitTime && <div className="text-xs bg-gray-100 px-2 py-1 rounded flex items-center gap-1 mt-1"><Clock size={12}/> ساعت خروج: {permit.exitTime}</div>}</div>
+                <div className="text-left space-y-1"><div className="text-lg font-black">شماره: {permit.permitNumber}</div><div className="text-sm">تاریخ: {formatDate(permit.date)}</div>{permit.exitTime && <div className="text-xs bg-gray-100 px-2 py-1 rounded flex items-center gap-1"><Clock size={12}/> ساعت خروج: {permit.exitTime}</div>}</div>
             </div>
             <div className="flex-1 space-y-4 relative z-10">
                 <table className="w-full text-xs border-collapse border border-black"><thead className="bg-gray-100"><tr><th className="border border-black p-1 w-8 text-center">ردیف</th><th className="border border-black p-1">شرح کالا</th><th className="border border-black p-1 w-20 text-center">تعداد کارتن</th><th className="border border-black p-1 w-20 text-center">وزن (KG)</th></tr></thead><tbody>{displayItems.map((item, idx) => (<tr key={idx}><td className="border border-black p-1 text-center">{idx + 1}</td><td className="border border-black p-1 font-bold">{item.goodsName}</td><td className="border border-black p-1 text-center">{item.cartonCount}</td><td className="border border-black p-1 text-center">{item.weight}</td></tr>))}<tr className="bg-gray-50 font-bold"><td colSpan={2} className="border border-black p-1 text-left pl-4">جمع کل:</td><td className="border border-black p-1 text-center">{totalCartons}</td><td className="border border-black p-1 text-center">{totalWeight}</td></tr></tbody></table>

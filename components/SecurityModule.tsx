@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, getSettings, saveSettings } from '../services/storageService';
@@ -527,13 +526,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
         if (readyDelays.length === 0) { alert("هیچ آیتم تایید شده‌ای برای ارسال وجود ندارد."); return; }
 
-        // FIX: Added explicit <string> type to the Set to help TypeScript inference
-        const datesToApprove = new Set<string>(readyDelays.map(d => d.date));
+        const datesToApprove = new Set(readyDelays.map(d => d.date));
         if (settings) {
-            // FIX: Explicitly typed newMeta as Record to avoid index type errors
-            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
+            // Fix: Explicitly type newMeta and ensure loop variables are typed
+            const newMeta: Record<string, DailySecurityMeta> = { ...settings.dailySecurityMeta };
             datesToApprove.forEach((date: string) => {
-                // FIX: Used explicit string key for index access
                 newMeta[date] = { ...newMeta[date], isDelaySupervisorApproved: true };
             });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
@@ -560,16 +557,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
 
         // 2. Update Meta
-        // FIX: Added explicit <string> type to the Sets to help TypeScript inference
-        const logDates = new Set<string>(readyLogs.map(l => l.date));
-        const delayDates = new Set<string>(readyDelays.map(d => d.date));
+        const logDates = new Set(readyLogs.map(l => l.date));
+        const delayDates = new Set(readyDelays.map(d => d.date));
         
         if (settings) {
-            // FIX: Explicitly typed newMeta as Record to avoid index type errors
-            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
-            // FIX: Used explicit string key for index access
+            // Fix: Explicitly type newMeta and ensure loop variables are typed
+            const newMeta: Record<string, DailySecurityMeta> = { ...settings.dailySecurityMeta };
             logDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
-            // FIX: Used explicit string key for index access
             delayDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
         }
@@ -688,7 +682,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* ... SHIFT MODAL ... (Unchanged) */}
+            {/* SHIFT MODAL */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -709,11 +703,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                     <input className="w-20 border rounded p-2 text-sm text-center" placeholder="خروج" value={metaForm.morningGuard?.exit} onChange={handleTimeChange('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)} onBlur={handleTimeBlur('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)} onKeyDown={handleKeyDown}/>
                                 </div>
                             </div>
-                            {/* ... Other Shifts ... */}
                             <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-bold text-sm text-orange-800">شیفت عصر (۱۴:۰۰ الی ۲۲:۰۰)</h4>
-                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-orange-50"><UserIcon size={10}/> نام من</button>
+                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50"><UserIcon size={10}/> نام من</button>
                                 </div>
                                 <div className="flex gap-2">
                                     <input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.eveningGuard?.name} onChange={e => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, name: e.target.value}})} onKeyDown={handleKeyDown}/>
@@ -827,7 +820,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
             {/* HEADER */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
-                {/* ... (Unchanged Header) ... */}
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <Shield className="text-blue-600"/> واحد انتظامات و حراست
                 </h1>
