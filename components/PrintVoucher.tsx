@@ -158,8 +158,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   if (embed) return <div id={embed ? `print-voucher-${order.id}` : undefined}>{content}</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
-      <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-50 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
+      <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-[210] no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
              {(onApprove || onReject || onEdit) && (<div className="flex gap-2 pb-3 border-b border-gray-100">{onApprove && <button onClick={onApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><CheckCircle size={18} /> تایید</button>}{onReject && <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><XCircle size={18} /> رد</button>}{onEdit && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}</div>)}
@@ -170,7 +170,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  
                  {showContactSelect && (
-                     <div className="absolute top-full right-0 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[100] animate-scale-in flex flex-col overflow-hidden">
+                     <div className="absolute top-full right-0 md:-right-32 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[300] animate-scale-in flex flex-col overflow-hidden">
                          <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">
                              <div className="flex justify-between items-center"><span className="text-xs font-black text-gray-700">انتخاب مخاطب</span><button onClick={()=>setShowContactSelect(false)}><X size={14}/></button></div>
                              <div className="relative"><Search size={14} className="absolute right-2 top-2 text-gray-400"/><input className="w-full bg-white border border-gray-300 rounded-lg pr-8 pl-2 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="جستجوی نام یا شماره..." value={contactSearch} onChange={e=>setContactSearch(e.target.value)} autoFocus/></div>
