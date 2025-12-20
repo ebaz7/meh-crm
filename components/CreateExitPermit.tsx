@@ -23,7 +23,6 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
   const [driverInfo, setDriverInfo] = useState({ plateNumber: '', driverName: '', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State for rendering the hidden invoice for auto-send
   const [createdPermit, setCreatedPermit] = useState<ExitPermit | null>(null);
 
   useEffect(() => { getNextExitPermitNumber().then(num => setPermitNumber(num.toString())); }, []);
@@ -55,24 +54,22 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
               plateNumber: driverInfo.plateNumber,
               driverName: driverInfo.driverName,
               description: driverInfo.description,
-              status: ExitPermitStatus.PENDING_CEO,
+              status: ExitPermitStatus.PENDING_SECURITY, // Initial Stage: Security
               createdAt: Date.now()
           };
           await saveExitPermit(permit);
           
-          // Trigger the hidden render
           setCreatedPermit(permit);
           
-          // Wait for render, generate image, and send to CEO
           setTimeout(async () => {
               const element = document.getElementById(`print-permit-${permit.id}`);
               if (element) {
                   try {
-                      // Find CEO
                       const users = await getUsers();
-                      const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                      // Notify Security Guards of New Request
+                      const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
                       
-                      if (ceo) {
+                      for (const secUser of securityUsers) {
                           // @ts-ignore
                           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                           const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -81,20 +78,16 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
                           caption += `شماره: ${permit.permitNumber}\n`;
                           caption += `درخواست کننده: ${permit.requester}\n`;
                           caption += `گیرنده: ${permit.recipientName}\n\n`;
-                          caption += `جهت بررسی و تایید ارسال گردید.`;
+                          caption += `لطفا جهت تایید خروج و ثبت ساعت اقدام نمایید.`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
-                              number: ceo.phoneNumber, 
+                              number: secUser.phoneNumber!, 
                               message: caption, 
                               mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` } 
                           });
-                          console.log("Auto sent exit request to CEO");
-                      } else {
-                          console.log("CEO contact not found for auto-send.");
                       }
                   } catch(e) { console.error("Auto send error", e); }
               }
-              // Proceed after attempt
               onSuccess();
           }, 1500);
 
@@ -109,14 +102,13 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in max-w-4xl mx-auto relative">
-        {/* Hidden Render for Auto Send - Add class hidden-print-export */}
         {createdPermit && (
             <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
                 <PrintExitPermit permit={createdPermit} onClose={()=>{}} embed />
             </div>
         )}
 
-        <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Truck size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت درخواست خروج بار (چند ردیفه)</h2></div>
+        <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Truck size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت درخواست خروج بار</h2></div>
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <div><label className="text-sm font-bold block mb-1 flex items-center gap-1"><Hash size={16}/> شماره مجوز</label><input type="number" className="w-full border rounded-xl p-3 bg-white text-left dir-ltr font-bold text-orange-600" value={permitNumber} onChange={e => setPermitNumber(e.target.value)} required /></div>
