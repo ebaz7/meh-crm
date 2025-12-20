@@ -75,16 +75,18 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // FIX: Optimized Jump to Edit logic - Enforce Closing ALL modals
+    // FIX: Updated Jump to Edit logic - Opens Shift Modal Automatically
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
         setActiveTab(category === 'log' ? 'logs' : 'delays');
         
-        // Force close all possible open modals to show the main table
+        // Close view/print modals
         setViewCartableItem(null);
         setShowPrintModal(false);
-        setShowShiftModal(false);
+        
+        // OPEN Shift Modal as requested to edit day details immediately
+        setShowShiftModal(true);
     };
 
     const formatTime = (val: string) => {
@@ -374,9 +376,19 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             }
         }
         if ((currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && item.status === SecurityStatus.PENDING_FACTORY) {
-            const updates = { status: SecurityStatus.APPROVED_FACTORY_CHECK, approverFactory: currentUser.fullName };
-            if (item.type === 'log') await updateSecurityLog({ ...item, ...updates });
-            else if (item.type === 'delay') await updatePersonnelDelay({ ...item, ...updates });
+            const updates: any = { status: SecurityStatus.APPROVED_FACTORY_CHECK, approverFactory: currentUser.fullName };
+            
+            if (item.type === 'log') {
+                await updateSecurityLog({ ...item, ...updates });
+            } 
+            else if (item.type === 'delay') {
+                // ADDED: Prompt for instruction when Factory Manager approves delay
+                const instruction = prompt("لطفا دستور / اقدام لازم را وارد کنید:", item.instruction || "");
+                if (instruction === null) return; // Cancelled by user
+                
+                updates.instruction = instruction;
+                await updatePersonnelDelay({ ...item, ...updates });
+            }
             loadData(); return;
         }
         if (item.type === 'log' && isSupervisor && item.status === SecurityStatus.PENDING_SUPERVISOR) {
