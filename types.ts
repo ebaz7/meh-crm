@@ -16,7 +16,8 @@ export enum OrderStatus {
 
 export enum ExitPermitStatus {
   PENDING_CEO = 'در انتظار تایید مدیرعامل',
-  PENDING_FACTORY = 'تایید مدیرعامل / در انتظار خروج (کارخانه)',
+  PENDING_FACTORY = 'تایید مدیرعامل / در انتظار مدیر کارخانه',
+  PENDING_SECURITY = 'تایید کارخانه / در انتظار انتظامات (خروج)',
   EXITED = 'خارج شده (بایگانی)',
   REJECTED = 'رد شده'
 }
@@ -121,6 +122,8 @@ export interface ExitPermit {
   status: ExitPermitStatus;
   approverCeo?: string;
   approverFactory?: string;
+  approverSecurity?: string;
+  exitTime?: string;
   rejectionReason?: string;
   rejectedBy?: string;
   createdAt: number;
