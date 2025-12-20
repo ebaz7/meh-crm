@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, getShamsiDateFromIso } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil, ChevronDown, ChevronUp, FolderOpen, Folder } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 import { getRolePermissions } from '../services/authService';
 
@@ -13,6 +13,7 @@ interface Props {
 
 const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive' | 'in_progress'>('logs');
+    const [subTab, setSubTab] = useState<'current' | 'archived'>('current'); // NEW: Sub-tab for Logs/Delays
     
     // Deleting State for Archive Items
     const [deletingItemKey, setDeletingItemKey] = useState<string | null>(null);
@@ -46,6 +47,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
 
     useEffect(() => { loadData(); }, []);
+
+    // Reset sub-tab when main tab changes
+    useEffect(() => {
+        setSubTab('current');
+    }, [activeTab, selectedDate]);
 
     // Effect to update print page size dynamically
     useEffect(() => {
@@ -95,14 +101,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // FIX: Updated Jump to Edit logic - Explicitly loads data into form BEFORE opening modal
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
-        
-        // 1. Set the date picker to the target date
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
-        
-        // 2. Explicitly load the metadata for this specific date into the form state
         if (settings?.dailySecurityMeta && settings.dailySecurityMeta[dateString]) {
             setMetaForm({ ...settings.dailySecurityMeta[dateString] });
         } else {
@@ -113,13 +114,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 nightGuard: { name: '', entry: '', exit: '' }
             });
         }
-
-        // 3. Handle UI transitions
         setActiveTab(category === 'log' ? 'logs' : 'delays');
         setViewCartableItem(null);
         setShowPrintModal(false);
-        
-        // 4. Open the modal immediately with the data loaded
         setShowShiftModal(true);
     };
 
@@ -146,7 +143,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // Navigation with Enter Key
     const handleEnterKey = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -224,9 +220,16 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // MODIFIED: Exclude ARCHIVED items from the active daily view
-    const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()) && l.status !== SecurityStatus.ARCHIVED);
-    const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()) && d.status !== SecurityStatus.ARCHIVED);
+    // Filter Logs and Delays by date AND sub-tab
+    const allDailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()));
+    const dailyLogsActive = allDailyLogs.filter(l => l.status !== SecurityStatus.ARCHIVED);
+    const dailyLogsArchived = allDailyLogs.filter(l => l.status === SecurityStatus.ARCHIVED);
+    const displayLogs = subTab === 'current' ? dailyLogsActive : dailyLogsArchived;
+
+    const allDailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()));
+    const dailyDelaysActive = allDailyDelays.filter(d => d.status !== SecurityStatus.ARCHIVED);
+    const dailyDelaysArchived = allDailyDelays.filter(d => d.status === SecurityStatus.ARCHIVED);
+    const displayDelays = subTab === 'current' ? dailyDelaysActive : dailyDelaysArchived;
     
     const getCartableItems = () => {
         const role = currentUser.role;
@@ -297,7 +300,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleSaveLog = async () => {
-        // VALIDATION: Check if shift is registered
         const currentShift = logForm.shift || 'صبح';
         let guardName = '';
         if (currentShift === 'صبح') guardName = metaForm.morningGuard?.name || '';
@@ -322,7 +324,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         await resetDailyApprovalIfNeeded(isoDate, 'log');
         const newLog: SecurityLog = {
             id: editingId || generateUUID(),
-            rowNumber: editingId ? logForm.rowNumber! : dailyLogs.length + 1,
+            rowNumber: editingId ? logForm.rowNumber! : allDailyLogs.length + 1,
             date: isoDate,
             shift: currentShift,
             origin: logForm.origin || '',
@@ -442,10 +444,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 await updateSecurityLog({ ...item, ...updates });
             } 
             else if (item.type === 'delay') {
-                // ADDED: Prompt for instruction when Factory Manager approves delay
                 const instruction = prompt("لطفا دستور / اقدام لازم را وارد کنید:", item.instruction || "");
-                if (instruction === null) return; // Cancelled by user
-                
+                if (instruction === null) return; 
                 updates.instruction = instruction;
                 await updatePersonnelDelay({ ...item, ...updates });
             }
@@ -522,6 +522,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDeleteItem = async (id: string, type: 'log' | 'delay' | 'incident') => {
         if (!confirm('آیا از حذف این مورد اطمینان دارید؟')) return;
+        
+        // ADDED: Loading state for individual delete
+        setDeletingItemKey(id);
+        
         try {
             if (type === 'log') await deleteSecurityLog(id);
             else if (type === 'delay') await deletePersonnelDelay(id);
@@ -529,10 +533,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             loadData();
         } catch (e) {
             alert("خطا در حذف مورد");
+        } finally {
+            setDeletingItemKey(null);
         }
     };
 
-    // New Function to handle bulk delete of daily archives with Loading State
     const handleDeleteDailyArchive = async (date: string, category: 'log' | 'delay') => {
         const title = category === 'log' ? 'نگهبانی' : 'تاخیر';
         if (!confirm(`آیا از حذف کامل گزارشات ${title} تاریخ ${formatDate(date)} اطمینان دارید؟ این عملیات غیرقابل بازگشت است.`)) return;
@@ -548,7 +553,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 const itemsToDelete = delays.filter(d => d.date === date && d.status === SecurityStatus.ARCHIVED);
                 for (const item of itemsToDelete) await deletePersonnelDelay(item.id);
             }
-            // Update metadata to uncheck approvals if needed (optional but good practice)
             if (settings) {
                 const currentMeta = (settings.dailySecurityMeta || {})[date];
                 if (currentMeta) {
@@ -568,7 +572,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        // Corrected ID to match the new component ID
         const element = document.getElementById('print-delay-form') || document.getElementById('printable-area-view');
         
         if (!element) { 
@@ -576,7 +579,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             return; 
         }
         try {
-            // Determine orientation based on printTarget type or viewCartableItem category
             const isLandscape = 
                 (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'daily_delay')) || 
                 (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.category === 'delay' || viewCartableItem.type === 'log' || viewCartableItem.type === 'delay'));
@@ -622,7 +624,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* Shift Modal, View Cartable Modal, etc. (No Changes needed) */}
+            {/* Shift Modal, View Cartable Modal, etc. */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -654,18 +656,89 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
-                {/* ... (Previous tabs logic remains the same) ... */}
                 {activeTab === 'logs' && (
                     <>
-                        <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:dailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
-                        <div className="overflow-x-auto"><table className="w-full text-xs text-center border-collapse"><thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead><tbody className="divide-y">{dailyLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : dailyLogs.map((log, idx) => (<tr key={log.id} className={`hover:bg-blue-50 ${log.status === SecurityStatus.ARCHIVED ? 'opacity-80' : ''}`}><td className="p-3 border-l">{idx + 1}</td><td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td><td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td><td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td><td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td><td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td><td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : log.status === SecurityStatus.ARCHIVED ? 'bg-green-50 text-green-700 font-bold border border-green-200' : 'bg-yellow-100'}`}>{log.status}</span></td><td className="p-3 flex justify-center gap-2">{canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}{canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors" title="حذف"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
-                        {/* Archive Toggle Removed from here as requested */}
+                        {/* Sub-Tabs for Logs */}
+                        <div className="flex border-b">
+                            <button onClick={() => setSubTab('current')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'current' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>لیست جاری (در جریان)</button>
+                            <button onClick={() => setSubTab('archived')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'archived' ? 'border-green-600 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>بایگانی روز (نهایی شده)</button>
+                        </div>
+
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی {subTab === 'archived' && <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">(بایگانی)</span>}</h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:allDailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
+                                {subTab === 'current' && <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button>}
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-center border-collapse">
+                                <thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead>
+                                <tbody className="divide-y">
+                                    {displayLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : displayLogs.map((log, idx) => (
+                                        <tr key={log.id} className={`hover:bg-blue-50 ${log.status === SecurityStatus.ARCHIVED ? 'bg-green-50/30' : ''}`}>
+                                            <td className="p-3 border-l">{idx + 1}</td>
+                                            <td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td>
+                                            <td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td>
+                                            <td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td>
+                                            <td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td>
+                                            <td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td>
+                                            <td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : log.status === SecurityStatus.ARCHIVED ? 'bg-green-100 text-green-700 font-bold border border-green-200' : 'bg-yellow-100'}`}>{log.status}</span></td>
+                                            <td className="p-3 flex justify-center gap-2">
+                                                {canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}
+                                                {canDelete(log) && (
+                                                    <button onClick={() => handleDeleteItem(log.id, 'log')} disabled={deletingItemKey === log.id} className={`text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors ${deletingItemKey === log.id ? 'opacity-50 cursor-not-allowed' : ''}`} title="حذف">
+                                                        {deletingItemKey === log.id ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </>
                 )}
                 {activeTab === 'delays' && (
                     <>
-                        <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Clock size={18}/> تاخیر پرسنل</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_delay', date:iso, delays:dailyDelays, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
-                        <div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-gray-100 border-b"><tr><th className="p-4">نام پرسنل</th><th className="p-4">واحد</th><th className="p-4">ساعت ورود</th><th className="p-4">تاخیر</th><th className="p-4">وضعیت</th><th className="p-4">عملیات</th></tr></thead><tbody className="divide-y">{dailyDelays.map(d => (<tr key={d.id} className={`hover:bg-gray-50 ${d.status === SecurityStatus.ARCHIVED ? 'opacity-80' : ''}`}><td className="p-4 font-bold">{d.personnelName}</td><td className="p-4">{d.unit}</td><td className="p-4 font-mono">{d.arrivalTime}</td><td className="p-4 text-red-600 font-bold">{d.delayAmount}</td><td className="p-4 text-xs font-bold">{d.status}</td><td className="p-4 flex gap-2 justify-center">{canEdit(d) && <button onClick={() => handleEditItem(d, 'delay')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}{canDelete(d) && <button onClick={() => handleDeleteItem(d.id, 'delay')} className="text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors" title="حذف"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
+                        {/* Sub-Tabs for Delays */}
+                        <div className="flex border-b">
+                            <button onClick={() => setSubTab('current')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'current' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>لیست جاری (در جریان)</button>
+                            <button onClick={() => setSubTab('archived')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'archived' ? 'border-green-600 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>بایگانی روز (نهایی شده)</button>
+                        </div>
+
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><Clock size={18}/> تاخیر پرسنل {subTab === 'archived' && <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">(بایگانی)</span>}</h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_delay', date:iso, delays:allDailyDelays, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
+                                {subTab === 'current' && <button onClick={() => setShowModal(true)} className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button>}
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-right">
+                                <thead className="bg-gray-100 border-b"><tr><th className="p-4">نام پرسنل</th><th className="p-4">واحد</th><th className="p-4">ساعت ورود</th><th className="p-4">تاخیر</th><th className="p-4">وضعیت</th><th className="p-4">عملیات</th></tr></thead>
+                                <tbody className="divide-y">
+                                    {displayDelays.map(d => (
+                                        <tr key={d.id} className={`hover:bg-gray-50 ${d.status === SecurityStatus.ARCHIVED ? 'bg-green-50/30' : ''}`}>
+                                            <td className="p-4 font-bold">{d.personnelName}</td>
+                                            <td className="p-4">{d.unit}</td>
+                                            <td className="p-4 font-mono">{d.arrivalTime}</td>
+                                            <td className="p-4 text-red-600 font-bold">{d.delayAmount}</td>
+                                            <td className="p-4 text-xs font-bold">{d.status}</td>
+                                            <td className="p-4 flex gap-2 justify-center">
+                                                {canEdit(d) && <button onClick={() => handleEditItem(d, 'delay')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}
+                                                {canDelete(d) && (
+                                                    <button onClick={() => handleDeleteItem(d.id, 'delay')} disabled={deletingItemKey === d.id} className={`text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors ${deletingItemKey === d.id ? 'opacity-50 cursor-not-allowed' : ''}`} title="حذف">
+                                                        {deletingItemKey === d.id ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {displayDelays.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-400">موردی یافت نشد</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
                     </>
                 )}
                 {activeTab === 'incidents' && (
