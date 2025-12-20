@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, User, ExitPermitItem, ExitPermitDestination, UserRole } from '../types';
 import { saveExitPermit, getNextExitPermitNumber } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate } from '../constants';
-import { Save, Loader2, Truck, Package, MapPin, Hash, Plus, Trash2, User as UserIcon, Phone } from 'lucide-react';
+import { Save, Loader2, Truck, Package, MapPin, Hash, Plus, Trash2 } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
@@ -54,7 +54,7 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
               plateNumber: driverInfo.plateNumber,
               driverName: driverInfo.driverName,
               description: driverInfo.description,
-              status: ExitPermitStatus.PENDING_SECURITY, // Initial Stage: Security
+              status: ExitPermitStatus.PENDING_CEO, // Stage 1: CEO Approval
               createdAt: Date.now()
           };
           await saveExitPermit(permit);
@@ -66,22 +66,20 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
               if (element) {
                   try {
                       const users = await getUsers();
-                      // Notify Security Guards of New Request
-                      const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
-                      
-                      for (const secUser of securityUsers) {
+                      // Notify CEO
+                      const ceoUser = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                      if (ceoUser) {
                           // @ts-ignore
                           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                           const base64 = canvas.toDataURL('image/png').split(',')[1];
                           
                           let caption = `🚛 *درخواست مجوز خروج جدید*\n`;
                           caption += `شماره: ${permit.permitNumber}\n`;
-                          caption += `درخواست کننده: ${permit.requester}\n`;
-                          caption += `گیرنده: ${permit.recipientName}\n\n`;
-                          caption += `لطفا جهت تایید خروج و ثبت ساعت اقدام نمایید.`;
+                          caption += `درخواست کننده: ${permit.requester}\n\n`;
+                          caption += `لطفا جهت بررسی و تایید اقدام نمایید.`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
-                              number: secUser.phoneNumber!, 
+                              number: ceoUser.phoneNumber!, 
                               message: caption, 
                               mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` } 
                           });
@@ -107,13 +105,13 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
                 <PrintExitPermit permit={createdPermit} onClose={()=>{}} embed />
             </div>
         )}
-
-        <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Truck size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت درخواست خروج بار</h2></div>
+        <div className="p-6 border-b border-gray-100 flex items-center gap-3"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Truck size={24} /></div><h2 className="text-xl font-bold text-gray-800">ثبت درخواست خروج بار (مدیر فروش)</h2></div>
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <div><label className="text-sm font-bold block mb-1 flex items-center gap-1"><Hash size={16}/> شماره مجوز</label><input type="number" className="w-full border rounded-xl p-3 bg-white text-left dir-ltr font-bold text-orange-600" value={permitNumber} onChange={e => setPermitNumber(e.target.value)} required /></div>
                 <div><label className="text-sm font-bold block mb-1">تاریخ خروج</label><div className="flex gap-2"><select className="border rounded-xl p-2 bg-white flex-1" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded-xl p-2 bg-white flex-1" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{months.map((m, i) => <option key={i} value={i+1}>{m}</option>)}</select><select className="border rounded-xl p-2 bg-white flex-1" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
             </div>
+            {/* ... rest of form same ... */}
             <div className="space-y-4">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-gray-800 flex items-center gap-2"><Package size={20} className="text-blue-600"/> مشخصات اقلام و کالاها</h3><button type="button" onClick={handleAddItem} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-100 font-bold"><Plus size={14}/> افزودن کالا</button></div>
                 <div className="bg-blue-50/50 rounded-xl border border-blue-100 overflow-hidden"><table className="w-full text-sm text-right"><thead className="bg-blue-100 text-blue-800"><tr><th className="p-3 w-10 text-center">#</th><th className="p-3">نام کالا / محصول</th><th className="p-3 w-32">تعداد کارتن</th><th className="p-3 w-32">وزن (KG)</th><th className="p-3 w-10"></th></tr></thead><tbody className="divide-y divide-blue-100">{items.map((item, index) => (<tr key={item.id}><td className="p-2 text-center text-gray-500 font-bold">{index + 1}</td><td className="p-2"><input className="w-full border border-blue-200 rounded p-2" placeholder="شرح کالا..." value={item.goodsName} onChange={e => handleUpdateItem(item.id, 'goodsName', e.target.value)} required /></td><td className="p-2"><input type="number" className="w-full border border-blue-200 rounded p-2 dir-ltr text-center" placeholder="0" value={item.cartonCount || ''} onChange={e => handleUpdateItem(item.id, 'cartonCount', Number(e.target.value))} /></td><td className="p-2"><input type="number" className="w-full border border-blue-200 rounded p-2 dir-ltr text-center" placeholder="0" value={item.weight || ''} onChange={e => handleUpdateItem(item.id, 'weight', Number(e.target.value))} /></td><td className="p-2 text-center"><button type="button" onClick={() => handleRemoveItem(item.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button></td></tr>))}<tr className="bg-blue-100/50 font-bold text-blue-900"><td colSpan={2} className="p-3 text-left pl-4">جمع کل:</td><td className="p-3 text-center dir-ltr">{totalCartons} کارتن</td><td className="p-3 text-center dir-ltr">{totalWeight} کیلوگرم</td><td></td></tr></tbody></table></div>
@@ -127,7 +125,7 @@ const CreateExitPermit: React.FC<Props> = ({ onSuccess, currentUser }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold block mb-1">نام راننده</label><input className="w-full border rounded-lg p-2 text-sm" value={driverInfo.driverName} onChange={e => setDriverInfo({...driverInfo, driverName: e.target.value})} /></div><div><label className="text-xs font-bold block mb-1">شماره پلاک</label><input className="w-full border rounded-lg p-2 text-sm dir-ltr" placeholder="12 A 345 67" value={driverInfo.plateNumber} onChange={e => setDriverInfo({...driverInfo, plateNumber: e.target.value})} /></div></div>
                 <div><label className="text-xs font-bold block mb-1">توضیحات تکمیلی</label><textarea className="w-full border rounded-lg p-2 text-sm h-20 resize-none" value={driverInfo.description} onChange={e => setDriverInfo({...driverInfo, description: e.target.value})} /></div>
             </div>
-            <button type="submit" disabled={isSubmitting} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all">{isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}ثبت نهایی درخواست خروج</button>
+            <button type="submit" disabled={isSubmitting} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all">{isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}ثبت و ارسال به مدیرعامل</button>
         </form>
     </div>
   );

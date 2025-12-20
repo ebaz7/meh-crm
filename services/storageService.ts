@@ -2,63 +2,30 @@
 import { PaymentOrder, User, UserRole, OrderStatus, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, ExitPermit, ExitPermitStatus, WarehouseItem, WarehouseTransaction, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus } from '../types';
 import { apiCall } from './apiService';
 
-// ... Existing methods for Orders ...
-export const getOrders = async (): Promise<PaymentOrder[]> => {
-    return await apiCall<PaymentOrder[]>('/orders');
-};
-
-export const saveOrder = async (order: PaymentOrder): Promise<PaymentOrder[]> => {
-    return await apiCall<PaymentOrder[]>('/orders', 'POST', order);
-};
-
-export const editOrder = async (updatedOrder: PaymentOrder): Promise<PaymentOrder[]> => {
-    return await apiCall<PaymentOrder[]>(`/orders/${updatedOrder.id}`, 'PUT', updatedOrder);
-};
-
+// ... (Other methods for Orders remain same) ...
+export const getOrders = async (): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>('/orders'); };
+export const saveOrder = async (order: PaymentOrder): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>('/orders', 'POST', order); };
+export const editOrder = async (updatedOrder: PaymentOrder): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${updatedOrder.id}`, 'PUT', updatedOrder); };
 export const updateOrderStatus = async (id: string, status: OrderStatus, approverUser: User, rejectionReason?: string): Promise<PaymentOrder[]> => {
   const orders = await getOrders();
   const order = orders.find(o => o.id === id);
   if (order) {
       const updates: any = { status };
-      if (status === OrderStatus.APPROVED_FINANCE) {
-          if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) {
-              updates.approverFinancial = approverUser.fullName;
-          }
-      } else if (status === OrderStatus.APPROVED_MANAGER) {
-          if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) {
-              updates.approverManager = approverUser.fullName;
-          }
-      } else if (status === OrderStatus.APPROVED_CEO) {
-          if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) {
-              updates.approverCeo = approverUser.fullName;
-          }
-      }
-      if (status === OrderStatus.REJECTED) {
-          if (rejectionReason) updates.rejectionReason = rejectionReason;
-          updates.rejectedBy = approverUser.fullName; 
-      }
+      if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName; }
+      else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName; }
+      else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
+      if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; }
       const updatedOrder = { ...order, ...updates };
       return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder);
   }
   return orders;
 };
+export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE'); };
 
-export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => {
-    return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE');
-};
-
-// --- UPDATED: Exit Permits (4 Stages) ---
-export const getExitPermits = async (): Promise<ExitPermit[]> => {
-    return await apiCall<ExitPermit[]>('/exit-permits');
-};
-
-export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => {
-    return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit);
-};
-
-export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => {
-    return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit);
-};
+// --- UPDATED: Exit Permits Workflow (4 Stages) ---
+export const getExitPermits = async (): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits'); };
+export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
+export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
 
 export const updateExitPermitStatus = async (id: string, status: ExitPermitStatus, approverUser: User, extra?: { rejectionReason?: string, exitTime?: string }): Promise<ExitPermit[]> => {
     const permits = await getExitPermits();
@@ -66,20 +33,20 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     if(permit) {
         const updates: any = { status };
         
-        // 1. Security Approval (with Exit Time)
-        if (status === ExitPermitStatus.PENDING_FACTORY && (approverUser.role === UserRole.SECURITY_GUARD || approverUser.role === UserRole.SECURITY_HEAD || approverUser.role === UserRole.ADMIN)) {
-            updates.approverSecurity = approverUser.fullName;
-            if (extra?.exitTime) updates.exitTime = extra.exitTime;
+        // Stage 1: CEO Approval
+        if (status === ExitPermitStatus.PENDING_FACTORY && (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN)) {
+            updates.approverCeo = approverUser.fullName;
         }
         
-        // 2. Factory Manager Approval
-        if (status === ExitPermitStatus.PENDING_CEO && (approverUser.role === UserRole.FACTORY_MANAGER || approverUser.role === UserRole.ADMIN)) {
+        // Stage 2: Factory Manager Approval
+        if (status === ExitPermitStatus.PENDING_SECURITY && (approverUser.role === UserRole.FACTORY_MANAGER || approverUser.role === UserRole.ADMIN)) {
             updates.approverFactory = approverUser.fullName;
         }
 
-        // 3. CEO Final Approval
-        if (status === ExitPermitStatus.EXITED && (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN)) {
-            updates.approverCeo = approverUser.fullName;
+        // Stage 3: Security Approval (Final - Archive)
+        if (status === ExitPermitStatus.EXITED && (approverUser.role === UserRole.SECURITY_GUARD || approverUser.role === UserRole.SECURITY_HEAD || approverUser.role === UserRole.ADMIN)) {
+            updates.approverSecurity = approverUser.fullName;
+            if (extra?.exitTime) updates.exitTime = extra.exitTime;
         }
 
         if (status === ExitPermitStatus.REJECTED) {
@@ -92,21 +59,10 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     return permits;
 };
 
-export const deleteExitPermit = async (id: string): Promise<ExitPermit[]> => {
-    return await apiCall<ExitPermit[]>(`/exit-permits/${id}`, 'DELETE');
-};
+export const deleteExitPermit = async (id: string): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${id}`, 'DELETE'); };
+export const getNextExitPermitNumber = async (): Promise<number> => { try { const response = await apiCall<{ nextNumber: number }>('/next-exit-permit-number'); return response.nextNumber; } catch(e) { const settings = await getSettings(); return (settings.currentExitPermitNumber || 1000) + 1; } };
 
-export const getNextExitPermitNumber = async (): Promise<number> => {
-    try {
-        const response = await apiCall<{ nextNumber: number }>('/next-exit-permit-number');
-        return response.nextNumber;
-    } catch(e) {
-        const settings = await getSettings();
-        return (settings.currentExitPermitNumber || 1000) + 1;
-    }
-};
-
-// ... Security and Warehouse methods (Unchanged) ...
+// ... (Security, Warehouse, Settings methods remain same) ...
 export const getSecurityLogs = async (): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs'); };
 export const saveSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs', 'POST', log); };
 export const updateSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>(`/security/logs/${log.id}`, 'PUT', log); };
