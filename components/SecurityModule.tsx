@@ -75,14 +75,16 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // FIX: Optimized Jump to Edit logic - NO AUTO MODAL OPEN
+    // FIX: Optimized Jump to Edit logic - Enforce Closing ALL modals
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
         setActiveTab(category === 'log' ? 'logs' : 'delays');
+        
+        // Force close all possible open modals to show the main table
         setViewCartableItem(null);
-        // We removed the automatic opening of ShiftModal so the user can see the full table and edit rows individually
-        // if they want to edit shift info, they can click the "Shift" button manually.
+        setShowPrintModal(false);
+        setShowShiftModal(false);
     };
 
     const formatTime = (val: string) => {
@@ -628,6 +630,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                     <input className="border rounded p-2" placeholder="واحد" value={delayForm.unit || ''} onChange={e=>setDelayForm({...delayForm, unit: e.target.value})}/>
                                     <input className="border rounded p-2 text-center dir-ltr" placeholder="ورود (08:00)" value={delayForm.arrivalTime || ''} onChange={handleTimeChange('arrivalTime', setDelayForm, delayForm)} onBlur={handleTimeBlur('arrivalTime', setDelayForm, delayForm)}/>
                                     <input className="border rounded p-2" placeholder="میزان تاخیر" value={delayForm.delayAmount || ''} onChange={e=>setDelayForm({...delayForm, delayAmount: e.target.value})}/>
+                                    
+                                    {/* Added Missing Fields for Delay Form */}
+                                    <input className="border rounded p-2" placeholder="تعداد تکرار" value={delayForm.repeatCount || ''} onChange={e=>setDelayForm({...delayForm, repeatCount: e.target.value})}/>
+                                    <input className="border rounded p-2" placeholder="دستور / اقدام" value={delayForm.instruction || ''} onChange={e=>setDelayForm({...delayForm, instruction: e.target.value})}/>
                                 </div>
                                 <button type="button" onClick={handleSaveDelay} className="w-full bg-orange-600 text-white py-3 rounded-lg font-bold">ذخیره</button>
                             </form>
