@@ -14,8 +14,8 @@ interface Props {
 const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive' | 'in_progress'>('logs');
     
-    // Archive Toggle State
-    const [isArchiveVisible, setIsArchiveVisible] = useState(false);
+    // Deleting State for Archive Items
+    const [deletingItemKey, setDeletingItemKey] = useState<string | null>(null);
 
     const currentShamsi = getCurrentShamsiDate();
     const [selectedDate, setSelectedDate] = useState({ year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day });
@@ -531,10 +531,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // New Function to handle bulk delete of daily archives
+    // New Function to handle bulk delete of daily archives with Loading State
     const handleDeleteDailyArchive = async (date: string, category: 'log' | 'delay') => {
         const title = category === 'log' ? 'نگهبانی' : 'تاخیر';
         if (!confirm(`آیا از حذف کامل گزارشات ${title} تاریخ ${formatDate(date)} اطمینان دارید؟ این عملیات غیرقابل بازگشت است.`)) return;
+
+        const key = `${date}_${category}`;
+        setDeletingItemKey(key);
 
         try {
             if (category === 'log') {
@@ -554,10 +557,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                     await saveSettings({ ...settings, dailySecurityMeta: { ...settings.dailySecurityMeta, [date]: updatedMeta } });
                 }
             }
-            loadData();
-            alert(`گزارشات ${title} با موفقیت حذف شدند.`);
+            await loadData();
         } catch (e) {
             alert("خطا در حذف گزارشات.");
+        } finally {
+            setDeletingItemKey(null);
         }
     };
 
@@ -654,6 +658,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                     <>
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:dailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
                         <div className="overflow-x-auto"><table className="w-full text-xs text-center border-collapse"><thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead><tbody className="divide-y">{dailyLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : dailyLogs.map((log, idx) => (<tr key={log.id} className={`hover:bg-blue-50 ${log.status === SecurityStatus.ARCHIVED ? 'opacity-80' : ''}`}><td className="p-3 border-l">{idx + 1}</td><td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td><td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td><td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td><td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td><td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td><td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : log.status === SecurityStatus.ARCHIVED ? 'bg-green-50 text-green-700 font-bold border border-green-200' : 'bg-yellow-100'}`}>{log.status}</span></td><td className="p-3 flex justify-center gap-2">{canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}{canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors" title="حذف"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
+                        {/* Archive Toggle Removed from here as requested */}
                     </>
                 )}
                 {activeTab === 'delays' && (
@@ -718,10 +723,15 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                         {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && item.type === 'daily_archive' && (
                                             <button 
                                                 onClick={() => handleDeleteDailyArchive(String(item.date), item.category)} 
-                                                className="text-red-600 p-2 bg-red-50 rounded hover:bg-red-100 transition-all font-bold text-xs flex items-center gap-1 border border-red-200" 
+                                                disabled={deletingItemKey === `${item.date}_${item.category}`}
+                                                className={`text-red-600 p-2 bg-red-50 rounded hover:bg-red-100 transition-all font-bold text-xs flex items-center gap-1 border border-red-200 ${deletingItemKey === `${item.date}_${item.category}` ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 title="حذف کامل گزارشات این روز"
                                             >
-                                                <Trash2 size={16}/> حذف
+                                                {deletingItemKey === `${item.date}_${item.category}` ? (
+                                                    <><Loader2 size={16} className="animate-spin"/> در حال حذف...</>
+                                                ) : (
+                                                    <><Trash2 size={16}/> حذف</>
+                                                )}
                                             </button>
                                         )}
                                         <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="text-blue-600 p-2 bg-blue-50 rounded hover:bg-blue-100" title="مشاهده"><Eye size={18}/></button>
