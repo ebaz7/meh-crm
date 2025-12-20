@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate } from '../constants';
-import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users } from 'lucide-react';
+import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 
 interface PrintVoucherProps {
@@ -19,8 +19,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [processing, setProcessing] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
 
-  // Inject print styles dynamically for A5 Landscape
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
@@ -28,10 +28,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       }
   }, [embed]);
 
-  // Smart Compact Mode logic
   const isCompact = order.paymentDetails.length > 2;
-
-  // Use a specific ID for the printable area
   const printAreaId = `print-voucher-content-${order.id}`;
 
   const Stamp = ({ name, title }: { name: string; title: string }) => (
@@ -45,7 +42,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       setProcessing(true);
       const style = document.getElementById('page-size-style');
       if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
-
       setTimeout(() => {
           window.print(); 
           setProcessing(false);
@@ -76,12 +72,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           const imgData = canvas.toDataURL('image/png');
           // @ts-ignore
           const { jsPDF } = window.jspdf;
-          
           const pdf = new jsPDF('l', 'mm', 'a5');
-          const pdfWidth = 210;
-          const pdfHeight = 148;
-          
-          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          pdf.addImage(imgData, 'PNG', 0, 0, 210, 148);
           pdf.save(`Voucher_${order.trackingNumber}.pdf`);
       } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
   };
@@ -91,15 +83,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       setSharing(true);
       const element = document.getElementById(printAreaId);
       if (!element) { setSharing(false); return; }
-      
       try {
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
-          
           await apiCall('/send-whatsapp', 'POST', {
               number: targetNumber,
-              message: `🧾 *دستور پرداخت*\nشماره: ${order.trackingNumber}\nمبلغ: ${formatCurrency(order.totalAmount)}`,
+              message: `🧾 *رسید پرداخت وجه*\n🏢 شرکت: ${order.payingCompany}\n👤 ذینفع: ${order.payee}\n💰 مبلغ: ${formatCurrency(order.totalAmount)}`,
               mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${order.trackingNumber}.png` }
           });
           alert('ارسال شد.');
@@ -107,7 +97,11 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
   };
 
-  // --- RENDER CONTENT (Fixed Dimensions for A5 Landscape) ---
+  const filteredContacts = settings?.savedContacts?.filter(c => 
+    c.name.toLowerCase().includes(contactSearch.toLowerCase()) || 
+    c.number.includes(contactSearch)
+  ) || [];
+
   const content = (
       <div 
         id={printAreaId} 
@@ -121,16 +115,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             boxSizing: 'border-box'
         }}
       >
-        {/* Rejected Watermark */}
         {order.status === OrderStatus.REJECTED && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
-
-        {/* Header - Logo removed */}
         <div className="relative z-10">
             <div className={`border-b-2 border-gray-800 ${isCompact ? 'pb-1 mb-2' : 'pb-2 mb-3'} flex justify-between items-center`}>
                 <div className="flex flex-col w-2/3">
-                    <h1 className={`${isCompact ? 'text-lg' : 'text-xl'} font-bold text-gray-900`} style={{ letterSpacing: '0px' }}>{order.payingCompany || 'شرکت بازرگانی'}</h1>
+                    <h1 className={`${isCompact ? 'text-lg' : 'text-xl'} font-bold text-gray-900`}>{order.payingCompany || 'شرکت بازرگانی'}</h1>
                     <p className="text-[9px] text-gray-500 font-bold mt-0.5">سیستم مدیریت مالی و پرداخت</p>
                 </div>
                 <div className="text-left flex flex-col items-end gap-1 w-1/3">
@@ -139,8 +130,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                     <div className="flex items-center gap-2 text-[10px]"><span className="font-bold text-gray-500">تاریخ:</span><span className="font-bold text-gray-800">{formatDate(order.date)}</span></div>
                 </div>
             </div>
-
-            {/* Body */}
             <div className={`${isCompact ? 'space-y-1.5' : 'space-y-3'}`}>
                 <div className="grid grid-cols-2 gap-3">
                     <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5' : 'p-2'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">در وجه (ذینفع):</span><span className={`font-bold text-gray-900 ${isCompact ? 'text-sm' : 'text-base'}`}>{order.payee}</span></div>
@@ -150,13 +139,11 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                 <div className="border border-gray-300 rounded overflow-hidden">
                     <table className={`w-full text-right ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
                         <thead className="bg-gray-100 border-b border-gray-300"><tr><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600 w-6`}>#</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>نوع پرداخت</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>مبلغ</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>بانک / چک</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>توضیحات</th></tr></thead>
-                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.slice(0, 4).map((detail, idx) => (<tr key={detail.id}><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate max-w-[100px]`}>{detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}${detail.chequeDate ? ` (${detail.chequeDate})` : ''}` : detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600 truncate max-w-[120px]`}>{detail.description || '-'}</td></tr>))}</tbody>
+                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.map((detail, idx) => (<tr key={detail.id}><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>{detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600`}>{detail.description || '-'}</td></tr>))}</tbody>
                     </table>
                 </div>
             </div>
         </div>
-
-        {/* Footer */}
         <div className={`mt-auto ${isCompact ? 'pt-1' : 'pt-2'} border-t-2 border-gray-800 relative z-10`}>
             <div className="grid grid-cols-4 gap-2 text-center">
                 <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full"><Stamp name={order.requester} title="درخواست کننده" /></div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">درخواست کننده</span></div></div>
@@ -180,16 +167,32 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={handleDownloadImage} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <ImageIcon size={14} />} عکس</button>
                  <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} PDF</button>
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
-                 <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
-                 {showContactSelect && (<div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border z-[100] animate-fade-in overflow-hidden"><div className="p-3 bg-gray-50 border-b font-bold text-xs flex justify-between"><span>انتخاب مخاطب</span><button onClick={()=>setShowContactSelect(false)}><X size={14}/></button></div><div className="max-h-48 overflow-y-auto">{settings?.savedContacts?.map(c => (<button key={c.id} onClick={()=>handleSendToWhatsApp(c.number)} className="w-full text-right p-3 hover:bg-blue-50 text-sm border-b flex items-center gap-2"><div className="p-1.5 rounded-full bg-gray-100 text-gray-600"><Users size={12}/></div><div className="truncate"><div className="font-bold">{c.name}</div><div className="text-[10px] text-gray-500">{c.number}</div></div></button>))}</div><div className="p-2 border-t bg-gray-50"><button onClick={()=>{const n=prompt("شماره:");if(n)handleSendToWhatsApp(n);}} className="w-full text-center text-xs text-blue-600 font-bold">شماره دستی</button></div></div>)}
+                 <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
+                 
+                 {showContactSelect && (
+                     <div className="absolute top-full right-0 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[100] animate-scale-in flex flex-col overflow-hidden">
+                         <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">
+                             <div className="flex justify-between items-center"><span className="text-xs font-black text-gray-700">انتخاب مخاطب</span><button onClick={()=>setShowContactSelect(false)}><X size={14}/></button></div>
+                             <div className="relative"><Search size={14} className="absolute right-2 top-2 text-gray-400"/><input className="w-full bg-white border border-gray-300 rounded-lg pr-8 pl-2 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="جستجوی نام یا شماره..." value={contactSearch} onChange={e=>setContactSearch(e.target.value)} autoFocus/></div>
+                         </div>
+                         <div className="max-h-60 overflow-y-auto bg-white custom-scrollbar">
+                             {filteredContacts.length > 0 ? filteredContacts.map(c => (
+                                 <div key={c.id} className="p-2 border-b border-gray-50 hover:bg-blue-50/50 flex items-center justify-between group">
+                                     <div className="flex items-center gap-2 overflow-hidden">
+                                         <div className={`p-1.5 rounded-full shrink-0 ${c.isGroup ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}><Users size={12}/></div>
+                                         <div className="truncate"><div className="font-bold text-[11px] text-gray-800 truncate">{c.name}</div><div className="text-[9px] text-gray-500 font-mono">{c.number}</div></div>
+                                     </div>
+                                     <button onClick={()=>handleSendToWhatsApp(c.number)} className="bg-green-600 text-white px-3 py-1 rounded-md text-[10px] font-bold hover:bg-green-700 shadow-sm whitespace-nowrap">ارسال</button>
+                                 </div>
+                             )) : <div className="p-4 text-center text-[10px] text-gray-400">مخاطبی یافت نشد.</div>}
+                         </div>
+                         <div className="p-2 bg-gray-50 border-t"><button onClick={()=>{const n=prompt("شماره همراه (مثال: 98912...):"); if(n) handleSendToWhatsApp(n);}} className="w-full text-center py-2 text-[10px] text-blue-600 font-black hover:bg-white rounded border border-blue-100 transition-colors">ارسال به شماره دستی...</button></div>
+                     </div>
+                 )}
              </div>
          </div>
       </div>
-      
-      {/* Container to center and show the receipt */}
-      <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          {content}
-      </div>
+      <div className="order-2 w-full flex justify-center pb-10 overflow-auto">{content}</div>
     </div>
   );
 };
