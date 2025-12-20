@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, getShamsiDateFromIso } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 import { getRolePermissions } from '../services/authService';
 
@@ -14,6 +14,9 @@ interface Props {
 const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive' | 'in_progress'>('logs');
     
+    // Archive Toggle State
+    const [isArchiveVisible, setIsArchiveVisible] = useState(false);
+
     const currentShamsi = getCurrentShamsiDate();
     const [selectedDate, setSelectedDate] = useState({ year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day });
 
@@ -557,6 +560,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
+            {/* Shift Modal, View Cartable Modal, etc. (No Changes needed) */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -588,6 +592,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
+                {/* ... (Previous tabs logic remains the same) ... */}
                 {activeTab === 'logs' && (
                     <>
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:dailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
@@ -638,29 +643,49 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         ))}
                     </div>
                 )}
+                
                 {activeTab === 'archive' && (
-                    <div className="p-4 space-y-2">
-                        {getArchivedItems().map((item, idx) => (
-                            <div key={idx} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-green-100 rounded-lg"><Archive size={20}/></div>
-                                    <div className="text-sm">
-                                        <span className="font-bold">{item.type === 'daily_archive' ? `گزارش ${item.category==='log'?'تردد':'تاخیر'}` : item.subject}</span>
-                                        <span className="text-xs text-gray-500 mx-2">{formatDate(item.date)}</span>
+                    <div className="p-4 space-y-4">
+                        {/* Toggle Button for Archive List */}
+                        <button 
+                            onClick={() => setIsArchiveVisible(!isArchiveVisible)} 
+                            className="w-full flex items-center justify-between bg-white border border-gray-300 p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+                        >
+                            <span className="font-bold text-gray-700 flex items-center gap-2">
+                                <Archive size={20} className="text-green-600"/> لیست بایگانی شده
+                            </span>
+                            {isArchiveVisible ? <ChevronUp size={20} className="text-gray-500"/> : <ChevronDown size={20} className="text-gray-500"/>}
+                        </button>
+
+                        {/* Collapsible Content */}
+                        {isArchiveVisible && (
+                            <div className="space-y-2 animate-fade-in">
+                                {getArchivedItems().map((item, idx) => (
+                                    <div key={idx} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-100 rounded-lg"><Archive size={20}/></div>
+                                            <div className="text-sm">
+                                                <span className="font-bold">{item.type === 'daily_archive' ? `گزارش ${item.category==='log'?'تردد':'تاخیر'}` : item.subject}</span>
+                                                <span className="text-xs text-gray-500 mx-2">{formatDate(item.date)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {/* Strictly restricted Edit button */}
+                                            {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && item.type === 'daily_archive' && (
+                                                <button onClick={() => handleJumpToEdit(String(item.date), item.category)} className="text-amber-600 p-2 bg-amber-50 rounded hover:bg-amber-100 transition-all font-bold text-xs flex items-center gap-1" title="اصلاح و ویرایش روز"><Edit size={16}/> ویرایش روز</button>
+                                            )}
+                                            <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="text-blue-600 p-2 bg-blue-50 rounded hover:bg-blue-100" title="مشاهده"><Eye size={18}/></button>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && item.type === 'daily_archive' && (
-                                        <button onClick={() => handleJumpToEdit(String(item.date), item.category)} className="text-amber-600 p-2 bg-amber-50 rounded hover:bg-amber-100 transition-all font-bold text-xs flex items-center gap-1" title="اصلاح و ویرایش روز"><Edit size={16}/> ویرایش روز</button>
-                                    )}
-                                    <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="text-blue-600 p-2 bg-blue-50 rounded hover:bg-blue-100" title="مشاهده"><Eye size={18}/></button>
-                                </div>
+                                ))}
+                                {getArchivedItems().length === 0 && <div className="text-center text-gray-400 py-4">موردی در بایگانی یافت نشد.</div>}
                             </div>
-                        ))}
+                        )}
                     </div>
                 )}
             </div>
 
+            {/* Modal Components (Shift, Add/Edit) - Logic remains same */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
