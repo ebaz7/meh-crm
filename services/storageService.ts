@@ -8,7 +8,7 @@ export const editOrder = async (updatedOrder: PaymentOrder): Promise<PaymentOrde
 export const updateOrderStatus = async (id: string, status: OrderStatus, approverUser: User, rejectionReason?: string): Promise<PaymentOrder[]> => { const orders = await getOrders(); const order = orders.find(o => o.id === id); if (order) { const updates: any = { status }; if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) { updates.approverFinancial = approverUser.fullName; } } else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) { updates.approverManager = approverUser.fullName; } } else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) { updates.approverCeo = approverUser.fullName; } } if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; } const updatedOrder = { ...order, ...updates }; return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder); } return orders; };
 export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE'); };
 
-// Modified Section: Exit Permits
+// Modified Section: Exit Permits (4 Stage Workflow)
 export const getExitPermits = async (): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits'); };
 export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
 export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
@@ -29,7 +29,7 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
             updates.approverFactory = approverUser.fullName;
         }
 
-        // Stage 3: Security Approval (Final Exit)
+        // Stage 3: Security Approval (Final Exit with Time)
         if (status === ExitPermitStatus.EXITED && (approverUser.role === UserRole.SECURITY_GUARD || approverUser.role === UserRole.SECURITY_HEAD || approverUser.role === UserRole.ADMIN)) {
             updates.approverSecurity = approverUser.fullName;
             if (extra?.exitTime) updates.exitTime = extra.exitTime;

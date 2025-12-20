@@ -42,7 +42,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       // مرحله ۲: تایید مدیر کارخانه
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
 
-      // مرحله ۳: تایید انتظامات
+      // مرحله ۳: تایید انتظامات (ثبت ساعت خروج بار)
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
 
       return false;
@@ -64,7 +64,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
           nextStatus = ExitPermitStatus.PENDING_SECURITY;
       } else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
           // مرحله نهایی: دریافت ساعت خروج توسط انتظامات
-          const time = prompt('لطفا ساعت دقیق خروج بار را وارد کنید (مثلا ۱۴:۳۰):', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
+          const time = prompt('لطفا ساعت دقیق خروج بار از کارخانه را وارد کنید (مثلا ۱۴:۳۰):', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
           if (time === null) return; 
           exitTime = time;
           nextStatus = ExitPermitStatus.EXITED;
@@ -73,7 +73,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       const permitToApprove = permits.find(p => p.id === id);
       if (!permitToApprove) return;
 
-      if(window.confirm('آیا تایید مرحله فعلی را انجام می‌دهید؟')) {
+      if(window.confirm('آیا تایید مرحله جاری را انجام می‌دهید؟')) {
           await updateExitPermitStatus(id, nextStatus, currentUser, { exitTime });
           
           const updatedPermitMock = { ...permitToApprove, status: nextStatus, exitTime };
@@ -105,24 +105,24 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                           if (targetUser) await apiCall('/send-whatsapp', 'POST', { number: targetUser.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}.png` } });
                       } 
                       else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
-                          const caption = `👮 *تایید کارخانه / ارسال به انتظامات*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n\nبار آماده خروج است.`;
+                          const caption = `👮 *تایید کارخانه / در انتظار خروج نهایی*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n\nبار آماده خروج فیزیکی است.`;
                           if (settings?.exitPermitNotificationGroup) {
-                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}_Security.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Security_${updatedPermitMock.permitNumber}.png` } });
                           }
                       }
                       else if (nextStatus === ExitPermitStatus.EXITED) {
-                          const caption = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 تایید انتظامات: ${currentUser.fullName}`;
+                          const caption = `✅ *خروج بار قطعی*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 تایید انتظامات: ${currentUser.fullName}\n\nبار از کارخانه خارج شد.`;
                           
                           // ارسال به مدیر فروش (درخواست کننده)
                           const users = await getUsers();
                           const salesManager = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                           if (salesManager) {
-                              await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Final_Exit_${updatedPermitMock.permitNumber}.png` } });
                           }
 
-                          // ارسال به گروه ورود و خروج
+                          // ارسال به گروه ورود و خروج تنظیم شده در تنظیمات انبار
                           if (settings?.exitPermitNotificationGroup) {
-                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Final_Exit_${updatedPermitMock.permitNumber}.png` } });
                           }
                       }
                   } catch (e) { console.error("Auto send failed", e); } 
@@ -191,7 +191,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                             <td className="p-4 text-center flex justify-center gap-2">
                                 <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
                                 {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله"><CheckCircle size={16}/></button>}
-                                {canReject(p) && <button onClick={() => deleteExitPermit(p.id).then(()=>loadData())} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
+                                {canReject(p) && <button onClick={() => handleReject(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200" title="رد درخواست"><XCircle size={16}/></button>}
+                                {(currentUser.role === UserRole.ADMIN) && <button onClick={() => deleteExitPermit(p.id).then(()=>loadData())} className="bg-red-50 text-red-400 p-2 rounded-lg hover:bg-red-100"><Trash2 size={16}/></button>}
                             </td>
                         </tr>
                     ))}
@@ -207,6 +208,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 settings={settings}
             />
         )}
+        {editingPermit && <EditExitPermitModal permit={editingPermit} onClose={() => setEditingPermit(null)} onSave={() => { setEditingPermit(null); loadData(); }} />}
     </div>
   );
 };
