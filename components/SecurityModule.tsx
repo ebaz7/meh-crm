@@ -531,6 +531,36 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
+    // New Function to handle bulk delete of daily archives
+    const handleDeleteDailyArchive = async (date: string, category: 'log' | 'delay') => {
+        const title = category === 'log' ? 'نگهبانی' : 'تاخیر';
+        if (!confirm(`آیا از حذف کامل گزارشات ${title} تاریخ ${formatDate(date)} اطمینان دارید؟ این عملیات غیرقابل بازگشت است.`)) return;
+
+        try {
+            if (category === 'log') {
+                const itemsToDelete = logs.filter(l => l.date === date && l.status === SecurityStatus.ARCHIVED);
+                for (const item of itemsToDelete) await deleteSecurityLog(item.id);
+            } else {
+                const itemsToDelete = delays.filter(d => d.date === date && d.status === SecurityStatus.ARCHIVED);
+                for (const item of itemsToDelete) await deletePersonnelDelay(item.id);
+            }
+            // Update metadata to uncheck approvals if needed (optional but good practice)
+            if (settings) {
+                const currentMeta = (settings.dailySecurityMeta || {})[date];
+                if (currentMeta) {
+                    const updatedMeta = { ...currentMeta };
+                    if (category === 'log') updatedMeta.isCeoDailyApproved = false;
+                    else updatedMeta.isDelayCeoApproved = false;
+                    await saveSettings({ ...settings, dailySecurityMeta: { ...settings.dailySecurityMeta, [date]: updatedMeta } });
+                }
+            }
+            loadData();
+            alert(`گزارشات ${title} با موفقیت حذف شدند.`);
+        } catch (e) {
+            alert("خطا در حذف گزارشات.");
+        }
+    };
+
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
         // Corrected ID to match the new component ID
@@ -624,43 +654,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                     <>
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:dailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
                         <div className="overflow-x-auto"><table className="w-full text-xs text-center border-collapse"><thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead><tbody className="divide-y">{dailyLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : dailyLogs.map((log, idx) => (<tr key={log.id} className={`hover:bg-blue-50 ${log.status === SecurityStatus.ARCHIVED ? 'opacity-80' : ''}`}><td className="p-3 border-l">{idx + 1}</td><td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td><td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td><td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td><td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td><td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td><td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : log.status === SecurityStatus.ARCHIVED ? 'bg-green-50 text-green-700 font-bold border border-green-200' : 'bg-yellow-100'}`}>{log.status}</span></td><td className="p-3 flex justify-center gap-2">{canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500 bg-amber-50 p-1.5 rounded hover:bg-amber-100 transition-colors" title="ویرایش ردیف"><Edit size={16}/></button>}{canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors" title="حذف"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
-                        
-                        {/* Archive List in Logs Tab (New Request) */}
-                        <div className="p-4 border-t mt-4">
-                            <button 
-                                onClick={() => setIsArchiveVisible(!isArchiveVisible)} 
-                                className="w-full flex items-center justify-between bg-white border border-gray-300 p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
-                            >
-                                <span className="font-bold text-gray-700 flex items-center gap-2">
-                                    <Archive size={20} className="text-green-600"/> لیست بایگانی گزارشات نگهبانی
-                                </span>
-                                {isArchiveVisible ? <ChevronUp size={20} className="text-gray-500"/> : <ChevronDown size={20} className="text-gray-500"/>}
-                            </button>
-
-                            {isArchiveVisible && (
-                                <div className="space-y-2 animate-fade-in mt-2">
-                                    {getArchivedItems().filter(i => i.category === 'log').map((item, idx) => (
-                                        <div key={idx} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-green-100 rounded-lg"><Archive size={20}/></div>
-                                                <div className="text-sm">
-                                                    <span className="font-bold">گزارش تردد (نگهبانی)</span>
-                                                    <span className="text-xs text-gray-500 mx-2">{formatDate(item.date)}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {/* Replaced Delete with Edit Day for Admin/CEO */}
-                                                {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && (
-                                                    <button onClick={() => handleJumpToEdit(String(item.date), 'log')} className="text-amber-600 p-2 bg-amber-50 rounded hover:bg-amber-100 transition-all font-bold text-xs flex items-center gap-1" title="اصلاح و ویرایش روز"><Edit size={16}/> ویرایش روز</button>
-                                                )}
-                                                <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="text-blue-600 p-2 bg-blue-50 rounded hover:bg-blue-100" title="مشاهده"><Eye size={18}/></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {getArchivedItems().filter(i => i.category === 'log').length === 0 && <div className="text-center text-gray-400 py-4">موردی در بایگانی یافت نشد.</div>}
-                                </div>
-                            )}
-                        </div>
                     </>
                 )}
                 {activeTab === 'delays' && (
@@ -721,9 +714,15 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        {/* Strictly restricted Edit button REPLACING delete/other actions for daily archives */}
+                                        {/* REPLACED Edit Day Button with DELETE Button for Admin/CEO */}
                                         {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && item.type === 'daily_archive' && (
-                                            <button onClick={() => handleJumpToEdit(String(item.date), item.category)} className="text-amber-600 p-2 bg-amber-50 rounded hover:bg-amber-100 transition-all font-bold text-xs flex items-center gap-1" title="اصلاح و ویرایش روز"><Edit size={16}/> ویرایش روز</button>
+                                            <button 
+                                                onClick={() => handleDeleteDailyArchive(String(item.date), item.category)} 
+                                                className="text-red-600 p-2 bg-red-50 rounded hover:bg-red-100 transition-all font-bold text-xs flex items-center gap-1 border border-red-200" 
+                                                title="حذف کامل گزارشات این روز"
+                                            >
+                                                <Trash2 size={16}/> حذف
+                                            </button>
                                         )}
                                         <button onClick={() => setViewCartableItem({...item, mode: 'view_only'})} className="text-blue-600 p-2 bg-blue-50 rounded hover:bg-blue-100" title="مشاهده"><Eye size={18}/></button>
                                     </div>
