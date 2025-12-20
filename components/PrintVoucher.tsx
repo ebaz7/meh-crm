@@ -30,8 +30,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   // Smart Compact Mode logic
   const isCompact = order.paymentDetails.length > 2;
-  const companyInfo = settings?.companies?.find(c => c.name === order.payingCompany);
-  const companyLogo = companyInfo?.logo || settings?.pwaIcon;
 
   // Use a specific ID for the printable area
   const printAreaId = `print-voucher-content-${order.id}`;
@@ -116,8 +114,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            // A5 Landscape is 210mm wide x 148mm high.
-            // Using slightly less to prevent browser margin addition from overflowing to next page.
             width: '209mm', 
             height: '147mm', 
             margin: '0 auto',
@@ -130,12 +126,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
 
-        {/* Header */}
+        {/* Header - Logo removed */}
         <div className="relative z-10">
             <div className={`border-b-2 border-gray-800 ${isCompact ? 'pb-1 mb-2' : 'pb-2 mb-3'} flex justify-between items-center`}>
-                <div className="flex items-center gap-3 w-2/3">
-                    {companyLogo && <div className={`${isCompact ? 'w-10 h-10' : 'w-14 h-14'} shrink-0 flex items-center justify-center`}><img src={companyLogo} alt="Logo" className="w-full h-full object-contain" crossOrigin="anonymous" /></div>}
-                    <div><h1 className={`${isCompact ? 'text-lg' : 'text-xl'} font-bold text-gray-900`} style={{ letterSpacing: '0px' }}>{order.payingCompany || 'شرکت بازرگانی'}</h1><p className="text-[9px] text-gray-500 font-bold mt-0.5">سیستم مدیریت مالی و پرداخت</p></div>
+                <div className="flex flex-col w-2/3">
+                    <h1 className={`${isCompact ? 'text-lg' : 'text-xl'} font-bold text-gray-900`} style={{ letterSpacing: '0px' }}>{order.payingCompany || 'شرکت بازرگانی'}</h1>
+                    <p className="text-[9px] text-gray-500 font-bold mt-0.5">سیستم مدیریت مالی و پرداخت</p>
                 </div>
                 <div className="text-left flex flex-col items-end gap-1 w-1/3">
                     <h2 className={`${isCompact ? 'text-sm px-2 py-0.5' : 'text-base px-3 py-1'} font-black bg-gray-100 border border-gray-200 text-gray-800 rounded-lg mb-1 whitespace-nowrap`}>رسید پرداخت وجه</h2>
@@ -163,7 +159,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         {/* Footer */}
         <div className={`mt-auto ${isCompact ? 'pt-1' : 'pt-2'} border-t-2 border-gray-800 relative z-10`}>
             <div className="grid grid-cols-4 gap-2 text-center">
-                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full"><span className="font-bold text-gray-900 text-[10px]">{order.requester}</span></div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">درخواست کننده</span></div></div>
+                <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full"><Stamp name={order.requester} title="درخواست کننده" /></div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">درخواست کننده</span></div></div>
                 <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverFinancial ? <Stamp name={order.approverFinancial} title="تایید مالی" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر مالی</span></div></div>
                 <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverManager ? <Stamp name={order.approverManager} title="تایید مدیریت" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیریت</span></div></div>
                 <div className={`flex flex-col items-center justify-end ${isCompact ? 'min-h-[45px]' : 'min-h-[60px]'}`}><div className="mb-1 flex items-center justify-center h-full">{order.approverCeo ? <Stamp name={order.approverCeo} title="مدیر عامل" /> : <span className="text-gray-300 text-[8px]">امضا نشده</span>}</div><div className="w-full border-t border-gray-400 pt-0.5"><span className="text-[8px] font-bold text-gray-600">مدیر عامل</span></div></div>

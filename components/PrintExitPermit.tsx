@@ -80,14 +80,11 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             padding: '15mm', 
             boxSizing: 'border-box'
         }}>
-            {/* Header */}
+            {/* Header - Logo removed */}
             <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-8">
-                <div className="flex items-center gap-4">
-                    {settings?.pwaIcon && <img src={settings.pwaIcon} className="w-20 h-20 object-contain"/>}
-                    <div>
-                        <h1 className="text-3xl font-black mb-1">مجوز خروج کالا از کارخانه</h1>
-                        <p className="text-sm font-bold text-gray-600">سیستم مکانیزه مدیریت بار و خروج</p>
-                    </div>
+                <div className="flex flex-col">
+                    <h1 className="text-3xl font-black mb-1">مجوز خروج کالا از کارخانه</h1>
+                    <p className="text-sm font-bold text-gray-600">سیستم مکانیزه مدیریت بار و خروج</p>
                 </div>
                 <div className="text-left space-y-2">
                     <div className="text-xl font-black bg-gray-100 px-4 py-2 border-2 border-black rounded-lg">شماره: {permit.permitNumber}</div>

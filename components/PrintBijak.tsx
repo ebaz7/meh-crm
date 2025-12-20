@@ -59,9 +59,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       };
       if (showContactSelect) loadContacts();
   }, [settings, showContactSelect]);
-
-  const companyInfo = settings?.companies?.find(c => c.name === tx.company);
-  const companyLogo = companyInfo?.logo || settings?.pwaIcon;
   
   // Resolve Target Numbers (Company Specific > Global Default)
   const companyConfig = settings?.companyNotifications?.[tx.company];
@@ -144,11 +141,10 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none`} 
         style={{ 
             direction: 'rtl',
-            // A5 Portrait (148mm x 210mm)
             width: '147mm',
             height: '209mm',
             margin: '0 auto',
-            padding: '8mm', // Proper padding
+            padding: '8mm', 
             boxSizing: 'border-box'
         }}>
             {/* Watermarks for Status */}
@@ -159,8 +155,12 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-6xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">حذف شده / باطل</div>
             )}
 
+            {/* Header - Logo Removed */}
             <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start relative z-10">
-                <div className="flex items-center gap-3">{companyLogo && <img src={companyLogo} className="w-16 h-16 object-contain"/>}<div><h1 className="text-xl font-black">{tx.company}</h1><p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p></div></div>
+                <div className="flex flex-col">
+                    <h1 className="text-xl font-black">{tx.company}</h1>
+                    <p className="text-sm font-bold text-gray-600">حواله خروج کالا (بیجک)</p>
+                </div>
                 <div className="text-left space-y-1"><div className="text-lg font-black border-2 border-black px-3 py-1 rounded">NO: {tx.number}</div><div className="text-sm font-bold">تاریخ: {formatDate(tx.date)}</div></div>
             </div>
             <div className="border rounded-lg p-3 mb-4 bg-gray-50 text-sm print:bg-white print:border-black relative z-10"><div className="grid grid-cols-2 gap-4"><div><span className="text-gray-500 ml-2">تحویل گیرنده:</span> <span className="font-bold">{tx.recipientName}</span></div><div><span className="text-gray-500 ml-2">مقصد:</span> <span className="font-bold">{tx.destination || '-'}</span></div><div><span className="text-gray-500 ml-2">راننده:</span> <span className="font-bold">{tx.driverName || '-'}</span></div><div><span className="text-gray-500 ml-2">پلاک:</span> <span className="font-bold font-mono dir-ltr">{tx.plateNumber || '-'}</span></div></div></div>
