@@ -31,7 +31,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     // Edit/New State
-    const [editingId, setEditingId] = useState<string | null>(null); // Track which item is being edited
+    const [editingId, setEditingId] = useState<string | null>(null); 
     const [logForm, setLogForm] = useState<Partial<SecurityLog>>({});
     const [delayForm, setDelayForm] = useState<Partial<PersonnelDelay>>({});
     const [incidentForm, setPartialIncidentForm] = useState<Partial<SecurityIncident>>({});
@@ -61,7 +61,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         } catch { return new Date().toISOString().split('T')[0]; }
     };
 
-    // Load meta for selected date when date changes
     useEffect(() => {
         const isoDate = getIsoSelectedDate();
         if (settings?.dailySecurityMeta && settings.dailySecurityMeta[isoDate]) {
@@ -76,18 +75,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // --- UX HELPERS ---
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const form = e.currentTarget.closest('form');
-            if (form) {
-                const elements = Array.from(form.querySelectorAll('input, select, textarea')) as HTMLElement[];
-                const index = elements.indexOf(e.currentTarget as HTMLElement);
-                const nextElement = elements[index + 1];
-                if (nextElement) nextElement.focus();
-            }
-        }
+    const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
+        const shamsi = getShamsiDateFromIso(dateString);
+        setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
+        setActiveTab(category === 'log' ? 'logs' : 'delays');
+        setViewCartableItem(null);
+        // FIX: Automatically open the Shift/Meta info modal for editing
+        setTimeout(() => setShowShiftModal(true), 100);
     };
 
     const formatTime = (val: string) => {
@@ -121,10 +115,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         });
     };
 
-    // --- PERMISSION LOGIC ---
     const canEdit = (item: any) => {
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-        // Archived items normally not editable, but for Admin/CEO we might want to allow fixing errors
         if (item.status === SecurityStatus.ARCHIVED) return currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO;
         if (item.status === SecurityStatus.REJECTED) return item.registrant === currentUser.fullName;
         if (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD) {
@@ -180,8 +172,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // --- DATA FILTERING ---
-    // Logica updated: If we are specifically looking at a date from archive, show ALL items including archived ones.
     const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()));
     const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()));
     
@@ -253,20 +243,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         return archiveGroups.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
     };
 
-    const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
-        const shamsi = getShamsiDateFromIso(dateString);
-        setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
-        setActiveTab(category === 'log' ? 'logs' : 'delays');
-        setViewCartableItem(null);
-    };
-
-    // --- ACTIONS ---
     const handleSaveLog = async () => {
         let statusToSave = SecurityStatus.PENDING_SUPERVISOR;
         if (editingId) {
              const originalItem = logs.find(l => l.id === editingId);
              if (originalItem) {
-                 if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) statusToSave = originalItem.status;
+                 if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) statusToSave = originalItem.status;
                  else if (originalItem.status === SecurityStatus.REJECTED) statusToSave = SecurityStatus.PENDING_SUPERVISOR;
                  else statusToSave = originalItem.status;
              }
@@ -302,7 +284,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         if (editingId) {
              const originalItem = delays.find(d => d.id === editingId);
              if (originalItem) {
-                 if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) statusToSave = originalItem.status;
+                 if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) statusToSave = originalItem.status;
                  else if (originalItem.status === SecurityStatus.REJECTED) statusToSave = SecurityStatus.PENDING_SUPERVISOR;
                  else statusToSave = originalItem.status;
              }
