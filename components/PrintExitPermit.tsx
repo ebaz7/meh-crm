@@ -1,19 +1,25 @@
+
 import React, { useState, useEffect } from 'react';
-import { ExitPermit, ExitPermitStatus, SystemSettings } from '../types';
-import { formatDate } from '../constants';
-// Added CheckCircle to imports
-import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle } from 'lucide-react';
+import { ExitPermit, ExitPermitStatus, SystemSettings, UserRole } from '../types';
+import { formatDate, formatCurrency } from '../constants';
+import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle, Share2, Edit, Loader2, Users } from 'lucide-react';
+import { apiCall } from '../services/apiService';
+import { getUsers } from '../services/authService';
 
 interface Props {
   permit: ExitPermit;
   onClose: () => void;
   onApprove?: () => void;
   onReject?: () => void;
+  onEdit?: () => void;
   settings?: SystemSettings;
   embed?: boolean; 
 }
 
-const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject, settings, embed }) => {
+const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject, onEdit, settings, embed }) => {
+  const [sharing, setSharing] = useState(false);
+  const [showContactSelect, setShowContactSelect] = useState(false);
+
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
@@ -28,6 +34,36 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
           {date && <div className="text-[10px] text-center mt-1">{date}</div>}
       </div>
   );
+
+  const handleSendToWhatsApp = async (targetNumber: string) => {
+      if (!targetNumber) return;
+      setSharing(true);
+      const element = document.getElementById(embed ? `print-permit-${permit.id}` : "print-area-exit");
+      if (!element) { setSharing(false); return; }
+      
+      try {
+          // @ts-ignore
+          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          const base64 = canvas.toDataURL('image/png').split(',')[1];
+          
+          let caption = `🚛 *مجوز خروج کالا*\n`;
+          caption += `🔢 شماره: ${permit.permitNumber}\n`;
+          caption += `📅 تاریخ: ${formatDate(permit.date)}\n`;
+          caption += `👤 گیرنده: ${permit.recipientName}\n`;
+          caption += `📦 اقلام: ${permit.goodsName}\n`;
+          if(permit.exitTime) caption += `🕒 ساعت خروج: ${permit.exitTime}\n`;
+          caption += `------------------\n`;
+          caption += `✅ وضعیت: ${permit.status}`;
+
+          await apiCall('/send-whatsapp', 'POST', {
+              number: targetNumber,
+              message: caption,
+              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${permit.permitNumber}.png` }
+          });
+          alert('ارسال شد.');
+          setShowContactSelect(false);
+      } catch(e) { alert('خطا در ارسال'); } finally { setSharing(false); }
+  };
 
   const displayItems = permit.items && permit.items.length > 0 ? permit.items : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0 }];
   const displayDestinations = permit.destinations && permit.destinations.length > 0 ? permit.destinations : [{ id: 'legacy', recipientName: permit.recipientName || '', address: permit.destinationAddress || '', phone: '' }];
@@ -62,7 +98,6 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
 
             {/* Main Info */}
             <div className="flex-1 space-y-8">
-                {/* Items Table */}
                 <div className="space-y-2">
                     <h3 className="font-black text-lg flex items-center gap-2"><Package size={20}/> لیست اقلام و کالاها</h3>
                     <table className="w-full text-sm border-collapse border-2 border-black">
@@ -92,7 +127,6 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                     </table>
                 </div>
 
-                {/* Destinations */}
                 <div className="space-y-2">
                     <h3 className="font-black text-lg flex items-center gap-2"><MapPin size={20}/> مقاصد و گیرندگان</h3>
                     <div className="space-y-2">
@@ -108,31 +142,29 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                     </div>
                 </div>
 
-                {/* Driver Info */}
                 <div className="grid grid-cols-2 gap-6 bg-gray-100 border-2 border-black p-6 rounded-2xl">
                     <div className="flex items-center gap-3 text-lg"><Truck size={24} className="text-gray-600"/> <span className="font-bold">نام راننده:</span> <span className="font-black">{permit.driverName || '---'}</span></div>
                     <div className="flex items-center gap-3 text-lg"><div className="font-bold">شماره پلاک:</div> <div className="font-black font-mono tracking-widest dir-ltr border-2 border-gray-400 bg-white px-4 py-1 rounded-lg">{permit.plateNumber || '---'}</div></div>
-                    {permit.description && <div className="col-span-2 mt-2 pt-2 border-t border-gray-300 text-sm italic"><span className="font-bold not-italic">توضیحات:</span> {permit.description}</div>}
                 </div>
             </div>
 
-            {/* Footer - Order: Sales Mgr -> CEO -> Factory -> Security */}
+            {/* Footer - All names as Stamps */}
             <div className="mt-12 pt-8 border-t-4 border-black grid grid-cols-4 gap-4 text-center">
                 <div className="flex flex-col items-center justify-end min-h-[140px]">
-                    <div className="mb-2 font-black text-sm">{permit.requester}</div>
-                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-xs font-black text-gray-700">مدیر فروش (درخواست)</span></div>
+                    <div className="mb-2"><Stamp title="مدیر فروش (درخواست)" name={permit.requester} /></div>
+                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر فروش</span></div>
                 </div>
                 <div className="flex flex-col items-center justify-end min-h-[140px]">
                     <div className="mb-2">{permit.approverCeo ? <Stamp title="تایید مدیریت عامل" name={permit.approverCeo} /> : <span className="text-gray-300 text-xs italic">امضا مدیرعامل</span>}</div>
-                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-xs font-black text-gray-700">مدیر عامل</span></div>
+                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر عامل</span></div>
                 </div>
                 <div className="flex flex-col items-center justify-end min-h-[140px]">
                     <div className="mb-2">{permit.approverFactory ? <Stamp title="تایید مدیر کارخانه" name={permit.approverFactory} /> : <span className="text-gray-300 text-xs italic">امضا مدیر کارخانه</span>}</div>
-                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-xs font-black text-gray-700">مدیر کارخانه</span></div>
+                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر کارخانه</span></div>
                 </div>
                 <div className="flex flex-col items-center justify-end min-h-[140px]">
                     <div className="mb-2">{permit.approverSecurity ? <Stamp title="خروج نهایی (ساعت)" name={`${permit.approverSecurity} (${permit.exitTime})`} /> : <span className="text-gray-300 text-xs italic">تایید انتظامات</span>}</div>
-                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-xs font-black text-gray-700">انتظامات / حراست</span></div>
+                    <div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">انتظامات / حراست</span></div>
                 </div>
             </div>
             
@@ -144,13 +176,36 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
-        <div className="bg-white p-3 rounded-xl shadow-lg relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-48 mb-4 md:mb-0 order-1">
-            <div className="flex justify-between items-center"><span className="text-sm font-bold md:hidden">پنل عملیات</span><button onClick={onClose} className="self-end text-gray-400 hover:text-red-500"><X size={20}/></button></div>
-            {/* Added CheckCircle for Approve button */}
-            {onApprove && <button onClick={onApprove} className="bg-green-600 text-white p-2 rounded flex items-center gap-2 justify-center font-bold"><CheckCircle size={18}/> تایید مرحله بعدی</button>}
-            {onReject && <button onClick={onReject} className="bg-red-600 text-white p-2 rounded flex items-center gap-2 justify-center font-bold"><X size={18}/> رد درخواست</button>}
+        <div className="bg-white p-3 rounded-xl shadow-lg relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-56 mb-4 md:mb-0 order-1">
+            <div className="flex justify-between items-center"><span className="text-sm font-bold">پنل عملیات</span><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
+            
+            {onApprove && <button onClick={onApprove} className="bg-green-600 text-white p-2.5 rounded-lg flex items-center gap-2 justify-center font-bold shadow-sm"><CheckCircle size={18}/> تایید مرحله بعدی</button>}
+            
+            <div className="grid grid-cols-2 gap-2">
+                {onEdit && <button onClick={onEdit} className="bg-amber-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 font-bold text-xs"><Edit size={16}/> ویرایش</button>}
+                {onReject && <button onClick={onReject} className="bg-red-600 text-white p-2 rounded-lg flex items-center justify-center gap-1 font-bold text-xs"><X size={16}/> رد</button>}
+            </div>
+
             <hr className="my-1"/>
-            <button onClick={() => window.print()} className="bg-blue-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg"><Printer size={20}/> چاپ (A4)</button>
+            
+            <button onClick={() => window.print()} className="bg-blue-600 text-white p-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"><Printer size={18}/> چاپ (A4)</button>
+            
+            <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className="bg-green-600 text-white p-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                {sharing ? <Loader2 size={18} className="animate-spin"/> : <Share2 size={18}/>} ارسال واتساپ
+            </button>
+
+            {showContactSelect && (
+                <div className="bg-gray-50 border rounded-lg p-2 mt-1 space-y-1 max-h-40 overflow-y-auto shadow-inner animate-fade-in">
+                    <p className="text-[10px] font-bold text-gray-400 mb-1">انتخاب مخاطب:</p>
+                    {settings?.savedContacts?.map(c => (
+                        <button key={c.id} onClick={() => handleSendToWhatsApp(c.number)} className="w-full text-right p-1.5 hover:bg-white rounded text-xs border border-transparent hover:border-gray-200 flex items-center gap-2">
+                            <div className={`p-1 rounded-full ${c.isGroup ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}><Users size={10}/></div>
+                            <span className="truncate">{c.name}</span>
+                        </button>
+                    ))}
+                    <button onClick={() => { const n = prompt("شماره دستی:"); if(n) handleSendToWhatsApp(n); }} className="w-full text-center p-1 text-[10px] text-blue-600 hover:underline">شماره دستی...</button>
+                </div>
+            )}
         </div>
         <div className="order-2 w-full flex justify-center pb-10">{content}</div>
     </div>
