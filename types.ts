@@ -129,7 +129,7 @@ export interface ExitPermit {
   updatedAt?: number;
 }
 
-// ماژول انبار و سایر موارد بدون تغییر باقی می‌مانند
+// Warehouse and Security Module types kept unchanged
 export interface WarehouseItem { id: string; code: string; name: string; unit: string; containerCapacity?: number; description?: string; }
 export interface WarehouseTransactionItem { itemId: string; itemName: string; quantity: number; weight: number; unitPrice?: number; }
 export interface WarehouseTransaction { id: string; type: 'IN' | 'OUT'; date: string; company: string; number: number; proformaNumber?: string; recipientName?: string; driverName?: string; plateNumber?: string; destination?: string; items: WarehouseTransactionItem[]; description?: string; status?: 'PENDING' | 'APPROVED' | 'REJECTED'; approvedBy?: string; rejectionReason?: string; rejectedBy?: string; createdAt: number; createdBy: string; updatedAt?: number; }

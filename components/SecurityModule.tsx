@@ -526,13 +526,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
         if (readyDelays.length === 0) { alert("هیچ آیتم تایید شده‌ای برای ارسال وجود ندارد."); return; }
 
-        // Added <string> to explicitely type the Set to fix "unknown" type error
+        // FIX: Explicitly type Set to string to prevent index error
         const datesToApprove = new Set<string>(readyDelays.map(d => d.date));
         if (settings) {
-            // Added explicit Record type to newMeta to fix string indexing errors
-            const newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
-            // Explicitly typed callback param 'date' as string
-            datesToApprove.forEach((date: string) => {
+            // FIX: Explicitly type newMeta to prevent index error
+            let newMeta: Record<string, DailySecurityMeta> = { ...settings.dailySecurityMeta };
+            datesToApprove.forEach(date => {
+                // FIX: Use correctly typed index
                 newMeta[date] = { ...newMeta[date], isDelaySupervisorApproved: true };
             });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
@@ -559,16 +559,16 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
 
         // 2. Update Meta
-        // Added <string> to explicitly type Sets to fix "unknown" type errors
+        // FIX: Explicitly type Sets to string to prevent index error
         const logDates = new Set<string>(readyLogs.map(l => l.date));
         const delayDates = new Set<string>(readyDelays.map(d => d.date));
         
         if (settings) {
-            // Added explicit Record type to newMeta to fix string indexing errors
-            const newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
-            // Explicitly typed callback param 'date' as string
-            logDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
-            delayDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
+            // FIX: Explicitly type newMeta to prevent index error
+            let newMeta: Record<string, DailySecurityMeta> = { ...settings.dailySecurityMeta };
+            // FIX: Use correctly typed string index for newMeta
+            logDates.forEach(date => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
+            delayDates.forEach(date => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
         }
 
@@ -686,7 +686,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* ... SHIFT MODAL ... (Unchanged) */}
+            {/* SHIFT MODAL */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -707,7 +707,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                     <input className="w-20 border rounded p-2 text-sm text-center" placeholder="خروج" value={metaForm.morningGuard?.exit} onChange={handleTimeChange('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)} onBlur={handleTimeBlur('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)} onKeyDown={handleKeyDown}/>
                                 </div>
                             </div>
-                            {/* ... Other Shifts ... */}
                             <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-bold text-sm text-orange-800">شیفت عصر (۱۴:۰۰ الی ۲۲:۰۰)</h4>
@@ -825,7 +824,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
             {/* HEADER */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
-                {/* ... (Unchanged Header) ... */}
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <Shield className="text-blue-600"/> واحد انتظامات و حراست
                 </h1>

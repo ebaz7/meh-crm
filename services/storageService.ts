@@ -1,28 +1,14 @@
 import { PaymentOrder, User, UserRole, OrderStatus, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, ExitPermit, ExitPermitStatus, WarehouseItem, WarehouseTransaction, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus } from '../types';
 import { apiCall } from './apiService';
 
-// ... کدهای قبلی بدون تغییر ...
-
+// Keep all existing methods unchanged
 export const getOrders = async (): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>('/orders'); };
 export const saveOrder = async (order: PaymentOrder): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>('/orders', 'POST', order); };
 export const editOrder = async (updatedOrder: PaymentOrder): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${updatedOrder.id}`, 'PUT', updatedOrder); };
-export const updateOrderStatus = async (id: string, status: OrderStatus, approverUser: User, rejectionReason?: string): Promise<PaymentOrder[]> => {
-  const orders = await getOrders();
-  const order = orders.find(o => o.id === id);
-  if (order) {
-      const updates: any = { status };
-      if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName; }
-      else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName; }
-      else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
-      if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; }
-      const updatedOrder = { ...order, ...updates };
-      return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder);
-  }
-  return orders;
-};
+export const updateOrderStatus = async (id: string, status: OrderStatus, approverUser: User, rejectionReason?: string): Promise<PaymentOrder[]> => { const orders = await getOrders(); const order = orders.find(o => o.id === id); if (order) { const updates: any = { status }; if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) { updates.approverFinancial = approverUser.fullName; } } else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) { updates.approverManager = approverUser.fullName; } } else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) { updates.approverCeo = approverUser.fullName; } } if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; } const updatedOrder = { ...order, ...updates }; return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder); } return orders; };
 export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE'); };
 
-// --- بخش اصلاح شده: خروج بار ---
+// Modified Section: Exit Permits
 export const getExitPermits = async (): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits'); };
 export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
 export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
@@ -33,15 +19,17 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     if(permit) {
         const updates: any = { status };
         
-        // مرحله ۱: مدیرعامل
+        // Stage 1: CEO Approval
         if (status === ExitPermitStatus.PENDING_FACTORY && (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN)) {
             updates.approverCeo = approverUser.fullName;
         }
-        // مرحله ۲: مدیر کارخانه
+        
+        // Stage 2: Factory Manager Approval
         if (status === ExitPermitStatus.PENDING_SECURITY && (approverUser.role === UserRole.FACTORY_MANAGER || approverUser.role === UserRole.ADMIN)) {
             updates.approverFactory = approverUser.fullName;
         }
-        // مرحله ۳: انتظامات (ثبت ساعت خروج)
+
+        // Stage 3: Security Approval (Final Exit)
         if (status === ExitPermitStatus.EXITED && (approverUser.role === UserRole.SECURITY_GUARD || approverUser.role === UserRole.SECURITY_HEAD || approverUser.role === UserRole.ADMIN)) {
             updates.approverSecurity = approverUser.fullName;
             if (extra?.exitTime) updates.exitTime = extra.exitTime;
@@ -60,7 +48,7 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
 export const deleteExitPermit = async (id: string): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${id}`, 'DELETE'); };
 export const getNextExitPermitNumber = async (): Promise<number> => { try { const response = await apiCall<{ nextNumber: number }>('/next-exit-permit-number'); return response.nextNumber; } catch(e) { const settings = await getSettings(); return (settings.currentExitPermitNumber || 1000) + 1; } };
 
-// ... سایر متدها (انبار، گفتگو، بازرگانی، انتظامات) بدون هیچگونه تغییر ...
+// Warehouse and Security Module methods kept unchanged
 export const getWarehouseItems = async (): Promise<WarehouseItem[]> => { return await apiCall<WarehouseItem[]>('/warehouse/items'); };
 export const saveWarehouseItem = async (item: WarehouseItem): Promise<WarehouseItem[]> => { return await apiCall<WarehouseItem[]>('/warehouse/items', 'POST', item); };
 export const updateWarehouseItem = async (item: WarehouseItem): Promise<WarehouseItem[]> => { return await apiCall<WarehouseItem[]>(`/warehouse/items/${item.id}`, 'PUT', item); };

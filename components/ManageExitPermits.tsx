@@ -23,8 +23,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const [activeStatusFilter, setActiveStatusFilter] = useState<'pending' | null>(statusFilter || null);
   
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
-  const [deletedPermitForAutoSend, setDeletedPermitForAutoSend] = useState<ExitPermit | null>(null);
-  
   const permissions = getRolePermissions(currentUser.role, settings || null);
 
   useEffect(() => { loadData(); }, []);
@@ -44,7 +42,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       // مرحله ۲: تایید مدیر کارخانه
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
 
-      // مرحله ۳: تایید انتظامات (ثبت ساعت خروج بار)
+      // مرحله ۳: تایید انتظامات
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
 
       return false;
@@ -65,8 +63,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       } else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) {
           nextStatus = ExitPermitStatus.PENDING_SECURITY;
       } else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
-          // دریافت ساعت خروج فقط توسط انتظامات
-          const time = prompt('لطفا ساعت خروج بار از درب کارخانه را وارد کنید:', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
+          // مرحله نهایی: دریافت ساعت خروج توسط انتظامات
+          const time = prompt('لطفا ساعت دقیق خروج بار را وارد کنید (مثلا ۱۴:۳۰):', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
           if (time === null) return; 
           exitTime = time;
           nextStatus = ExitPermitStatus.EXITED;
@@ -75,7 +73,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       const permitToApprove = permits.find(p => p.id === id);
       if (!permitToApprove) return;
 
-      if(window.confirm('آیا تایید مرحله جاری را انجام می‌دهید؟')) {
+      if(window.confirm('آیا تایید مرحله فعلی را انجام می‌دهید؟')) {
           await updateExitPermitStatus(id, nextStatus, currentUser, { exitTime });
           
           const updatedPermitMock = { ...permitToApprove, status: nextStatus, exitTime };
@@ -107,22 +105,24 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                           if (targetUser) await apiCall('/send-whatsapp', 'POST', { number: targetUser.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}.png` } });
                       } 
                       else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
-                          const caption = `👮 *تایید کارخانه / در انتظار خروج از درب*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n\nبار آماده خروج فیزیکی است.`;
+                          const caption = `👮 *تایید کارخانه / ارسال به انتظامات*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n\nبار آماده خروج است.`;
                           if (settings?.exitPermitNotificationGroup) {
-                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Security_${updatedPermitMock.permitNumber}.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_${updatedPermitMock.permitNumber}_Security.png` } });
                           }
                       }
                       else if (nextStatus === ExitPermitStatus.EXITED) {
-                          const caption = `✅ *خروج بار نهایی*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 تایید انتظامات: ${currentUser.fullName}\n\nبار از کارخانه خارج شد.`;
+                          const caption = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 تایید انتظامات: ${currentUser.fullName}`;
                           
+                          // ارسال به مدیر فروش (درخواست کننده)
                           const users = await getUsers();
                           const salesManager = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                           if (salesManager) {
-                              await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Final_Exit_${updatedPermitMock.permitNumber}.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
 
+                          // ارسال به گروه ورود و خروج
                           if (settings?.exitPermitNotificationGroup) {
-                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Final_Exit_${updatedPermitMock.permitNumber}.png` } });
+                              await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
                       }
                   } catch (e) { console.error("Auto send failed", e); } 
@@ -141,25 +141,11 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       }
   };
 
-  const handleDelete = async (id: string) => {
-      if(!confirm('آیا از حذف مطمئن هستید؟')) return;
-      await deleteExitPermit(id);
-      loadData();
-  };
-
-  const handleEditSave = () => { setEditingPermit(null); loadData(); };
-
-  const getSearchString = (p: ExitPermit) => {
-      const itemsGoods = p.items?.map(i => i.goodsName).join(' ') || p.goodsName || '';
-      const destsRec = p.destinations?.map(d => d.recipientName).join(' ') || p.recipientName || '';
-      return `${p.permitNumber} ${itemsGoods} ${destsRec} ${p.requester}`;
-  };
-
   const filtered = permits.filter(p => {
       if (activeTab === 'current') { if (p.status === ExitPermitStatus.EXITED || p.status === ExitPermitStatus.REJECTED) return false; }
       else { if (p.status !== ExitPermitStatus.EXITED && p.status !== ExitPermitStatus.REJECTED) return false; }
       if (activeStatusFilter === 'pending') { if (p.status === ExitPermitStatus.EXITED || p.status === ExitPermitStatus.REJECTED) return false; }
-      return getSearchString(p).toLowerCase().includes(searchTerm.toLowerCase());
+      return p.goodsName?.toLowerCase().includes(searchTerm.toLowerCase()) || p.permitNumber.toString().includes(searchTerm);
   });
 
   const getStatusBadge = (status: ExitPermitStatus) => {
@@ -179,7 +165,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} />
             </div>
         )}
-
         <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Truck size={24} className="text-orange-600"/> کارتابل خروج بار</h2>
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
@@ -193,31 +178,26 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 </div>
             </div>
         </div>
-        
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
                 <thead className="bg-gray-5 text-gray-600"><tr><th className="p-4">شماره</th><th className="p-4">تاریخ</th><th className="p-4">کالا</th><th className="p-4">وضعیت</th><th className="p-4 text-center">عملیات</th></tr></thead>
                 <tbody>
-                    {filtered.length === 0 ? (<tr><td colSpan={5} className="p-8 text-center text-gray-400">موردی یافت نشد.</td></tr>) : (
-                        filtered.map(p => (
-                            <tr key={p.id} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-bold text-orange-600">#{p.permitNumber}</td>
-                                <td className="p-4">{formatDate(p.date)}</td>
-                                <td className="p-4 font-bold">{p.items?.[0]?.goodsName || p.goodsName} {p.items?.length > 1 ? `(+${p.items.length-1})` : ''}</td>
-                                <td className="p-4">{getStatusBadge(p.status)}</td>
-                                <td className="p-4 text-center flex justify-center gap-2">
-                                    <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
-                                    {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله"><CheckCircle size={16}/></button>}
-                                    {canReject(p) && <button onClick={() => handleReject(p.id)} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200" title="رد درخواست"><XCircle size={16}/></button>}
-                                    {(currentUser.role === UserRole.ADMIN) && <button onClick={() => handleDelete(p.id)} className="bg-red-50 text-red-400 p-2 rounded-lg hover:bg-red-100"><Trash2 size={16}/></button>}
-                                </td>
-                            </tr>
-                        ))
-                    )}
+                    {filtered.map(p => (
+                        <tr key={p.id} className="border-b hover:bg-gray-50">
+                            <td className="p-4 font-bold text-orange-600">#{p.permitNumber}</td>
+                            <td className="p-4">{formatDate(p.date)}</td>
+                            <td className="p-4 font-bold">{p.items?.[0]?.goodsName || p.goodsName}</td>
+                            <td className="p-4">{getStatusBadge(p.status)}</td>
+                            <td className="p-4 text-center flex justify-center gap-2">
+                                <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
+                                {canApprove(p) && <button onClick={() => handleApprove(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله"><CheckCircle size={16}/></button>}
+                                {canReject(p) && <button onClick={() => deleteExitPermit(p.id).then(()=>loadData())} className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200"><Trash2 size={16}/></button>}
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>
-        
         {viewPermit && (
             <PrintExitPermit 
                 permit={viewPermit} 
@@ -227,7 +207,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 settings={settings}
             />
         )}
-        {editingPermit && <EditExitPermitModal permit={editingPermit} onClose={() => setEditingPermit(null)} onSave={handleEditSave} />}
     </div>
   );
 };
