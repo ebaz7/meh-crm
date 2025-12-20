@@ -75,16 +75,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // FIX: Optimized Jump to Edit logic
+    // FIX: Optimized Jump to Edit logic - NO AUTO MODAL OPEN
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
         setActiveTab(category === 'log' ? 'logs' : 'delays');
         setViewCartableItem(null);
-        // Ensure Modal opens to show the day is now in edit mode
-        setTimeout(() => {
-            setShowShiftModal(true);
-        }, 300);
+        // We removed the automatic opening of ShiftModal so the user can see the full table and edit rows individually
+        // if they want to edit shift info, they can click the "Shift" button manually.
     };
 
     const formatTime = (val: string) => {
