@@ -165,9 +165,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) return;
 
         if (!settings) return;
-        // Fix: Explicitly cast to Record to avoid unknown index error
-        const dailyMeta = (settings.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>;
-        const currentMeta = dailyMeta[date];
+        const currentMeta = (settings.dailySecurityMeta || {})[date];
         if (!currentMeta) return;
 
         let needsUpdate = false;
@@ -444,8 +442,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             
             // 1. Mark Meta as CEO Approved
             if (settings) {
-                const dailyMeta = (settings.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>;
-                const currentMeta = dailyMeta[date] || {};
+                const currentMeta = (settings.dailySecurityMeta || {})[date] || {};
                 const updatedMeta = { ...currentMeta };
                 if (category === 'log') updatedMeta.isCeoDailyApproved = true;
                 else updatedMeta.isDelayCeoApproved = true; // Set CEO delay stamp
@@ -530,10 +527,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
         if (readyDelays.length === 0) { alert("هیچ آیتم تایید شده‌ای برای ارسال وجود ندارد."); return; }
 
-        const datesToApprove = new Set(readyDelays.map(d => d.date));
+        // FIX: Added explicit <string> type to the Set to help TypeScript inference
+        const datesToApprove = new Set<string>(readyDelays.map(d => d.date));
         if (settings) {
-            let newMeta = { ...settings.dailySecurityMeta };
-            datesToApprove.forEach(date => {
+            // FIX: Explicitly typed newMeta as Record to avoid index type errors
+            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
+            datesToApprove.forEach((date: string) => {
+                // FIX: Used explicit string key for index access
                 newMeta[date] = { ...newMeta[date], isDelaySupervisorApproved: true };
             });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
@@ -560,19 +560,17 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
 
         // 2. Update Meta
-        const logDates = new Set(readyLogs.map(l => l.date));
-        const delayDates = new Set(readyDelays.map(d => d.date));
+        // FIX: Added explicit <string> type to the Sets to help TypeScript inference
+        const logDates = new Set<string>(readyLogs.map(l => l.date));
+        const delayDates = new Set<string>(readyDelays.map(d => d.date));
         
         if (settings) {
-            // Fix: Cast dailySecurityMeta to Record to avoid unknown index errors
-            const currentDailyMeta = (settings.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>;
-            let newMeta: Record<string, DailySecurityMeta> = { ...currentDailyMeta };
-            logDates.forEach(date => { 
-                newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; 
-            });
-            delayDates.forEach(date => { 
-                newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; 
-            });
+            // FIX: Explicitly typed newMeta as Record to avoid index type errors
+            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
+            // FIX: Used explicit string key for index access
+            logDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
+            // FIX: Used explicit string key for index access
+            delayDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
         }
 
@@ -604,16 +602,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handlePrintDaily = () => {
         const isoDate = getIsoSelectedDate();
-        const dailyMeta = (settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>;
-        const meta = dailyMeta[isoDate];
+        const meta = (settings?.dailySecurityMeta || {})[isoDate];
         setPrintTarget({ type: 'daily_log', date: isoDate, logs: dailyLogs, meta });
         setShowPrintModal(true);
     };
 
     const handlePrintDelays = () => {
         const isoDate = getIsoSelectedDate();
-        const dailyMeta = (settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>;
-        const meta = dailyMeta[isoDate];
+        const meta = (settings?.dailySecurityMeta || {})[isoDate];
         setPrintTarget({ type: 'daily_delay', date: isoDate, delays: dailyDelays, meta });
         setShowPrintModal(true);
     };
@@ -678,14 +674,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             {/* PRINT MODAL */}
             {showPrintModal && printTarget && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
-                    <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print w-full max-w-2xl justify-between items-center">
-                        <div className="font-bold text-lg text-gray-800">
-                            {printTarget.type === 'daily_log' ? 'گزارش تردد روزانه' : printTarget.type === 'daily_delay' ? 'گزارش تاخیرات روزانه' : 'گزارش واقعه'}
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700 shadow"><Printer size={16}/> چاپ</button>
-                            <button onClick={() => setShowPrintModal(false)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded">بستن</button>
-                        </div>
+                    <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print">
+                        <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2"><Printer size={16}/> چاپ</button>
+                        <button onClick={() => setShowPrintModal(false)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded">بستن</button>
                     </div>
                     <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh]">
                         <div className="printable-content scale-75 origin-top">
@@ -697,7 +688,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* ... SHIFT MODAL ... */}
+            {/* ... SHIFT MODAL ... (Unchanged) */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -722,7 +713,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-bold text-sm text-orange-800">شیفت عصر (۱۴:۰۰ الی ۲۲:۰۰)</h4>
-                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50"><UserIcon size={10}/> نام من</button>
+                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-orange-50"><UserIcon size={10}/> نام من</button>
                                 </div>
                                 <div className="flex gap-2">
                                     <input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.eveningGuard?.name} onChange={e => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, name: e.target.value}})} onKeyDown={handleKeyDown}/>
@@ -803,30 +794,26 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                     <PrintSecurityDailyLog 
                                         date={viewCartableItem.date} 
                                         logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                        // Fix: Cast meta access to Record type
-                                        meta={((settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>)[String(viewCartableItem.date)]}
+                                        meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                     />
                                 )}
                                 {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'delay' && (
                                     <PrintPersonnelDelay 
                                         delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                        // Fix: Cast meta access to Record type
-                                        meta={((settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>)[String(viewCartableItem.date)]}
+                                        meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                     />
                                 )}
                                 {viewCartableItem.type === 'log' && (
                                     <PrintSecurityDailyLog 
                                         date={viewCartableItem.date} 
                                         logs={logs.filter(l => l.date === viewCartableItem.date)} 
-                                        // Fix: Cast meta access to Record type
-                                        meta={((settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>)[String(viewCartableItem.date)]}
+                                        meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                     />
                                 )}
                                 {viewCartableItem.type === 'delay' && (
                                     <PrintPersonnelDelay 
                                         delays={delays.filter(d => d.date === viewCartableItem.date)} 
-                                        // Fix: Cast meta access to Record type
-                                        meta={((settings?.dailySecurityMeta || {}) as Record<string, DailySecurityMeta>)[String(viewCartableItem.date)]}
+                                        meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
                                     />
                                 )}
                                 {viewCartableItem.type === 'incident' && (

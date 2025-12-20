@@ -38,7 +38,6 @@ app.put('/api/exit-permits/:id', async (req, res) => {
             }
             // 2. Factory Approved -> Notify Security/Group
             else if (newStatus === 'تایید کارخانه / در انتظار انتظامات (خروج)') {
-                // To group or security guard
                 if (db.settings?.exitPermitNotificationGroup) targetPhones.push(db.settings.exitPermitNotificationGroup);
                 msg = `🏭 *تایید مدیر کارخانه صادر شد*\nشماره مجوز: ${newPermit.permitNumber}\nانتظامات محترم، لطفا پس از خروج بار ساعت را ثبت و تایید نهایی نمایید.`;
             }

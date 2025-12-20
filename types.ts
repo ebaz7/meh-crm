@@ -412,6 +412,16 @@ export interface GroupTask {
     createdAt: number;
 }
 
+export interface GroupTask {
+    id: string;
+    groupId: string;
+    title: string;
+    assignee?: string; 
+    isCompleted: boolean;
+    createdBy: string;
+    createdAt: number;
+}
+
 export interface AppNotification {
     id: string;
     title: string;

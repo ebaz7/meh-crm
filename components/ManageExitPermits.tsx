@@ -27,7 +27,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return statusFilter === 'pending' ? 'current' : 'current';
   }
 
-  // State for Auto-Send Rendering (Hidden)
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
   const [deletedPermitForAutoSend, setDeletedPermitForAutoSend] = useState<ExitPermit | null>(null);
   
@@ -44,13 +43,13 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const canApprove = (p: ExitPermit) => {
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
 
-      // CEO Stage
+      // Stage 1: CEO
       if (p.status === ExitPermitStatus.PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
       
-      // Factory Manager Stage
+      // Stage 2: Factory Manager
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
 
-      // Security Stage
+      // Stage 3: Security (Final Exit)
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
 
       return false;
@@ -83,7 +82,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
           nextStatus = ExitPermitStatus.PENDING_SECURITY;
       } else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
           const time = prompt('لطفا ساعت خروج بار را وارد کنید (مثلا ۱۴:۳۰):', new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
-          if (time === null) return; // User cancelled
+          if (time === null) return; 
           exitTime = time;
           nextStatus = ExitPermitStatus.EXITED;
       }
@@ -131,14 +130,12 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       else if (nextStatus === ExitPermitStatus.EXITED) {
                           const caption = `✅ *بار از کارخانه خارج شد*\n🔹 شماره: ${updatedPermitMock.permitNumber}\n👤 گیرنده: ${updatedPermitMock.recipientName || 'چند مقصد'}\n⏰ ساعت خروج: ${exitTime}\n👮 انتظامات: ${currentUser.fullName}\n\nفرآیند تکمیل و بایگانی شد.`;
                           
-                          // Notify Sales Manager (Requester)
                           const users = await getUsers();
                           const salesManager = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                           if (salesManager) {
                               await apiCall('/send-whatsapp', 'POST', { number: salesManager.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
 
-                          // Notify Group
                           if (settings?.exitPermitNotificationGroup) {
                               await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Final_${updatedPermitMock.permitNumber}.png` } });
                           }
