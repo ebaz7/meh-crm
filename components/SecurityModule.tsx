@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, getSettings, saveSettings } from '../services/storageService';
@@ -527,10 +526,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
         if (readyDelays.length === 0) { alert("هیچ آیتم تایید شده‌ای برای ارسال وجود ندارد."); return; }
 
-        const datesToApprove = new Set(readyDelays.map(d => d.date));
+        // Added <string> to explicitely type the Set to fix "unknown" type error
+        const datesToApprove = new Set<string>(readyDelays.map(d => d.date));
         if (settings) {
-            let newMeta = { ...settings.dailySecurityMeta };
-            datesToApprove.forEach(date => {
+            // Added explicit Record type to newMeta to fix string indexing errors
+            const newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
+            // Explicitly typed callback param 'date' as string
+            datesToApprove.forEach((date: string) => {
                 newMeta[date] = { ...newMeta[date], isDelaySupervisorApproved: true };
             });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
@@ -557,13 +559,16 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
 
         // 2. Update Meta
-        const logDates = new Set(readyLogs.map(l => l.date));
-        const delayDates = new Set(readyDelays.map(d => d.date));
+        // Added <string> to explicitly type Sets to fix "unknown" type errors
+        const logDates = new Set<string>(readyLogs.map(l => l.date));
+        const delayDates = new Set<string>(readyDelays.map(d => d.date));
         
         if (settings) {
-            let newMeta = { ...settings.dailySecurityMeta };
-            logDates.forEach(date => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
-            delayDates.forEach(date => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
+            // Added explicit Record type to newMeta to fix string indexing errors
+            const newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
+            // Explicitly typed callback param 'date' as string
+            logDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
+            delayDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
             await saveSettings({ ...settings, dailySecurityMeta: newMeta });
         }
 
@@ -706,7 +711,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-bold text-sm text-orange-800">شیفت عصر (۱۴:۰۰ الی ۲۲:۰۰)</h4>
-                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-orange-50"><UserIcon size={10}/> نام من</button>
+                                    <button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50"><UserIcon size={10}/> نام من</button>
                                 </div>
                                 <div className="flex gap-2">
                                     <input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.eveningGuard?.name} onChange={e => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, name: e.target.value}})} onKeyDown={handleKeyDown}/>
@@ -717,7 +722,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-bold text-sm text-indigo-800">شیفت شب (۲۲:۰۰ الی ۰۶:۰۰)</h4>
-                                    <button onClick={() => setMyName('night')} className="text-[10px] bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-indigo-50"><UserIcon size={10}/> نام من</button>
+                                    <button onClick={() => setMyName('night')} className="text-[10px] bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50"><UserIcon size={10}/> نام من</button>
                                 </div>
                                 <div className="flex gap-2">
                                     <input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.nightGuard?.name} onChange={e => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, name: e.target.value}})} onKeyDown={handleKeyDown}/>
