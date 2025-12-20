@@ -42,8 +42,14 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       const element = document.getElementById(embed ? `print-permit-${permit.id}` : "print-area-exit");
       if (!element) { setSharing(false); return; }
       try {
+          // CRITICAL FIX: Set fixed windowWidth and width to ensure mobile capture looks like desktop
           // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          const canvas = await window.html2canvas(element, { 
+              scale: 2, 
+              backgroundColor: '#ffffff', 
+              useCORS: true,
+              windowWidth: 1200 // Simulates desktop width for uniform layout
+          });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
           let caption = `🚛 *مجوز خروج کالا*\n🔢 شماره: ${permit.permitNumber}\n📅 تاریخ: ${formatDate(permit.date)}\n👤 گیرنده: ${permit.recipientName}\n📦 اقلام: ${permit.goodsName}`;
           if(permit.exitTime) caption += `\n🕒 ساعت خروج: ${permit.exitTime}`;

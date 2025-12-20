@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
-// Added deleteSecurityLog, deletePersonnelDelay, deleteSecurityIncident to imports
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, getShamsiDateFromIso } from '../constants';
 import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil } from 'lucide-react';
@@ -124,7 +124,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     // --- PERMISSION LOGIC ---
     const canEdit = (item: any) => {
         if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-        if (item.status === SecurityStatus.ARCHIVED) return false;
+        // Archived items normally not editable, but for Admin/CEO we might want to allow fixing errors
+        if (item.status === SecurityStatus.ARCHIVED) return currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO;
         if (item.status === SecurityStatus.REJECTED) return item.registrant === currentUser.fullName;
         if (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD) {
             return item.status === SecurityStatus.PENDING_SUPERVISOR;
@@ -180,8 +181,9 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     // --- DATA FILTERING ---
-    const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()) && l.status !== SecurityStatus.ARCHIVED);
-    const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()) && d.status !== SecurityStatus.ARCHIVED);
+    // Logica updated: If we are specifically looking at a date from archive, show ALL items including archived ones.
+    const dailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()));
+    const dailyDelays = delays.filter(d => d.date.startsWith(getIsoSelectedDate()));
     
     const getCartableItems = () => {
         const role = currentUser.role;
@@ -254,7 +256,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
-        setActiveTab(category === 'log' ? 'logs' : category === 'delay' ? 'delays' : 'logs');
+        setActiveTab(category === 'log' ? 'logs' : 'delays');
         setViewCartableItem(null);
     };
 
@@ -445,7 +447,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // Added handleSaveShiftMeta to fix "Cannot find name 'handleSaveShiftMeta'" error
     const handleSaveShiftMeta = async () => {
         if (!settings) return;
         const isoDate = getIsoSelectedDate();
@@ -462,7 +463,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         alert("اطلاعات شیفت ذخیره شد.");
     };
 
-    // Added handleDeleteItem to fix "Cannot find name 'handleDeleteItem'" error
     const handleDeleteItem = async (id: string, type: 'log' | 'delay' | 'incident') => {
         if (!confirm('آیا از حذف این مورد اطمینان دارید؟')) return;
         try {
@@ -481,7 +481,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         if (!element) { setIsGeneratingPdf(false); return; }
         try {
             // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 1200 });
+            const canvas = await window.html2canvas(element, { 
+                scale: 2, 
+                backgroundColor: '#ffffff', 
+                useCORS: true, 
+                windowWidth: 1200 
+            });
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;
@@ -545,13 +550,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 {activeTab === 'logs' && (
                     <>
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:dailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
-                        <div className="overflow-x-auto"><table className="w-full text-xs text-center border-collapse"><thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead><tbody className="divide-y">{dailyLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : dailyLogs.map((log, idx) => (<tr key={log.id} className="hover:bg-blue-50"><td className="p-3 border-l">{idx + 1}</td><td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td><td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td><td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td><td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td><td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td><td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100'}`}>{log.status}</span></td><td className="p-3 flex justify-center gap-2">{canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500"><Edit size={16}/></button>}{canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
+                        <div className="overflow-x-auto"><table className="w-full text-xs text-center border-collapse"><thead className="bg-gray-100 border-b-2"><tr><th className="p-3 border-l">ردیف</th><th className="p-3 border-l">مبدا / مقصد</th><th className="p-3 border-l">ورود</th><th className="p-3 border-l">خروج</th><th className="p-3 border-l">راننده</th><th className="p-3 border-l">کالا</th><th className="p-3 border-l">وضعیت</th><th className="p-3">عملیات</th></tr></thead><tbody className="divide-y">{dailyLogs.length === 0 ? <tr><td colSpan={8} className="p-8 text-gray-400">موردی نیست</td></tr> : dailyLogs.map((log, idx) => (<tr key={log.id} className={`hover:bg-blue-50 ${log.status === SecurityStatus.ARCHIVED ? 'opacity-70 grayscale-[0.5]' : ''}`}><td className="p-3 border-l">{idx + 1}</td><td className="p-3 border-l font-bold">{log.origin}/{log.destination}</td><td className="p-3 border-l dir-ltr font-mono">{log.entryTime}</td><td className="p-3 border-l dir-ltr font-mono">{log.exitTime}</td><td className="p-3 border-l"><div>{log.driverName}</div><div className="text-gray-500">{log.plateNumber}</div></td><td className="p-3 border-l"><div>{log.goodsName}</div><div className="text-gray-500">{log.quantity}</div></td><td className="p-3 border-l"><span className={`px-2 py-1 rounded text-[10px] ${log.status === SecurityStatus.APPROVED_FACTORY_CHECK ? 'bg-blue-100 text-blue-700' : log.status === SecurityStatus.ARCHIVED ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100'}`}>{log.status}</span></td><td className="p-3 flex justify-center gap-2">{canEdit(log) && <button onClick={() => handleEditItem(log, 'log')} className="text-amber-500"><Edit size={16}/></button>}{canDelete(log) && <button onClick={() => handleDeleteItem(log.id, 'log')} className="text-red-500"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
                     </>
                 )}
                 {activeTab === 'delays' && (
                     <>
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Clock size={18}/> تاخیر پرسنل</h3><div className="flex gap-2"><button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_delay', date:iso, delays:dailyDelays, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button><button onClick={() => setShowModal(true)} className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button></div></div>
-                        <div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-gray-100 border-b"><tr><th className="p-4">نام پرسنل</th><th className="p-4">واحد</th><th className="p-4">ساعت ورود</th><th className="p-4">تاخیر</th><th className="p-4">وضعیت</th><th className="p-4">عملیات</th></tr></thead><tbody className="divide-y">{dailyDelays.map(d => (<tr key={d.id} className="hover:bg-gray-50"><td className="p-4 font-bold">{d.personnelName}</td><td className="p-4">{d.unit}</td><td className="p-4 font-mono">{d.arrivalTime}</td><td className="p-4 text-red-600 font-bold">{d.delayAmount}</td><td className="p-4 text-xs">{d.status}</td><td className="p-4 flex gap-2 justify-center">{canEdit(d) && <button onClick={() => handleEditItem(d, 'delay')} className="text-amber-500"><Edit size={16}/></button>}{canDelete(d) && <button onClick={() => handleDeleteItem(d.id, 'delay')} className="text-red-500"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
+                        <div className="overflow-x-auto"><table className="w-full text-sm text-right"><thead className="bg-gray-100 border-b"><tr><th className="p-4">نام پرسنل</th><th className="p-4">واحد</th><th className="p-4">ساعت ورود</th><th className="p-4">تاخیر</th><th className="p-4">وضعیت</th><th className="p-4">عملیات</th></tr></thead><tbody className="divide-y">{dailyDelays.map(d => (<tr key={d.id} className={`hover:bg-gray-50 ${d.status === SecurityStatus.ARCHIVED ? 'opacity-70 grayscale-[0.5]' : ''}`}><td className="p-4 font-bold">{d.personnelName}</td><td className="p-4">{d.unit}</td><td className="p-4 font-mono">{d.arrivalTime}</td><td className="p-4 text-red-600 font-bold">{d.delayAmount}</td><td className="p-4 text-xs">{d.status}</td><td className="p-4 flex gap-2 justify-center">{canEdit(d) && <button onClick={() => handleEditItem(d, 'delay')} className="text-amber-500"><Edit size={16}/></button>}{canDelete(d) && <button onClick={() => handleDeleteItem(d.id, 'delay')} className="text-red-500"><Trash2 size={16}/></button>}</td></tr>))}</tbody></table></div>
                     </>
                 )}
                 {activeTab === 'incidents' && (
