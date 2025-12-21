@@ -28,7 +28,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
 
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
-  const [deletedPermitForAutoSend, setDeletedPermitForAutoSend] = useState<ExitPermit | null>(null);
   
   const permissions = getRolePermissions(currentUser.role, settings || null);
 
@@ -57,6 +56,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       let nextStatus = currentStatus;
       let extra: any = {};
 
+      // Determine Next Status
       if (currentStatus === ExitPermitStatus.PENDING_CEO) nextStatus = ExitPermitStatus.PENDING_FACTORY;
       else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_SECURITY;
       else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
@@ -71,10 +71,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if(window.confirm('آیا تایید می‌کنید؟')) {
           setIsProcessingId(id);
           try {
+              // 1. Update Database
               await updateExitPermitStatus(id, nextStatus, currentUser, extra);
               
+              // 2. Prepare Mock Object for Printing (Immediate UI Feedback)
               const updatedPermitMock = { ...permitToApprove, status: nextStatus, ...extra };
-              if (nextStatus === ExitPermitStatus.PENDING_FACTORY) updatedPermitMock.approverCeo = currentUser.fullName;
+              
+              // Fill approver names based on transition
+              if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
+                  updatedPermitMock.approverCeo = currentUser.fullName;
+              }
               if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = currentUser.fullName;
@@ -82,64 +88,80 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               if (nextStatus === ExitPermitStatus.EXITED) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
-                  updatedPermitMock.approverSecurity = currentUser.fullName; 
+                  updatedPermitMock.approverSecurity = currentUser.fullName;
+                  updatedPermitMock.exitTime = extra.exitTime; // Critical for print
               }
 
+              // 3. Trigger Render for Screenshot
               setPermitForAutoSend(updatedPermitMock);
 
-              // Capture and Send
+              // 4. Wait for Render & Send Notification
               setTimeout(async () => {
                   const element = document.getElementById(`print-permit-${updatedPermitMock.id}`);
                   if (element) {
                       try {
                           // @ts-ignore
-                          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                          const canvas = await window.html2canvas(element, { 
+                              scale: 2, 
+                              backgroundColor: '#ffffff',
+                              windowWidth: 1200 // Ensure desktop layout for clarity
+                          });
                           const base64 = canvas.toDataURL('image/png').split(',')[1];
                           const users = await getUsers();
 
+                          // LOGIC FOR SENDING MESSAGES (Mutually Exclusive)
                           if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
+                              // Send to Factory Manager
                               const caption = `✍️ *تایید مدیرعامل انجام شد*\n🔹 شماره مجوز: ${updatedPermitMock.permitNumber}\n📦 کالا: ${updatedPermitMock.goodsName}\n\nمنتظر تایید مدیر کارخانه جهت خروج.`;
                               const target = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
-                              if (target) await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                          } 
-                          else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
+                              if (target?.phoneNumber) await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                          
+                          } else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
+                              // Send to Security Group/Head
                               const caption = `🏭 *تایید مدیر کارخانه انجام شد*\n🔹 شماره مجوز: ${updatedPermitMock.permitNumber}\n\nارسال به انتظامات جهت ثبت ساعت و خروج نهایی بار.`;
                               const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
-                              for (const sec of securityUsers) {
-                                await apiCall('/send-whatsapp', 'POST', { number: sec.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                              // Send to unique numbers to avoid spam if multiple roles exist
+                              const uniqueNumbers = [...new Set(securityUsers.map(u => u.phoneNumber))];
+                              for (const num of uniqueNumbers) {
+                                  if(num) await apiCall('/send-whatsapp', 'POST', { number: num, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
                               }
-                          }
-                          else if (nextStatus === ExitPermitStatus.EXITED) {
-                              // FULL CAPTION FOR FINAL EXIT
+
+                          } else if (nextStatus === ExitPermitStatus.EXITED) {
+                              // FINAL EXIT - GUARANTEED GROUP SEND
                               let caption = `✅ *خروج نهایی بار از کارخانه ثبت شد*\n`;
                               caption += `🔹 شماره مجوز: ${updatedPermitMock.permitNumber}\n`;
                               caption += `📅 تاریخ: ${formatDate(updatedPermitMock.date)}\n`;
                               caption += `📦 کالا: ${updatedPermitMock.goodsName}\n`;
                               caption += `🔢 تعداد: ${updatedPermitMock.cartonCount || 0} کارتن\n`;
-                              caption += `⚖️ وزن: ${updatedPermitMock.weight || 0} کیلوگرم\n`;
                               caption += `👤 گیرنده: ${updatedPermitMock.recipientName}\n`;
                               caption += `🚛 راننده: ${updatedPermitMock.driverName || '-'}\n`;
-                              caption += `🔢 پلاک: ${updatedPermitMock.plateNumber || '-'}\n`;
                               caption += `🕒 ساعت خروج: ${extra.exitTime}\n`;
-                              caption += `✍️ تایید نهایی انتظامات: ${currentUser.fullName}`;
+                              caption += `✍️ تایید نهایی: ${currentUser.fullName}`;
 
-                              const target = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
-                              if (target) await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                              // 1. Send to Requester
+                              const requesterUser = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
+                              if (requesterUser?.phoneNumber) {
+                                  await apiCall('/send-whatsapp', 'POST', { number: requesterUser.phoneNumber, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                              }
                               
-                              // Send to Notification Group if configured
+                              // 2. GUARANTEED Send to Notification Group (Warehouse/Logistics Group)
                               if (settings?.exitPermitNotificationGroup) {
+                                  console.log("Sending final exit report to group:", settings.exitPermitNotificationGroup);
                                   await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
                               }
                           }
-                      } catch (e) { console.error(e); }
+                      } catch (e) { console.error("Notification Error:", e); }
                   }
+                  
+                  // Cleanup
                   setPermitForAutoSend(null);
                   setExitTimeValue('');
                   setShowExitTimeInput(null);
                   setIsProcessingId(null);
                   loadData();
                   setViewPermit(null);
-              }, 2000); 
+                  alert("عملیات با موفقیت انجام شد.");
+              }, 2500); // Increased delay to ensure rendering matches state
           } catch (e) {
               alert("خطا در تایید");
               setIsProcessingId(null);
