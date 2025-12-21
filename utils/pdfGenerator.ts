@@ -45,24 +45,24 @@ export const generatePdf = async ({
             backgroundColor: '#ffffff',
             useCORS: true,
             logging: false,
-            // Force full scroll width/height to be captured
-            windowWidth: element.scrollWidth + 100,
-            windowHeight: element.scrollHeight + 100,
-            x: 0,
-            y: 0,
-            width: element.offsetWidth,
-            height: element.offsetHeight,
+            scrollX: 0,
+            scrollY: 0,
+            // Ensure we capture desktop-like width even on mobile
+            windowWidth: 1920,
             onclone: (clonedDoc) => {
                 const el = clonedDoc.getElementById(elementId);
                 if (el) {
-                    // Reset any transforms or margins that might shift content
-                    el.style.transform = 'none';
+                    // CRITICAL FIX: Reset positioning to ensure capture starts from 0,0 without margins
                     el.style.margin = '0';
-                    el.style.padding = '0'; // We handle padding via PDF positioning
-                    el.style.width = '100%';
+                    el.style.transform = 'none';
+                    el.style.position = 'static'; // Prevent absolute positioning issues
+                    el.style.boxShadow = 'none'; // Remove shadows in PDF
+                    // Force element to fit content width/height to avoid clipping
+                    el.style.width = 'fit-content';
                     el.style.height = 'auto';
-                    el.style.overflow = 'visible';
+                    el.style.minHeight = 'fit-content';
                     el.style.maxHeight = 'none';
+                    el.style.overflow = 'visible';
                 }
             }
         });
@@ -93,7 +93,7 @@ export const generatePdf = async ({
             finalWidth = pdfWidth;
             finalHeight = finalWidth / imgRatio;
         } else {
-            // If image is taller, fit by height (unless it's very long, then we might want multipage - but for now single page fit)
+            // If image is taller, fit by height
             finalHeight = pdfHeight;
             finalWidth = finalHeight * imgRatio;
         }

@@ -10,16 +10,13 @@ interface Props {
 }
 
 const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
-    // Fill empty rows for main table (Approx 12 rows for A4 Portrait)
     const displayDelays = [...delays];
     while(displayDelays.length < 12) displayDelays.push({} as any);
 
-    // Repeat Delay Table (Approx 3 rows)
     const repeatDelays = delays.filter(d => d.repeatCount && d.repeatCount !== '0');
     const displayRepeat = [...repeatDelays];
     while(displayRepeat.length < 3) displayRepeat.push({} as any);
 
-    // Extract Names if approved
     const supervisorName = delays.find(d => d.approverSupervisor)?.approverSupervisor;
     const factoryName = delays.find(d => d.approverFactory)?.approverFactory;
     const ceoName = delays.find(d => d.approverCeo)?.approverCeo;
@@ -45,27 +42,26 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
             id="print-delay-form"
             className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                width: '210mm', // A4 Portrait Fixed Width
-                height: '297mm', 
+                width: '210mm', 
+                minHeight: '297mm', // Changed from height to minHeight
+                height: 'fit-content', // Allow expansion
                 direction: 'rtl',
-                margin: '0 auto', // Center explicitly
+                margin: '0 auto', 
                 boxSizing: 'border-box',
                 padding: '0',
-                textAlign: 'center' // Ensure content centers
+                textAlign: 'center'
             }}
         >
-            <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column', margin: '5px' }}>
+            <div style={{ border: '2px solid black', display: 'flex', flexDirection: 'column', margin: '5px', minHeight: '290mm' }}>
                 
                 {/* 1. HEADER SECTION */}
                 <div style={{ display: 'flex', height: '100px', borderBottom: '2px solid black' }}>
-                    {/* Right: Meta */}
                     <div style={{ width: '150px', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'white', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>شماره:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>تاریخ:</span><span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '14px' }}>{formatDate(date)}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>پیوست:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
                     </div>
                     
-                    {/* Center: Title */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
                         <h1 style={{ fontSize: '22px', fontWeight: '900', marginBottom: '8px', letterSpacing: '1px' }}>گروه تولیدی</h1>
                         <div style={{ border: '2px solid black', backgroundColor: 'white', padding: '5px 20px', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
@@ -73,7 +69,6 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                         </div>
                     </div>
 
-                    {/* Left: Logo */}
                     <div style={{ width: '150px', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', backgroundColor: 'white' }}>
                         <div style={{ border: '1px dashed #9ca3af', width: '100%', height: '100%', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontWeight: 'bold', fontSize: '14px' }}>
                             محل درج لوگو
@@ -85,11 +80,11 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '12px', tableLayout: 'fixed' }}>
                         <colgroup>
-                            <col style={{ width: '40px' }} /> {/* Row */}
-                            <col /> {/* Name */}
-                            <col style={{ width: '120px' }} /> {/* Unit */}
-                            <col style={{ width: '80px' }} /> {/* Arrival */}
-                            <col style={{ width: '80px' }} /> {/* Delay */}
+                            <col style={{ width: '40px' }} />
+                            <col />
+                            <col style={{ width: '120px' }} />
+                            <col style={{ width: '80px' }} />
+                            <col style={{ width: '80px' }} />
                         </colgroup>
                         <thead>
                             <tr style={{ backgroundColor: '#e5e7eb', height: '40px' }}>
@@ -152,7 +147,6 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
 
                 {/* 4. FOOTER SIGNATURES */}
                 <div style={{ height: '110px', borderTop: '2px solid black', display: 'flex', fontSize: '11px' }}>
-                    {/* Guard Signature */}
                     <div style={{ width: '25%', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ fontWeight: 'bold', borderBottom: '1px solid #9ca3af', width: '100%', textAlign: 'center', paddingBottom: '2px' }}>امضا نگهبان شیفت</div>
                         <div style={{ fontWeight: 'bold', color: '#374151', textAlign: 'center', fontSize: '12px', height: '30px', display: 'flex', alignItems: 'center' }}>
@@ -161,19 +155,16 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                         <div style={{ fontSize: '10px', color: '#9ca3af' }}>محل امضا</div>
                     </div>
 
-                    {/* Supervisor Signature */}
                     <div style={{ width: '25%', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(254, 252, 232, 0.3)' }}>
                         <div style={{ fontWeight: 'bold', borderBottom: '1px solid #9ca3af', width: '100%', textAlign: 'center', paddingBottom: '2px' }}>سرپرست انتظامات</div>
                         {supervisorName ? <Stamp title="تایید شد" name={supervisorName} color="blue" /> : <div style={{ color: '#d1d5db', fontSize: '10px', marginTop: '10px' }}>(امضاء)</div>}
                     </div>
 
-                    {/* Factory Manager Signature */}
                     <div style={{ width: '25%', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(239, 246, 255, 0.3)' }}>
                         <div style={{ fontWeight: 'bold', borderBottom: '1px solid #9ca3af', width: '100%', textAlign: 'center', paddingBottom: '2px' }}>مدیر کارخانه</div>
                         {factoryName ? <Stamp title="تایید نهایی" name={factoryName} color="green" /> : <div style={{ color: '#d1d5db', fontSize: '10px', marginTop: '10px' }}>(امضاء)</div>}
                     </div>
 
-                    {/* CEO Signature */}
                     <div style={{ width: '25%', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(250, 245, 255, 0.3)' }}>
                         <div style={{ fontWeight: 'bold', borderBottom: '1px solid #9ca3af', width: '100%', textAlign: 'center', paddingBottom: '2px' }}>مدیریت عامل</div>
                         {ceoName ? <Stamp title="ملاحظه شد" name={ceoName} color="purple" /> : <div style={{ color: '#d1d5db', fontSize: '10px', marginTop: '10px' }}>(امضاء)</div>}

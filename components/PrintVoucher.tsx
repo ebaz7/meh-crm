@@ -50,7 +50,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       }, 500);
   };
 
-  // Replaced with new Utility
   const handleDownloadPDF = async () => {
       setProcessing(true);
       await generatePdf({
@@ -64,7 +63,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   };
 
   const handleSendToWhatsApp = async (targetNumber: string) => {
-      // ... (existing logic for WA) ...
       if (!targetNumber) return;
       setSharing(true);
       const element = document.getElementById(printAreaId);
@@ -88,16 +86,15 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     c.number.includes(contactSearch)
   ) || [];
 
-  // ... (content logic remains the same, ensuring printAreaId is used on the main wrapper) ...
   const content = (
       <div 
         id={printAreaId} 
-        className="printable-content bg-white mx-auto shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
+        className="printable-content bg-white shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
             width: '209mm', 
             height: '147mm', 
-            margin: '0 auto', // Center explicitly
+            // Removed 'margin: 0 auto' from here to avoid capture offsets
             padding: '8mm', 
             boxSizing: 'border-box'
         }}
@@ -149,11 +146,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-[210] no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
-             {/* ... (Controls) ... */}
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
              {(onApprove || onReject || onEdit) && (<div className="flex gap-2 pb-3 border-b border-gray-100">{onApprove && <button onClick={onApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><CheckCircle size={18} /> تایید</button>}{onReject && <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><XCircle size={18} /> رد</button>}{onEdit && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}</div>)}
              <div className="grid grid-cols-3 gap-2 relative">
-                 {/* Removed separate Image button, combined functionality implies clean PDF output */}
                  <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} دانلود PDF</button>
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
@@ -182,7 +177,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
              </div>
          </div>
       </div>
-      <div className="order-2 w-full flex justify-center pb-10 overflow-auto">{content}</div>
+      {/* Centering Wrapper for UI - NOT captured in PDF */}
+      <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
+          {content}
+      </div>
     </div>
   );
 };
