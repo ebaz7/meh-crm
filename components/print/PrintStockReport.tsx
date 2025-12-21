@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, Printer, FileDown, Loader2 } from 'lucide-react';
-import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
+import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface PrintStockReportProps {
   data: any[];
@@ -11,17 +11,14 @@ interface PrintStockReportProps {
 const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) => {
   const [processing, setProcessing] = useState(false);
 
+  // Helper to ensure at least some columns exist if data is empty
+  const reportData = data && data.length > 0 ? data : [];
+
   useEffect(() => {
-    // Set page size to A4 Landscape
     const style = document.getElementById('page-size-style');
     if (style) {
       style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
     }
-    
-    // Trigger print
-    // setTimeout(() => {
-    //     window.print();
-    // }, 800);
   }, []);
 
   const handleDownloadPDF = async () => {
@@ -61,49 +58,73 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       <div className="order-2 w-full overflow-auto flex justify-center">
           <div id="stock-report-content" className="printable-content bg-white shadow-2xl relative text-black" 
             style={{ 
-                // A4 Landscape: 297mm x 210mm
-                width: '297mm', 
-                minHeight: '210mm', 
+                width: '290mm', // Slightly less than 297mm to fit perfectly
+                minHeight: '200mm', 
                 direction: 'rtl',
                 padding: '5mm', 
                 boxSizing: 'border-box',
                 margin: '0 auto'
             }}>
                 {/* Header */}
-                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '1px solid black', padding: '4px', marginBottom: '8px', fontWeight: '900', fontSize: '18px' }}>موجودی کلی انبارها</div>
+                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '2px solid black', padding: '8px', marginBottom: '10px', fontWeight: '900', fontSize: '20px' }}>موجودی کلی انبارها</div>
                 
-                {/* Grid Layout using Flexbox for precise column control in print */}
-                <div style={{ display: 'flex', border: '1px solid black', borderLeft: 'none' }}>
-                    {data.map((group, index) => {
-                        const headerColor = index === 0 ? '#d8b4fe' : index === 1 ? '#fdba74' : '#93c5fd';
-                        return (
-                            <div key={group.company} style={{ flex: 1, borderLeft: '1px solid black', fontSize: '10px' }}>
-                                <div style={{ backgroundColor: headerColor, color: 'black', fontWeight: 'bold', padding: '4px', textAlign: 'center', borderBottom: '1px solid black', fontSize: '12px' }}>{group.company}</div>
-                                <div style={{ display: 'flex', backgroundColor: '#f3f4f6', fontWeight: 'bold', borderBottom: '1px solid black', textAlign: 'center' }}>
-                                    <div style={{ flex: 1.5, padding: '2px', borderLeft: '1px solid black' }}>نخ</div>
-                                    <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black' }}>کارتن</div>
-                                    <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black' }}>وزن</div>
-                                    <div style={{ flex: 1, padding: '2px' }}>کانتینر</div>
-                                </div>
-                                <div>
-                                    {group.items.map((item: any, i: number) => (
-                                        <div key={i} style={{ display: 'flex', borderBottom: '1px solid #9ca3af', textAlign: 'center', lineHeight: '1.2' }}>
-                                            <div style={{ flex: 1.5, padding: '2px', borderLeft: '1px solid black', fontWeight: 'bold', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden' }}>{item.name}</div>
-                                            <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black', fontFamily: 'monospace' }}>{item.quantity}</div>
-                                            <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black', fontFamily: 'monospace' }}>{item.weight > 0 ? item.weight : 0}</div>
-                                            <div style={{ flex: 1, padding: '2px', fontFamily: 'monospace', color: '#6b7280' }}>
-                                                {item.containerCount > 0 ? item.containerCount.toFixed(2) : '-'}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {group.items.length === 0 && <div style={{ padding: '8px', textAlign: 'center', color: '#9ca3af' }}>-</div>}
-                                </div>
-                            </div>
-                        );
-                    })}
+                {/* 
+                   Using a pure HTML Table structure instead of CSS Grid/Flexbox.
+                   Tables render much more reliably in html2canvas for columnar data.
+                */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black', tableLayout: 'fixed' }}>
+                    <thead>
+                        <tr>
+                            {reportData.map((group, index) => {
+                                const headerColor = index === 0 ? '#d8b4fe' : index === 1 ? '#fdba74' : '#93c5fd';
+                                return (
+                                    <th key={group.company} style={{ borderLeft: '2px solid black', verticalAlign: 'top', padding: 0 }}>
+                                        {/* Company Header */}
+                                        <div style={{ backgroundColor: headerColor, color: 'black', padding: '8px', borderBottom: '2px solid black', fontSize: '14px', fontWeight: '900' }}>{group.company}</div>
+                                        {/* Sub Header Table */}
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                            <thead>
+                                                <tr style={{ backgroundColor: '#f3f4f6' }}>
+                                                    <th style={{ width: '40%', borderLeft: '1px solid black', borderBottom: '1px solid black', padding: '4px' }}>نخ / کالا</th>
+                                                    <th style={{ width: '20%', borderLeft: '1px solid black', borderBottom: '1px solid black', padding: '4px' }}>کارتن</th>
+                                                    <th style={{ width: '20%', borderLeft: '1px solid black', borderBottom: '1px solid black', padding: '4px' }}>وزن</th>
+                                                    <th style={{ width: '20%', borderBottom: '1px solid black', padding: '4px' }}>کانتینر</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            {reportData.map((group, index) => (
+                                <td key={group.company} style={{ borderLeft: '2px solid black', verticalAlign: 'top', padding: 0 }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                        <tbody>
+                                            {group.items.map((item: any, i: number) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid #d1d5db' }}>
+                                                    <td style={{ width: '40%', borderLeft: '1px solid black', padding: '4px', textAlign: 'right', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap' }}>{item.name}</td>
+                                                    <td style={{ width: '20%', borderLeft: '1px solid black', padding: '4px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{item.quantity}</td>
+                                                    <td style={{ width: '20%', borderLeft: '1px solid black', padding: '4px', textAlign: 'center', fontFamily: 'monospace' }}>{item.weight > 0 ? item.weight : 0}</td>
+                                                    <td style={{ width: '20%', padding: '4px', textAlign: 'center', fontFamily: 'monospace', color: '#6b7280' }}>
+                                                        {item.containerCount > 0 ? item.containerCount.toFixed(2) : '-'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {group.items.length === 0 && <tr><td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#9ca3af' }}>موجودی صفر</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </td>
+                            ))}
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '2px solid black', borderTop: 'none', padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>
+                    گزارش سیستم مدیریت انبار - تاریخ چاپ: {new Date().toLocaleDateString('fa-IR')}
                 </div>
-                
-                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '1px solid black', padding: '2px', marginTop: '4px', fontWeight: 'bold', fontSize: '10px' }}>گزارش سیستم مدیریت انبار - تاریخ چاپ: {new Date().toLocaleDateString('fa-IR')}</div>
           </div>
       </div>
     </div>

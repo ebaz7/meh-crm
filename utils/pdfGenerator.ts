@@ -30,7 +30,8 @@ export const generatePdf = async ({
     }
 
     try {
-        // 1. Define dimensions in MM
+        // 1. Define exact paper dimensions in MM
+        // A4: 210 x 297, A5: 148 x 210
         const widthMm = format === 'a4' ? 210 : 148;
         const heightMm = format === 'a4' ? 297 : 210;
         
@@ -39,51 +40,61 @@ export const generatePdf = async ({
         const pdfPageHeight = orientation === 'landscape' ? widthMm : heightMm;
 
         // 2. Create Sandbox
+        // We make the sandbox essentially a "viewport" of the exact paper size
         const sandbox = document.createElement('div');
         sandbox.style.position = 'fixed';
         sandbox.style.top = '-10000px';
         sandbox.style.left = '-10000px';
-        // Set sandbox width exactly to page width (minus a small buffer to prevent overflow)
         sandbox.style.width = `${pdfPageWidth}mm`; 
         sandbox.style.minHeight = `${pdfPageHeight}mm`;
         sandbox.style.backgroundColor = '#ffffff';
         sandbox.style.zIndex = '-1';
-        // Force font and direction on sandbox to ensure text renders correctly
+        
+        // CRITICAL: Force Flexbox centering inside the sandbox
+        // This ensures whatever we clone into it sits perfectly in the middle horizontally
+        sandbox.style.display = 'flex';
+        sandbox.style.flexDirection = 'column';
+        sandbox.style.alignItems = 'center'; // Center horizontally
+        sandbox.style.justifyContent = 'flex-start'; // Align top
+        
+        // Force font and direction
         sandbox.style.fontFamily = "'Vazirmatn', sans-serif";
         sandbox.style.direction = 'rtl';
-        sandbox.style.textAlign = 'right';
+        
         document.body.appendChild(sandbox);
 
         // 3. Clone Element
         const clonedElement = originalElement.cloneNode(true) as HTMLElement;
         
-        // 4. Reset Styles on Clone to Ensure it fits perfectly
-        clonedElement.style.margin = '0 auto'; // Center horizontally
+        // 4. Clean up the clone styles to ensure it behaves well in the sandbox
+        // Reset margins that might push it off-center
+        clonedElement.style.margin = '0'; 
+        clonedElement.style.marginTop = '5mm'; // Small top margin for aesthetics
         clonedElement.style.padding = '0';
-        clonedElement.style.width = '100%'; 
+        // Force the element to respect the page width (minus a safe margin)
+        clonedElement.style.width = `${pdfPageWidth - 10}mm`; 
         clonedElement.style.maxWidth = '100%';
-        clonedElement.style.height = 'auto';
         clonedElement.style.boxShadow = 'none';
         clonedElement.style.border = 'none';
         clonedElement.style.transform = 'none';
         
-        // Remove Classes that might conflict
-        clonedElement.classList.remove('fixed', 'absolute', 'shadow-2xl', 'mx-auto');
+        // Remove classes that might interfere
+        clonedElement.classList.remove('fixed', 'absolute', 'shadow-2xl', 'mx-auto', 'my-auto');
         
         sandbox.appendChild(clonedElement);
 
         // 5. Capture
         const canvas = await html2canvas(sandbox, {
-            scale: 3, // Higher scale for sharper text
+            scale: 2.5, // Good balance between quality and file size
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            windowWidth: 1920 // Simulate desktop width for layout
+            windowWidth: 1920 // Simulate desktop to prevent mobile layout shifts
         });
 
         document.body.removeChild(sandbox);
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95); // JPEG is faster/smaller than PNG
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
         // 6. Create PDF
         // @ts-ignore
@@ -93,20 +104,12 @@ export const generatePdf = async ({
             format: format
         });
 
-        // 7. Add Image with Margins (Safe Area)
-        const margin = 5; // 5mm margin
-        const printWidth = pdfPageWidth - (margin * 2);
-        
-        const imgProps = pdf.getImageProperties(imgData);
-        const imgRatio = imgProps.width / imgProps.height;
-        const printHeight = printWidth / imgRatio;
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // Centering Vertically if content is small, otherwise top aligned with margin
-        let yPos = margin;
-        // If content fits within one page height with margins, we can center vertically optionally
-        // But usually top-aligned is safer for reports. 
-        
-        pdf.addImage(imgData, 'JPEG', margin, yPos, printWidth, printHeight);
+        // 7. Add Image
+        // Since we sized the sandbox exactly to the page, we can fit the image exactly
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         
         const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
         pdf.save(safeFilename);

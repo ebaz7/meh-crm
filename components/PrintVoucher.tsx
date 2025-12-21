@@ -22,7 +22,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [showContactSelect, setShowContactSelect] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
 
-  // Native Print Style
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
@@ -42,8 +41,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handlePrint = () => { 
       setProcessing(true);
-      const style = document.getElementById('page-size-style');
-      if (style) style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
       setTimeout(() => {
           window.print(); 
           setProcessing(false);
@@ -94,9 +91,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             direction: 'rtl',
             width: '100%', 
             height: '100%',
-            padding: '10mm', 
+            padding: '8mm', 
             boxSizing: 'border-box',
-            margin: '0 auto' // Ensure centering in container
+            margin: '0 auto' 
         }}
       >
         {/* ... (Existing Content Structure) ... */}
