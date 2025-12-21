@@ -22,54 +22,67 @@ export const generatePdf = async ({
     onComplete,
     onError
 }: PdfOptions) => {
-    const element = document.getElementById(elementId);
+    const originalElement = document.getElementById(elementId);
     
-    if (!element) {
+    if (!originalElement) {
         console.error(`Element with ID '${elementId}' not found.`);
         if (onError) onError(new Error('Element not found'));
         return;
     }
 
     try {
-        // Define page size in mm
-        const pageWidth = format === 'a4' ? 210 : 148;
-        const pageHeight = format === 'a4' ? 297 : 210;
+        // 1. Create a deep clone of the element to manipulate for printing without affecting the UI
+        const clone = originalElement.cloneNode(true) as HTMLElement;
         
-        // Swap for landscape
-        const finalPageWidth = orientation === 'landscape' ? pageHeight : pageWidth;
-        const finalPageHeight = orientation === 'landscape' ? pageWidth : pageHeight;
+        // 2. Set up a hidden container for the clone to "expand" fully
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.top = '-9999px';
+        container.style.left = '-9999px';
+        container.style.zIndex = '-1';
+        container.style.overflow = 'visible'; // Allow content to overflow nicely
+        
+        // Force the clone to expand to its full scroll dimensions
+        // We set width explicitly to match the intended PDF width roughly, or let it fit content
+        // For reports like Currency/Stock, we want it to fit content width if it's wide
+        const isLandscape = orientation === 'landscape';
+        const targetWidth = isLandscape ? '297mm' : '210mm';
+        
+        clone.style.width = targetWidth; 
+        clone.style.height = 'auto';
+        clone.style.overflow = 'visible';
+        clone.style.maxHeight = 'none';
+        clone.style.margin = '0';
+        clone.style.transform = 'none';
+        
+        // Remove scrollbars from clone's children if any
+        const scrollables = clone.querySelectorAll('*');
+        scrollables.forEach((el: any) => {
+            el.style.overflow = 'visible';
+            el.style.maxHeight = 'none';
+        });
 
-        // 1. Capture the element
-        const canvas = await html2canvas(element, {
-            scale: 2, // High resolution
-            backgroundColor: '#ffffff',
+        container.appendChild(clone);
+        document.body.appendChild(container);
+
+        // 3. Capture the expanded clone
+        const canvas = await html2canvas(clone, {
+            scale: 2, // Quality
             useCORS: true,
             logging: false,
-            // Force full scroll width/height to be captured
-            windowWidth: element.scrollWidth + 100,
-            windowHeight: element.scrollHeight + 100,
-            x: 0,
-            y: 0,
-            width: element.offsetWidth,
-            height: element.offsetHeight,
-            onclone: (clonedDoc) => {
-                const el = clonedDoc.getElementById(elementId);
-                if (el) {
-                    // Reset any transforms or margins that might shift content
-                    el.style.transform = 'none';
-                    el.style.margin = '0';
-                    el.style.padding = '0'; // We handle padding via PDF positioning
-                    el.style.width = '100%';
-                    el.style.height = 'auto';
-                    el.style.overflow = 'visible';
-                    el.style.maxHeight = 'none';
-                }
-            }
+            backgroundColor: '#ffffff',
+            width: clone.scrollWidth, // Capture full width
+            height: clone.scrollHeight, // Capture full height
+            windowWidth: clone.scrollWidth,
+            windowHeight: clone.scrollHeight
         });
+
+        // 4. Remove the temp container
+        document.body.removeChild(container);
 
         const imgData = canvas.toDataURL('image/png');
 
-        // 2. Initialize jsPDF
+        // 5. Initialize jsPDF
         // @ts-ignore
         const pdf = new jsPDF({
             orientation: orientation === 'portrait' ? 'p' : 'l',
@@ -80,7 +93,7 @@ export const generatePdf = async ({
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // 3. Calculate Dimensions to Fit
+        // 6. Calculate scaling to fit page
         const imgProps = pdf.getImageProperties(imgData);
         const imgRatio = imgProps.width / imgProps.height;
         const pageRatio = pdfWidth / pdfHeight;
@@ -88,22 +101,31 @@ export const generatePdf = async ({
         let finalWidth = pdfWidth;
         let finalHeight = pdfHeight;
 
-        // If image is wider relative to page, fit by width
+        // "Best Fit" Logic
         if (imgRatio > pageRatio) {
+            // Image is wider than page (relative to ratio) -> Fit by Width
             finalWidth = pdfWidth;
             finalHeight = finalWidth / imgRatio;
         } else {
-            // If image is taller, fit by height (unless it's very long, then we might want multipage - but for now single page fit)
-            finalHeight = pdfHeight;
-            finalWidth = finalHeight * imgRatio;
+            // Image is taller -> Fit by Height (or width if we want it to scroll across pages, but here we fit single page)
+            // Usually for reports we prefer fitting width even if it leaves whitespace at bottom
+            finalWidth = pdfWidth;
+            finalHeight = finalWidth / imgRatio;
+            
+            // If height exceeds page (super long report), shrink to fit height? 
+            // Better UX for long reports is usually Fit Width, even if it spans pages (multi-page).
+            // But for single page snapshot:
+            if (finalHeight > pdfHeight) {
+                 finalHeight = pdfHeight;
+                 finalWidth = finalHeight * imgRatio;
+            }
         }
 
-        // 4. Center the Image
+        // 7. Center the image on the PDF page
         const x = (pdfWidth - finalWidth) / 2;
-        const y = (pdfHeight - finalHeight) / 2;
+        const y = (pdfHeight - finalHeight) / 2; // Center vertically if short, top if long? Let's center.
 
-        // 5. Add Image
-        pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+        pdf.addImage(imgData, 'PNG', x, y < 0 ? 0 : y, finalWidth, finalHeight);
         
         const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
         pdf.save(safeFilename);
