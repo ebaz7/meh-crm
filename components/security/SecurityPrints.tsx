@@ -96,23 +96,23 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
                         </colgroup>
                         <thead>
                             <tr style={{ backgroundColor: '#e5e7eb', height: '35px' }}>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>ردیف</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مبدا</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '35px' }}>ردیف</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px' }}>مبدا</th>
                                 <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>ساعت</th>
                                 <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مشخصات خودرو / راننده</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مجوز دهنده</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px' }}>مجوز دهنده</th>
                                 <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مشخصات کالا</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مقصد</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>تحویل گیرنده</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>توضیحات</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px' }}>مقصد</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px' }}>تحویل گیرنده</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '130px' }}>توضیحات</th>
                             </tr>
                             <tr style={{ backgroundColor: '#e5e7eb', height: '30px' }}>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>ورود</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>خروج</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>نام راننده</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>پلاک</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px' }}>ورود</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px' }}>خروج</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px' }}>نام راننده</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '80px' }}>پلاک</th>
                                 <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>نام کالا</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>تعداد</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px' }}>تعداد</th>
                             </tr>
                         </thead>
                         <tbody>

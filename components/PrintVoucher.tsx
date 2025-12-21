@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate } from '../constants';
-import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search } from 'lucide-react';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; // Import utility
 
@@ -48,20 +48,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           window.print(); 
           setProcessing(false);
       }, 500);
-  };
-
-  const handleDownloadImage = async () => {
-      setProcessing(true);
-      const element = document.getElementById(printAreaId);
-      if (!element) { setProcessing(false); return; }
-      try {
-          // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
-          const link = document.createElement('a');
-          link.download = `Voucher_${order.trackingNumber}.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-      } catch (e) { console.error(e); alert('خطا در ذخیره تصویر'); } finally { setProcessing(false); }
   };
 
   // Replaced with new Utility
@@ -111,7 +97,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             direction: 'rtl',
             width: '209mm', 
             height: '147mm', 
-            margin: '0 auto',
+            margin: '0 auto', // Center explicitly
             padding: '8mm', 
             boxSizing: 'border-box'
         }}
@@ -166,9 +152,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
              {/* ... (Controls) ... */}
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
              {(onApprove || onReject || onEdit) && (<div className="flex gap-2 pb-3 border-b border-gray-100">{onApprove && <button onClick={onApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><CheckCircle size={18} /> تایید</button>}{onReject && <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><XCircle size={18} /> رد</button>}{onEdit && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}</div>)}
-             <div className="grid grid-cols-4 gap-2 relative">
-                 <button onClick={handleDownloadImage} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <ImageIcon size={14} />} عکس</button>
-                 <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} PDF</button>
+             <div className="grid grid-cols-3 gap-2 relative">
+                 {/* Removed separate Image button, combined functionality implies clean PDF output */}
+                 <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} دانلود PDF</button>
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  

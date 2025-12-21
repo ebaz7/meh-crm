@@ -48,17 +48,18 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 width: '210mm', // A4 Portrait Fixed Width
                 height: '297mm', 
                 direction: 'rtl',
-                margin: '0 auto', // Center the page horizontally
+                margin: '0 auto', // Center explicitly
                 boxSizing: 'border-box',
-                padding: '0'
+                padding: '0',
+                textAlign: 'center' // Ensure content centers
             }}
         >
             <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column', margin: '5px' }}>
                 
-                {/* 1. HEADER SECTION (MATCHING SECURITY LOG STYLE) */}
+                {/* 1. HEADER SECTION */}
                 <div style={{ display: 'flex', height: '100px', borderBottom: '2px solid black' }}>
                     {/* Right: Meta */}
-                    <div style={{ width: '150px', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'white' }}>
+                    <div style={{ width: '150px', borderLeft: '2px solid black', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'white', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>شماره:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>تاریخ:</span><span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '14px' }}>{formatDate(date)}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>پیوست:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>

@@ -302,8 +302,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
-                        width: '297mm', // A4 Landscape
-                        // minHeight: '210mm',
+                        width: '297mm', // A4 Landscape Fixed Width
+                        minHeight: '210mm',
                         margin: '0 auto',
                         boxSizing: 'border-box'
                     }}
