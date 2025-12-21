@@ -4,7 +4,7 @@ import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../typ
 import { formatCurrency, formatDate } from '../constants';
 import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search } from 'lucide-react';
 import { apiCall } from '../services/apiService';
-import { generatePdf } from '../utils/pdfGenerator'; // Import utility
+import { generatePdf } from '../utils/pdfGenerator'; 
 
 interface PrintVoucherProps {
   order: PaymentOrder;
@@ -22,7 +22,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [showContactSelect, setShowContactSelect] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
 
-  // We still use this style injection for direct printing (Ctrl+P)
+  // Native Print Style
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
@@ -69,7 +69,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       if (!element) { setSharing(false); return; }
       try {
           // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 1000 });
+          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
           await apiCall('/send-whatsapp', 'POST', {
               number: targetNumber,
@@ -89,13 +89,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const content = (
       <div 
         id={printAreaId} 
-        className="printable-content bg-white shadow-2xl rounded-sm relative text-gray-900 flex flex-col justify-between overflow-hidden" 
+        className="printable-content bg-white relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            width: '209mm', 
-            height: '147mm', 
-            // Removed 'margin: 0 auto' from here to avoid capture offsets
-            padding: '8mm', 
+            // Dimensions handled by PDF Generator's Sandbox or CSS @media print
+            width: '100%', 
+            height: '100%',
+            padding: '10mm', 
             boxSizing: 'border-box'
         }}
       >
@@ -140,7 +140,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
   );
 
-  if (embed) return <div id={embed ? `print-voucher-${order.id}` : undefined}>{content}</div>;
+  if (embed) return content;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
@@ -153,7 +153,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  
-                 {/* ... (Contact Select) ... */}
                  {showContactSelect && (
                      <div className="absolute top-full right-0 md:-right-64 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[300] animate-scale-in flex flex-col overflow-hidden">
                          <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">
@@ -177,9 +176,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
              </div>
          </div>
       </div>
-      {/* Centering Wrapper for UI - NOT captured in PDF */}
+      
+      {/* Container specifically for on-screen viewing, matches A5 ratio roughly but scales */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          {content}
+          <div style={{ width: '209mm', height: '147mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+            {content}
+          </div>
       </div>
     </div>
   );

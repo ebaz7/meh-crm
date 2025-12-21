@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate, formatCurrency } from '../../constants';
 import { FileSpreadsheet, Printer, FileDown, Filter, RefreshCw, X, Loader2 } from 'lucide-react';
-import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
+import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface CurrencyReportProps {
     records: TradeRecord[];
@@ -38,10 +38,9 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         company: '',
         bank: '',
         currencyType: '',
-        archiveStatus: 'active' as 'active' | 'archive' | 'all' // New Filter
+        archiveStatus: 'active' as 'active' | 'archive' | 'all' 
     });
 
-    // Helper Data
     const availableCompanies = Array.from(new Set(records.map(r => r.company).filter(Boolean)));
     const availableBanks = Array.from(new Set(records.map(r => r.operatingBank).filter(Boolean)));
     const years = Array.from({ length: 5 }, (_, i) => getCurrentShamsiDate().year - 2 + i);
@@ -59,55 +58,36 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         const currentShamsi = getCurrentShamsiDate();
         if (year < currentShamsi.year) return 52;
         if (year > currentShamsi.year) return 0;
-        
-        // Calculate weeks passed in current year
         let totalDays = 0;
-        for (let m = 1; m < currentShamsi.month; m++) {
-            totalDays += (m <= 6 ? 31 : 30);
-        }
+        for (let m = 1; m < currentShamsi.month; m++) { totalDays += (m <= 6 ? 31 : 30); }
         totalDays += currentShamsi.day;
-        
         const weeks = totalDays / 7;
         return weeks > 0 ? weeks : 1; 
     };
 
     const weeksPassed = getWeeksPassed(selectedYear);
 
-    // -- Data Processing for Main Table (With Grouping/RowSpan) --
     const processedGroups = React.useMemo(() => {
         const groups: any[] = [];
-
         records.forEach(r => {
-            // 1. Filter by Archive Status
             if (filters.archiveStatus === 'active' && (r.status === 'Completed' || r.isArchived)) return;
             if (filters.archiveStatus === 'archive' && !(r.status === 'Completed' || r.isArchived)) return;
-
-            // 2. Standard Filters
             if (filters.company && r.company !== filters.company) return;
             if (filters.bank && r.operatingBank !== filters.bank) return;
-            
-            // Search Filter
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
-                const matches = 
-                    r.fileNumber.toLowerCase().includes(term) ||
-                    r.goodsName.toLowerCase().includes(term) ||
-                    r.company.toLowerCase().includes(term) ||
-                    r.currencyPurchaseData?.exchangeName?.includes(term);
+                const matches = r.fileNumber.toLowerCase().includes(term) || r.goodsName.toLowerCase().includes(term) || r.company.toLowerCase().includes(term) || r.currencyPurchaseData?.exchangeName?.includes(term);
                 if (!matches) return;
             }
 
             const tranches = r.currencyPurchaseData?.tranches || [];
             const recordTranches: any[] = [];
 
-            // Legacy Handling
             if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
                 const pDate = r.currencyPurchaseData?.purchaseDate;
                 if (pDate && parseInt(pDate.split('/')[0]) === selectedYear) {
-                    // Currency Filter
                     const cType = r.currencyPurchaseData?.purchasedCurrencyType || r.mainCurrency || 'EUR';
                     if (filters.currencyType && cType !== filters.currencyType) return;
-
                     let usdRate = 1;
                     if (cType === 'EUR') usdRate = rates.eurToUsd;
                     else if (cType === 'AED') usdRate = rates.aedToUsd;
@@ -133,7 +113,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     const pDate = t.date;
                     if (pDate && parseInt(pDate.split('/')[0]) === selectedYear) {
                         if (filters.currencyType && t.currencyType !== filters.currencyType) return;
-
                         let usdRate = 1;
                         if (t.currencyType === 'EUR') usdRate = rates.eurToUsd;
                         else if (t.currencyType === 'AED') usdRate = rates.aedToUsd;
@@ -147,13 +126,13 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                             purchaseDate: t.date,
                             rialAmount: t.amount * (t.rate || 0),
                             exchangeName: t.exchangeName || '-',
-                            brokerName: t.brokerName || '-', // Replaces Tracking Code
+                            brokerName: t.brokerName || '-',
                             isDelivered: t.isDelivered,
                             deliveredAmount: t.isDelivered ? t.amount : 0,
                             // @ts-ignore
-                            returnAmount: t.returnAmount || 0, // New Field
+                            returnAmount: t.returnAmount || 0,
                             // @ts-ignore
-                            returnDate: t.returnDate || '-'    // New Field
+                            returnDate: t.returnDate || '-'
                         });
                     }
                 });
@@ -161,33 +140,19 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
             if (recordTranches.length > 0) {
                 groups.push({
-                    recordInfo: {
-                        goodsName: r.goodsName,
-                        fileNumber: r.fileNumber,
-                        orderNumber: r.orderNumber || r.fileNumber,
-                        registrationNumber: r.registrationNumber,
-                        company: r.company,
-                        bank: r.operatingBank
-                    },
+                    recordInfo: { goodsName: r.goodsName, fileNumber: r.fileNumber, orderNumber: r.orderNumber || r.fileNumber, registrationNumber: r.registrationNumber, company: r.company, bank: r.operatingBank },
                     tranches: recordTranches
                 });
             }
         });
-
         return groups;
     }, [records, filters, searchTerm, rates, selectedYear]);
 
-    // -- Totals for Main Table --
     const tableTotals = processedGroups.reduce((acc, group) => {
-        group.tranches.forEach((t: any) => {
-            acc.usd += t.usdAmount;
-            acc.original += t.originalAmount;
-            acc.rial += t.rialAmount;
-        });
+        group.tranches.forEach((t: any) => { acc.usd += t.usdAmount; acc.original += t.originalAmount; acc.rial += t.rialAmount; });
         return acc;
     }, { usd: 0, original: 0, rial: 0 });
 
-    // -- Export Handlers --
     const handlePrint = () => {
         const style = document.getElementById('page-size-style');
         if (style) style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
@@ -207,32 +172,11 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
     };
 
     const handleExportExcel = () => {
-        // ... (Excel logic unchanged)
-        const headers = [
-            "ردیف", 
-            "شرح کالا", 
-            "شماره سفارش (پرونده)", 
-            "شماره ثبت سفارش", 
-            "نام شرکت", 
-            "دلار آمریکا (معادل)", // Sub-header 1
-            "مقدار ارز", // Sub-header 2
-            "نوع ارز", // Sub-header 3
-            "تاریخ خرید ارز", 
-            "ارز خریداری شده (ریال)", 
-            "محل ارسال (صرافی)", 
-            "کارگزار", 
-            "ارز موجود نزد هر بانک",
-            "مقدار تحویل شده", // Status 1
-            "وضعیت", // Status 2
-            "مبلغ عودت",
-            "تاریخ عودت"
-        ];
-        
+        const headers = ["ردیف", "شرح کالا", "شماره سفارش (پرونده)", "شماره ثبت سفارش", "نام شرکت", "دلار آمریکا (معادل)", "مقدار ارز", "نوع ارز", "تاریخ خرید ارز", "ارز خریداری شده (ریال)", "محل ارسال (صرافی)", "کارگزار", "ارز موجود نزد هر بانک", "مقدار تحویل شده", "وضعیت", "مبلغ عودت", "تاریخ عودت"];
         const rows = [headers.join(",")];
         let idx = 1;
         processedGroups.forEach(g => {
             g.tranches.forEach((t: any) => {
-                // Ensure correct mapping based on UI columns
                 rows.push(`${idx},"${g.recordInfo.goodsName}","${g.recordInfo.fileNumber}","${g.recordInfo.registrationNumber || '-'}","${g.recordInfo.company}",${t.usdAmount},${t.originalAmount},"${t.currencyType}","${t.purchaseDate}",${t.rialAmount},"${t.exchangeName}","${t.brokerName}","${g.recordInfo.bank}",${t.deliveredAmount},"${t.isDelivered ? 'تحویل شده' : 'انتظار'}",${t.returnAmount},"${t.returnDate}"`);
                 idx++;
             });
@@ -302,7 +246,8 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
-                        width: '297mm', // A4 Landscape Fixed Width
+                        width: '100%', 
+                        maxWidth: '297mm',
                         minHeight: '210mm',
                         margin: '0 auto',
                         boxSizing: 'border-box'
@@ -372,7 +317,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                 <React.Fragment key={gIndex}>
                                     {group.tranches.map((t: any, tIndex: number) => (
                                         <tr key={`${gIndex}_${tIndex}`} className="hover:bg-gray-50 leading-tight text-black">
-                                            {/* Row Span Logic: Only render details on first tranche */}
                                             {tIndex === 0 && (
                                                 <>
                                                     <td className="border border-black p-1 text-center font-bold text-black" rowSpan={group.tranches.length}>{gIndex + 1}</td>
@@ -383,7 +327,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                                 </>
                                             )}
                                             
-                                            {/* Tranche Specific Data */}
                                             <td className="border border-black p-1 font-mono font-black bg-blue-50/50 text-center text-black">{formatUSD(t.usdAmount)}</td>
                                             <td className="border border-black p-1 font-mono font-bold text-center text-black">{formatNumberString(t.originalAmount)}</td>
                                             <td className="border border-black p-1 text-center font-bold text-black">{t.currencyType}</td>

@@ -22,54 +22,67 @@ export const generatePdf = async ({
     onComplete,
     onError
 }: PdfOptions) => {
-    const element = document.getElementById(elementId);
+    const originalElement = document.getElementById(elementId);
     
-    if (!element) {
-        console.error(`Element with ID '${elementId}' not found.`);
+    if (!originalElement) {
         if (onError) onError(new Error('Element not found'));
         return;
     }
 
     try {
-        // Define page size in mm
-        const pageWidth = format === 'a4' ? 210 : 148;
-        const pageHeight = format === 'a4' ? 297 : 210;
+        // 1. Define dimensions in MM
+        const widthMm = format === 'a4' ? 210 : 148;
+        const heightMm = format === 'a4' ? 297 : 210;
         
-        // Swap for landscape
-        const finalPageWidth = orientation === 'landscape' ? pageHeight : pageWidth;
-        const finalPageHeight = orientation === 'landscape' ? pageWidth : pageHeight;
+        // Adjust for orientation
+        const pageWidth = orientation === 'landscape' ? heightMm : widthMm;
+        const pageHeight = orientation === 'landscape' ? widthMm : heightMm;
 
-        // 1. Capture the element
-        const canvas = await html2canvas(element, {
-            scale: 2, // High resolution
-            backgroundColor: '#ffffff',
+        // 2. Create a "Sandbox" container off-screen
+        // This forces the content to layout exactly as if it were on a paper of that size
+        const sandbox = document.createElement('div');
+        sandbox.style.position = 'fixed';
+        sandbox.style.top = '-10000px';
+        sandbox.style.left = '-10000px';
+        sandbox.style.width = `${pageWidth}mm`;
+        sandbox.style.minHeight = `${pageHeight}mm`; // Allow expansion
+        sandbox.style.backgroundColor = '#ffffff';
+        sandbox.style.zIndex = '-1';
+        document.body.appendChild(sandbox);
+
+        // 3. Clone the element deeply
+        const clonedElement = originalElement.cloneNode(true) as HTMLElement;
+        
+        // 4. Reset styles on the clone to ensure it fills the sandbox
+        clonedElement.style.margin = '0';
+        clonedElement.style.padding = '0'; // We handle padding in PDF placement if needed
+        clonedElement.style.width = '100%'; 
+        clonedElement.style.height = 'auto';
+        clonedElement.style.transform = 'none';
+        clonedElement.style.boxShadow = 'none';
+        clonedElement.style.border = 'none';
+        
+        // Remove specific layout constraints that might exist on screen
+        clonedElement.classList.remove('mx-auto'); 
+        
+        sandbox.appendChild(clonedElement);
+
+        // 5. Capture the sandbox
+        const canvas = await html2canvas(sandbox, {
+            scale: 2, // High DPI
             useCORS: true,
             logging: false,
-            scrollX: 0,
-            scrollY: 0,
-            // Ensure we capture desktop-like width even on mobile
-            windowWidth: 1920,
-            onclone: (clonedDoc) => {
-                const el = clonedDoc.getElementById(elementId);
-                if (el) {
-                    // CRITICAL FIX: Reset positioning to ensure capture starts from 0,0 without margins
-                    el.style.margin = '0';
-                    el.style.transform = 'none';
-                    el.style.position = 'static'; // Prevent absolute positioning issues
-                    el.style.boxShadow = 'none'; // Remove shadows in PDF
-                    // Force element to fit content width/height to avoid clipping
-                    el.style.width = 'fit-content';
-                    el.style.height = 'auto';
-                    el.style.minHeight = 'fit-content';
-                    el.style.maxHeight = 'none';
-                    el.style.overflow = 'visible';
-                }
-            }
+            backgroundColor: '#ffffff',
+            width: sandbox.offsetWidth, // Force exact width capture
+            height: sandbox.offsetHeight
         });
+
+        // 6. Cleanup
+        document.body.removeChild(sandbox);
 
         const imgData = canvas.toDataURL('image/png');
 
-        // 2. Initialize jsPDF
+        // 7. Create PDF
         // @ts-ignore
         const pdf = new jsPDF({
             orientation: orientation === 'portrait' ? 'p' : 'l',
@@ -80,30 +93,18 @@ export const generatePdf = async ({
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // 3. Calculate Dimensions to Fit
+        // 8. Scale Image to fit PDF Width
         const imgProps = pdf.getImageProperties(imgData);
         const imgRatio = imgProps.width / imgProps.height;
-        const pageRatio = pdfWidth / pdfHeight;
+        
+        // Calculate height based on width to maintain aspect ratio
+        const finalHeight = pdfWidth / imgRatio;
 
-        let finalWidth = pdfWidth;
-        let finalHeight = pdfHeight;
-
-        // If image is wider relative to page, fit by width
-        if (imgRatio > pageRatio) {
-            finalWidth = pdfWidth;
-            finalHeight = finalWidth / imgRatio;
-        } else {
-            // If image is taller, fit by height
-            finalHeight = pdfHeight;
-            finalWidth = finalHeight * imgRatio;
-        }
-
-        // 4. Center the Image
-        const x = (pdfWidth - finalWidth) / 2;
-        const y = (pdfHeight - finalHeight) / 2;
-
-        // 5. Add Image
-        pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+        // If the content is taller than one page, we might need logic for multi-page (simple scaling for now)
+        // For simple reports, we fit width and let height be whatever (or fit to page if strictly required)
+        
+        // Add image starting at 0,0
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, finalHeight);
         
         const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
         pdf.save(safeFilename);
