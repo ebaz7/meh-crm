@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../../constants';
 import { FileSpreadsheet, Printer, FileDown, RefreshCw, Loader2, Settings } from 'lucide-react';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface Props {
     records: TradeRecord[];
@@ -130,34 +131,14 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('performance-report-print-area');
-        if (!element) { setIsGeneratingPdf(false); return; }
-        try {
-            // @ts-ignore
-            const canvas = await window.html2canvas(element, { 
-                scale: 2, 
-                backgroundColor: '#ffffff', 
-                useCORS: true,
-                // FORCE DESKTOP WIDTH
-                windowWidth: 1000, 
-                onclone: (clonedDoc) => {
-                    const clonedElement = clonedDoc.getElementById('performance-report-print-area');
-                    if (clonedElement) {
-                        clonedElement.style.width = '210mm'; // Force fixed width A4
-                        clonedElement.style.margin = '0 auto';
-                    }
-                }
-            });
-            const imgData = canvas.toDataURL('image/png');
-            // @ts-ignore
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const pdfWidth = 210;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Company_Performance_${selectedYear}.pdf`);
-        } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); }
-        finally { setIsGeneratingPdf(false); }
+        await generatePdf({
+            elementId: 'performance-report-print-area',
+            filename: `Company_Performance_${selectedYear}.pdf`,
+            format: 'a4',
+            orientation: 'portrait',
+            onComplete: () => setIsGeneratingPdf(false),
+            onError: () => { alert('خطا در ایجاد PDF'); setIsGeneratingPdf(false); }
+        });
     };
 
     const handleExportExcel = () => {

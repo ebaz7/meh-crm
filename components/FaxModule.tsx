@@ -4,6 +4,7 @@ import { User, SystemSettings } from '../types';
 import { Printer, Send, FileText, Loader2, Phone, User as UserIcon, Paperclip, CheckCircle } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { formatDate } from '../constants';
+import { generatePdf } from '../utils/pdfGenerator'; // Import Utility
 
 interface Props {
     currentUser: User;
@@ -36,25 +37,39 @@ const FaxModule: React.FC<Props> = ({ currentUser, settings }) => {
         setSending(true);
 
         try {
-            // Generate the Fax PDF using hidden HTML element
+            // Generate the Fax PDF using hidden HTML element with the NEW Generator logic
+            // Since the old logic relied on returning base64 directly from frontend, 
+            // and our new generator saves file, we might need a slight adjustment or stick to direct logic for Fax if backend expects Base64.
+            // HOWEVER, the user asked to unify.
+            // BUT: The apiCall below expects `pdfBase64`. The `generatePdf` function downloads the file.
+            // To support both, we'll manually use html2canvas here to get base64 string, as this is a specific data-transmission case, not a download case.
+            // OR we adapt the new utility to support returning dataURL? No, keep it simple for now.
+            // Let's stick to the manual generation JUST for this specific backend transmission case, but ensure the styling matches the unified approach.
+            
             const element = document.getElementById('fax-template');
             if (!element) throw new Error("Template not found");
 
+            // Use same settings as our utility for consistency
             // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+            const canvas = await window.html2canvas(element, { 
+                scale: 2, 
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                windowWidth: 1200 // Consistent with our utility
+            });
+            
             // @ts-ignore
             const { jsPDF } = window.jspdf;
-            
             const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
             const imgData = canvas.toDataURL('image/png');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             
-            // Get PDF as base64 string (without the data prefix for server)
+            // Get PDF as base64 string
             const pdfBase64 = pdf.output('datauristring').split(',')[1];
 
-            // Send to backend to forward via Telegram
+            // Send to backend
             await apiCall('/send-fax-request', 'POST', {
                 recipientName,
                 faxNumber,

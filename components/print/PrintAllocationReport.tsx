@@ -1,7 +1,8 @@
 
-import React, { useEffect } from 'react';
-import { X, Printer } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../constants';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface PrintAllocationReportProps {
   records: any[];
@@ -12,6 +13,8 @@ interface PrintAllocationReportProps {
 }
 
 const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, companySummary, totalAllocated, totalQueue, onClose }) => {
+  const [processing, setProcessing] = useState(false);
+
   useEffect(() => {
     // Set page size to A4 Landscape
     const style = document.getElementById('page-size-style');
@@ -27,12 +30,25 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
 
   const formatUSD = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const handleDownloadPDF = async () => {
+      setProcessing(true);
+      await generatePdf({
+          elementId: 'allocation-report-print-area',
+          filename: `Allocation_Report_${new Date().toISOString().slice(0,10)}.pdf`,
+          format: 'a4',
+          orientation: 'landscape',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex justify-between items-center gap-4">
              <span className="font-bold text-sm">پیش‌نمایش چاپ</span>
              <div className="flex gap-2">
+                <button onClick={handleDownloadPDF} disabled={processing} className="bg-red-600 text-white p-2 rounded text-xs flex items-center gap-1">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
                 <button onClick={() => window.print()} className="bg-blue-600 text-white p-2 rounded text-xs flex items-center gap-1"><Printer size={16}/> چاپ مجدد</button>
                 <button onClick={onClose} className="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200"><X size={18}/></button>
              </div>
@@ -41,11 +57,11 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
       
       {/* Printable Content - A4 Landscape */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white p-8 shadow-2xl relative text-black" 
+          <div id="allocation-report-print-area" className="printable-content bg-white p-8 shadow-2xl relative text-black" 
             style={{ 
                 // A4 Landscape: 297mm x 210mm
                 width: '296mm', 
-                height: '209mm', 
+                minHeight: '209mm', 
                 direction: 'rtl',
                 padding: '5mm', // Reduced Padding
                 boxSizing: 'border-box'
@@ -90,7 +106,7 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
                                     <td className="p-1 border-r border-gray-300 dir-ltr">{r.stageQ?.queueDate || '-'}</td>
                                     <td className="p-1 border-r border-gray-300 dir-ltr">{r.stageA?.allocationDate || '-'}</td>
                                     <td className={`p-1 border-r border-gray-300 font-bold ${r.remainingDays > 0 ? 'text-green-600' : r.remainingDays === '-' ? '' : 'text-red-600'}`}>{r.remainingDays}</td>
-                                    <td className="p-1 border-r border-gray-300 font-bold">
+                                    <td className={`p-1 border-r border-gray-300 font-bold ${r.isAllocated ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                                         {r.isAllocated ? 'تخصیص یافته' : 'در صف'}
                                     </td>
                                     <td className="p-1 border-r border-gray-300 text-[9px]">{r.operatingBank || '-'}</td>

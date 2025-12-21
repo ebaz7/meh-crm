@@ -1,6 +1,7 @@
 
 import React, { useEffect } from 'react';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, FileDown, Loader2 } from 'lucide-react';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface PrintStockReportProps {
   data: any[];
@@ -8,6 +9,8 @@ interface PrintStockReportProps {
 }
 
 const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) => {
+  const [processing, setProcessing] = React.useState(false);
+
   useEffect(() => {
     // Set page size to A4 Landscape
     const style = document.getElementById('page-size-style');
@@ -21,12 +24,25 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
     }, 800);
   }, []);
 
+  const handleDownloadPDF = async () => {
+      setProcessing(true);
+      await generatePdf({
+          elementId: 'stock-report-content',
+          filename: `Stock_Report_${new Date().toISOString().slice(0,10)}.pdf`,
+          format: 'a4',
+          orientation: 'landscape',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-4 md:left-4 z-50 flex flex-col gap-2 no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex justify-between items-center gap-4">
              <span className="font-bold text-sm">پیش‌نمایش چاپ</span>
              <div className="flex gap-2">
+                <button onClick={handleDownloadPDF} disabled={processing} className="bg-red-600 text-white p-2 rounded text-xs flex items-center gap-1">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
                 <button onClick={() => window.print()} className="bg-blue-600 text-white p-2 rounded text-xs flex items-center gap-1"><Printer size={16}/> چاپ مجدد</button>
                 <button onClick={onClose} className="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200"><X size={18}/></button>
              </div>
@@ -35,11 +51,11 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       
       {/* Printable Content - A4 Landscape Fixed Width */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white shadow-2xl relative text-black" 
+          <div id="stock-report-content" className="printable-content bg-white shadow-2xl relative text-black" 
             style={{ 
                 // A4 Landscape: 297mm x 210mm
                 width: '296mm', 
-                height: '209mm', 
+                minHeight: '209mm', 
                 direction: 'rtl',
                 padding: '5mm', 
                 boxSizing: 'border-box'

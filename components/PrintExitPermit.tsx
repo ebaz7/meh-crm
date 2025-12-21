@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, SystemSettings, UserRole } from '../types';
 import { formatDate, formatCurrency } from '../constants';
-import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle, Share2, Edit, Loader2, Users, Search } from 'lucide-react';
+import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle, Share2, Edit, Loader2, Users, Search, FileDown } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
+import { generatePdf } from '../utils/pdfGenerator'; // Import Utility
 
 interface Props {
   permit: ExitPermit;
@@ -18,6 +19,7 @@ interface Props {
 
 const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject, onEdit, settings, embed }) => {
   const [sharing, setSharing] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
 
@@ -36,19 +38,31 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       </div>
   );
 
+  const handleDownloadPDF = async () => {
+      setProcessing(true);
+      const elementId = embed ? `print-permit-${permit.id}` : "print-area-exit";
+      await generatePdf({
+          elementId: elementId,
+          filename: `Permit_${permit.permitNumber}.pdf`,
+          format: 'a4',
+          orientation: 'portrait',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
+  };
+
   const handleSendToWhatsApp = async (targetNumber: string) => {
       if (!targetNumber) return;
       setSharing(true);
       const element = document.getElementById(embed ? `print-permit-${permit.id}` : "print-area-exit");
       if (!element) { setSharing(false); return; }
       try {
-          // CRITICAL FIX: Set fixed windowWidth and width to ensure mobile capture looks like desktop
           // @ts-ignore
           const canvas = await window.html2canvas(element, { 
               scale: 2, 
               backgroundColor: '#ffffff', 
               useCORS: true,
-              windowWidth: 1200 // Simulates desktop width for uniform layout
+              windowWidth: 1200 
           });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
           let caption = `🚛 *مجوز خروج کالا*\n🔢 شماره: ${permit.permitNumber}\n📅 تاریخ: ${formatDate(permit.date)}\n👤 گیرنده: ${permit.recipientName}\n📦 اقلام: ${permit.goodsName}`;
@@ -77,6 +91,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} 
         className="printable-content bg-white mx-auto shadow-2xl relative text-gray-900 flex flex-col" 
         style={{ direction: 'rtl', width: '210mm', minHeight: '297mm', padding: '15mm', boxSizing: 'border-box' }}>
+            {/* ... Content ... */}
             <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-8">
                 <div className="flex flex-col"><h1 className="text-3xl font-black mb-1">مجوز خروج کالا از کارخانه</h1><p className="text-sm font-bold text-gray-600">سیستم مکانیزه مدیریت بار و خروج</p></div>
                 <div className="text-left space-y-2"><div className="text-xl font-black bg-gray-100 px-4 py-2 border-2 border-black rounded-lg">شماره: {permit.permitNumber}</div><div className="text-sm font-bold">تاریخ: {formatDate(permit.date)}</div>{permit.exitTime && <div className="text-sm font-black text-blue-700 flex items-center gap-1 justify-end"><Clock size={16}/> خروج: {permit.exitTime}</div>}</div>
@@ -119,7 +134,9 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             </div>
             <hr className="my-1"/>
             <button onClick={() => window.print()} className="bg-blue-600 text-white p-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-transform active:scale-95"><Printer size={18}/> چاپ (A4)</button>
+            <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 p-2.5 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center justify-center gap-2">{processing ? <Loader2 size={18} className="animate-spin"/> : <FileDown size={18}/>} دانلود PDF</button>
             <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 text-white p-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={18} className="animate-spin"/> : <Share2 size={18}/>} ارسال واتساپ</button>
+            {/* ... (Contact Select) ... */}
             {showContactSelect && (
                 <div className="absolute top-full right-0 md:-right-32 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[300] animate-scale-in flex flex-col overflow-hidden">
                     <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">

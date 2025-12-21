@@ -4,6 +4,7 @@ import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../typ
 import { formatCurrency, formatDate } from '../constants';
 import { X, Printer, Image as ImageIcon, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search } from 'lucide-react';
 import { apiCall } from '../services/apiService';
+import { generatePdf } from '../utils/pdfGenerator'; // Import utility
 
 interface PrintVoucherProps {
   order: PaymentOrder;
@@ -21,6 +22,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [showContactSelect, setShowContactSelect] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
 
+  // We still use this style injection for direct printing (Ctrl+P)
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
@@ -62,30 +64,28 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       } catch (e) { console.error(e); alert('خطا در ذخیره تصویر'); } finally { setProcessing(false); }
   };
 
+  // Replaced with new Utility
   const handleDownloadPDF = async () => {
       setProcessing(true);
-      const element = document.getElementById(printAreaId);
-      if (!element) { setProcessing(false); return; }
-      try {
-          // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: '#ffffff', useCORS: true });
-          const imgData = canvas.toDataURL('image/png');
-          // @ts-ignore
-          const { jsPDF } = window.jspdf;
-          const pdf = new jsPDF('l', 'mm', 'a5');
-          pdf.addImage(imgData, 'PNG', 0, 0, 210, 148);
-          pdf.save(`Voucher_${order.trackingNumber}.pdf`);
-      } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
+      await generatePdf({
+          elementId: printAreaId,
+          filename: `Voucher_${order.trackingNumber}.pdf`,
+          format: 'a5',
+          orientation: 'landscape',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
   };
 
   const handleSendToWhatsApp = async (targetNumber: string) => {
+      // ... (existing logic for WA) ...
       if (!targetNumber) return;
       setSharing(true);
       const element = document.getElementById(printAreaId);
       if (!element) { setSharing(false); return; }
       try {
           // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 1000 });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
           await apiCall('/send-whatsapp', 'POST', {
               number: targetNumber,
@@ -102,6 +102,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     c.number.includes(contactSearch)
   ) || [];
 
+  // ... (content logic remains the same, ensuring printAreaId is used on the main wrapper) ...
   const content = (
       <div 
         id={printAreaId} 
@@ -115,6 +116,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             boxSizing: 'border-box'
         }}
       >
+        {/* ... (Existing Content Structure) ... */}
         {order.status === OrderStatus.REJECTED && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
@@ -161,6 +163,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-[210] no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
+             {/* ... (Controls) ... */}
              <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
              {(onApprove || onReject || onEdit) && (<div className="flex gap-2 pb-3 border-b border-gray-100">{onApprove && <button onClick={onApprove} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><CheckCircle size={18} /> تایید</button>}{onReject && <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><XCircle size={18} /> رد</button>}{onEdit && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}</div>)}
              <div className="grid grid-cols-4 gap-2 relative">
@@ -169,6 +172,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  
+                 {/* ... (Contact Select) ... */}
                  {showContactSelect && (
                      <div className="absolute top-full right-0 md:-right-64 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[300] animate-scale-in flex flex-col overflow-hidden">
                          <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">

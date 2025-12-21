@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate, formatCurrency } from '../../constants';
 import { FileSpreadsheet, Printer, FileDown, Filter, RefreshCw, X, Loader2 } from 'lucide-react';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface CurrencyReportProps {
     records: TradeRecord[];
@@ -195,38 +196,18 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('currency-report-print-area');
-        if (!element) { setIsGeneratingPdf(false); return; }
-        try {
-            // @ts-ignore
-            const canvas = await window.html2canvas(element, { 
-                scale: 2, 
-                backgroundColor: '#ffffff', 
-                useCORS: true,
-                // FORCE DESKTOP WIDTH SIMULATION FOR MOBILE
-                windowWidth: 1400,
-                onclone: (clonedDoc) => {
-                    const clonedElement = clonedDoc.getElementById('currency-report-print-area');
-                    if (clonedElement) {
-                        clonedElement.style.width = '297mm'; // Force fixed width
-                        clonedElement.style.margin = '0 auto';
-                    }
-                }
-            });
-            const imgData = canvas.toDataURL('image/png');
-            // @ts-ignore
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const pdfWidth = 297;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Currency_Report_${selectedYear}.pdf`);
-        } catch (e) { console.error(e); alert('خطا در ایجاد PDF'); }
-        finally { setIsGeneratingPdf(false); }
+        await generatePdf({
+            elementId: 'currency-report-print-area',
+            filename: `Currency_Report_${selectedYear}.pdf`,
+            format: 'a4',
+            orientation: 'landscape',
+            onComplete: () => setIsGeneratingPdf(false),
+            onError: () => { alert('خطا در ایجاد PDF'); setIsGeneratingPdf(false); }
+        });
     };
 
     const handleExportExcel = () => {
-        // Headers matching the UI Table exactly
+        // ... (Excel logic unchanged)
         const headers = [
             "ردیف", 
             "شرح کالا", 

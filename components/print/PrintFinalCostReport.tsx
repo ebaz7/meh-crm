@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
-import { X, Printer, Loader2 } from 'lucide-react';
+import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { TradeRecord, TradeStage } from '../../types';
 import { formatCurrency, formatNumberString } from '../../constants';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface Props {
   record: TradeRecord;
@@ -28,7 +29,6 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   const totalFreightCurrency = record.freightCost || 0;
   
   // Calculate Net Currency Cost for Display in Expenses
-  // FIXED: Return Amount is in Rial, do not multiply by rate.
   const tranches = record.currencyPurchaseData?.tranches || [];
   const netCurrencyRialCost = tranches.reduce((acc, t) => {
       const cost = t.amount * (t.rate || 0);
@@ -50,20 +50,14 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
 
   const handleDownloadPDF = async () => {
       setProcessing(true);
-      const element = document.getElementById('final-cost-print-area');
-      if (!element) { setProcessing(false); return; }
-      try {
-          // @ts-ignore
-          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-          const imgData = canvas.toDataURL('image/png');
-          // @ts-ignore
-          const { jsPDF } = window.jspdf;
-          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-          const pdfWidth = 210;
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-          pdf.save(`Cost_Report_${record.fileNumber}.pdf`);
-      } catch (e) { alert('خطا در ایجاد PDF'); } finally { setProcessing(false); }
+      await generatePdf({
+          elementId: 'final-cost-print-area',
+          filename: `Cost_Report_${record.fileNumber}.pdf`,
+          format: 'a4',
+          orientation: 'portrait',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
   };
 
   const costPerKg = totalWeight > 0 ? grandTotalRial / totalWeight : 0;
