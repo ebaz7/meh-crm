@@ -246,11 +246,12 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
-                        width: '100%', 
-                        maxWidth: '297mm',
+                        width: '100%', // Flexible for screen
+                        maxWidth: '297mm', // Cap at A4 landscape
                         minHeight: '210mm',
                         margin: '0 auto',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        direction: 'rtl'
                     }}
                 >
                     
@@ -317,6 +318,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                 <React.Fragment key={gIndex}>
                                     {group.tranches.map((t: any, tIndex: number) => (
                                         <tr key={`${gIndex}_${tIndex}`} className="hover:bg-gray-50 leading-tight text-black">
+                                            {/* Row Span Logic: Only render details on first tranche */}
                                             {tIndex === 0 && (
                                                 <>
                                                     <td className="border border-black p-1 text-center font-bold text-black" rowSpan={group.tranches.length}>{gIndex + 1}</td>
