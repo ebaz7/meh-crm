@@ -10,10 +10,13 @@ interface Props {
 }
 
 const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
+    // Fill empty rows for main table (Approx 12 rows for A4 Portrait)
     const displayDelays = [...delays];
     while(displayDelays.length < 12) displayDelays.push({} as any);
 
-    const displayRepeat = [...delays.filter(d => d.repeatCount && d.repeatCount !== '0')];
+    // Repeat Delay Table (Approx 3 rows)
+    const repeatDelays = delays.filter(d => d.repeatCount && d.repeatCount !== '0');
+    const displayRepeat = [...repeatDelays];
     while(displayRepeat.length < 3) displayRepeat.push({} as any);
 
     const supervisorName = delays.find(d => d.approverSupervisor)?.approverSupervisor;
@@ -25,14 +28,14 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
             id="print-delay-form"
             className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                // Locked dimensions for A4 Portrait (approx pixels at scale or mm)
-                // Use mm to align with PDF generator settings
+                // CRITICAL: Lock width to A4 (210mm). Height will expand but min is 297mm.
                 width: '210mm', 
                 minHeight: '297mm',
                 direction: 'rtl',
-                margin: '0 auto',
+                margin: '0 auto', 
                 padding: '10mm',
                 boxSizing: 'border-box',
+                // Explicitly set font stacks to ensure Persian renders
                 fontFamily: 'Vazirmatn, Tahoma, sans-serif',
                 fontVariant: 'normal',
                 letterSpacing: 'normal'

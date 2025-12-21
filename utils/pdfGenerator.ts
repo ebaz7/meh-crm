@@ -31,86 +31,85 @@ export const generatePdf = async ({
     }
 
     try {
-        // --- 1. CONFIGURATION ---
-        // A4 in mm: 210 x 297. In pixels at 2 (roughly 96dpi * 2 for quality):
-        // Portrait: ~1600px width. Landscape: ~2200px width.
-        const scaleFactor = 2;
+        // --- 1. SETUP DIMENSIONS ---
+        // A4 pixels at 96 DPI * 2 (Scale) approx:
+        // Portrait: 1600px width
+        // Landscape: 2300px width
+        // We set a fixed large width for the canvas to ensure tables don't crunch
         const isLandscape = orientation === 'landscape';
-        
-        // Target widths for the HTML canvas to simulate a "page"
-        // We use slightly larger fixed widths to ensure content fits comfortably before scaling down to PDF
-        const targetWidth = isLandscape ? 2200 : 1600; 
+        const targetWidth = isLandscape ? 2300 : 1600;
 
-        // --- 2. CLONING & PREPARATION ---
+        // --- 2. CLONE & PREPARE ---
+        // Create a hidden container to hold the clone
         const cloneContainer = document.createElement('div');
-        cloneContainer.style.position = 'absolute';
-        cloneContainer.style.top = '0';
-        cloneContainer.style.left = '-10000px'; // Off-screen
-        cloneContainer.style.width = `${targetWidth}px`;
+        cloneContainer.style.position = 'fixed';
+        cloneContainer.style.top = '-10000px';
+        cloneContainer.style.left = '-10000px';
         cloneContainer.style.zIndex = '-1000';
-        cloneContainer.style.backgroundColor = '#ffffff';
+        // Force the container to be large enough to hold full content without scrolling
+        cloneContainer.style.width = `${targetWidth}px`;
+        cloneContainer.style.height = 'auto';
+        cloneContainer.style.overflow = 'visible';
         
-        // Deep clone
+        // Deep clone the element
         const clone = originalElement.cloneNode(true) as HTMLElement;
         
-        // Reset styles on the clone to ensure it expands fully
+        // Force styles on the clone to ensure full visibility
         clone.style.width = '100%';
         clone.style.height = 'auto';
         clone.style.minHeight = 'auto';
         clone.style.maxHeight = 'none';
         clone.style.overflow = 'visible';
         clone.style.margin = '0';
-        clone.style.padding = '20px'; // Add padding for "paper" feel
+        clone.style.padding = '20px';
         clone.style.transform = 'none';
         clone.style.border = 'none';
-        clone.style.boxShadow = 'none';
         
-        // Force RTL if needed (fixes garbled text sometimes)
-        if (!clone.getAttribute('dir')) {
-            clone.setAttribute('dir', 'rtl');
-        }
+        // Ensure RTL direction is preserved
+        if (!clone.style.direction) clone.style.direction = 'rtl';
 
-        // Recursively remove scrollbars and force full height on all children
+        // Recursively clean up children (remove scrollbars from tables)
         const descendants = clone.getElementsByTagName('*');
         for (let i = 0; i < descendants.length; i++) {
             const el = descendants[i] as HTMLElement;
             el.style.overflow = 'visible';
             el.style.maxHeight = 'none';
-            // Force fonts to ensure rendering
+            // Fix Persian font rendering issues
             el.style.fontVariant = 'normal';
             el.style.fontFeatureSettings = 'normal';
+            el.style.letterSpacing = 'normal';
         }
 
         cloneContainer.appendChild(clone);
         document.body.appendChild(cloneContainer);
 
-        // Wait a moment for layout to settle and images to load
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Allow DOM to settle (images load, fonts render)
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // --- 3. CAPTURE ---
         const canvas = await html2canvas(clone, {
-            scale: scaleFactor,
+            scale: 2, // High resolution
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            width: targetWidth, // Force capture width
+            width: targetWidth, // Capture the full expanded width
             windowWidth: targetWidth,
-            height: clone.scrollHeight, // Capture full height
-            windowHeight: clone.scrollHeight,
+            height: clone.scrollHeight + 50, // Capture full expanded height + padding
+            windowHeight: clone.scrollHeight + 100,
             onclone: (doc) => {
-                // Additional safety measure for fonts inside the iframe html2canvas creates
+                // Double safe font fix
                 const style = doc.createElement('style');
-                style.innerHTML = `* { font-variant: normal !important; letter-spacing: normal !important; }`;
+                style.innerHTML = `* { font-variant: normal !important; letter-spacing: normal !important; -webkit-font-smoothing: antialiased; }`;
                 doc.head.appendChild(style);
             }
         });
 
-        // Cleanup
+        // Cleanup DOM
         document.body.removeChild(cloneContainer);
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95); // JPEG slightly smaller/faster than PNG
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
-        // --- 4. PDF GENERATION ---
+        // --- 4. GENERATE PDF ---
         // @ts-ignore
         const pdf = new jsPDF({
             orientation: isLandscape ? 'l' : 'p',
@@ -123,34 +122,25 @@ export const generatePdf = async ({
 
         const imgProps = pdf.getImageProperties(imgData);
         const imgRatio = imgProps.width / imgProps.height;
-        const pageRatio = pdfPageWidth / pdfPageHeight;
-
+        
+        // Calculate dimensions to fit width (most important for reports)
         let finalWidth = pdfPageWidth;
         let finalHeight = finalWidth / imgRatio;
 
-        // If image is too tall for one page, we fit by width. 
-        // If it's wider than the page (unlikely with our logic), fit by width.
-        // For reports, we typically want to "Fit to Width" and let it scroll or fit on one page if possible.
-        // Here we attempt "Best Fit" for single page view.
+        // If it's a very long report (taller than one page), 
+        // standard behavior for single-image export is "Fit Page" or "Fit Width".
+        // To prevent cutting off data in "Fit Width" mode if it exceeds height:
+        // We will scale it down to fit the PAGE if it's too tall, 
+        // OR we just center it if it fits. 
         
+        // Logic: Try Fit Width. If Height > PageHeight, force Fit Height to ensure nothing is cut.
+        // (User can zoom in PDF).
         if (finalHeight > pdfPageHeight) {
-            // It's a long report.
-            // Option A: Scale down to fit height (might be too small)
-            // Option B: Multi-page (complex)
-            // Option C: Just fit width and cut off (bad)
-            // Option D: User requested "Fit to page" mostly. 
-            // Let's try to fit width, but if it overflows significantly, we might scale down.
-            // However, usually for "Stock Report", fitting width is key.
-            
-            // Let's scale to fit PAGE HEIGHT if it overflows, to ensure nothing is cut off, 
-            // even if it makes text smaller. This guarantees "whole report" is visible.
-            if (finalHeight > pdfPageHeight) {
-                 finalHeight = pdfPageHeight;
-                 finalWidth = finalHeight * imgRatio;
-            }
+             finalHeight = pdfPageHeight;
+             finalWidth = finalHeight * imgRatio;
         }
 
-        // Center vertically and horizontally
+        // Center the image
         const x = (pdfPageWidth - finalWidth) / 2;
         const y = (pdfPageHeight - finalHeight) / 2;
 
