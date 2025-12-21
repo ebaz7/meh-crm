@@ -13,9 +13,8 @@ interface Props {
 
 const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [activeTab, setActiveTab] = useState<'logs' | 'delays' | 'incidents' | 'cartable' | 'archive' | 'in_progress'>('logs');
-    const [subTab, setSubTab] = useState<'current' | 'archived'>('current'); // NEW: Sub-tab for Logs/Delays
+    const [subTab, setSubTab] = useState<'current' | 'archived'>('current');
     
-    // Deleting State for Archive Items
     const [deletingItemKey, setDeletingItemKey] = useState<string | null>(null);
 
     const currentShamsi = getCurrentShamsiDate();
@@ -34,33 +33,27 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const [viewCartableItem, setViewCartableItem] = useState<any>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    // Edit/New State
     const [editingId, setEditingId] = useState<string | null>(null); 
     const [logForm, setLogForm] = useState<Partial<SecurityLog>>({});
     const [delayForm, setDelayForm] = useState<Partial<PersonnelDelay>>({});
     const [incidentForm, setPartialIncidentForm] = useState<Partial<SecurityIncident>>({});
 
-    // Shift Meta Form State
     const [metaForm, setMetaForm] = useState<DailySecurityMeta>({});
 
-    // Permissions
     const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
 
     useEffect(() => { loadData(); }, []);
 
-    // Reset sub-tab when main tab changes
     useEffect(() => {
         setSubTab('current');
     }, [activeTab, selectedDate]);
 
-    // Effect to update print page size dynamically
     useEffect(() => {
         const style = document.getElementById('page-size-style');
         if (style) {
-            // Determine if current view requires Landscape
             const isLandscape = 
-                (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'daily_delay')) || 
-                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.category === 'delay' || viewCartableItem.type === 'log' || viewCartableItem.type === 'delay'));
+                (printTarget && (printTarget.type === 'daily_log')) || 
+                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
             
             if (isLandscape) {
                 style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
@@ -220,7 +213,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    // Filter Logs and Delays by date AND sub-tab
     const allDailyLogs = logs.filter(l => l.date.startsWith(getIsoSelectedDate()));
     const dailyLogsActive = allDailyLogs.filter(l => l.status !== SecurityStatus.ARCHIVED);
     const dailyLogsArchived = allDailyLogs.filter(l => l.status === SecurityStatus.ARCHIVED);
@@ -522,10 +514,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDeleteItem = async (id: string, type: 'log' | 'delay' | 'incident') => {
         if (!confirm('آیا از حذف این مورد اطمینان دارید؟')) return;
-        
-        // ADDED: Loading state for individual delete
         setDeletingItemKey(id);
-        
         try {
             if (type === 'log') await deleteSecurityLog(id);
             else if (type === 'delay') await deletePersonnelDelay(id);
@@ -572,34 +561,44 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('print-delay-form') || document.getElementById('printable-area-view');
+        // Look for the specific print ID first (view modal), fallback to standard
+        const element = document.getElementById('printable-area-view') || document.getElementById('print-delay-form');
         
         if (!element) { 
             setIsGeneratingPdf(false); 
             return; 
         }
+        
         try {
             const isLandscape = 
-                (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'daily_delay')) || 
-                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.category === 'delay' || viewCartableItem.type === 'log' || viewCartableItem.type === 'delay'));
+                (printTarget && (printTarget.type === 'daily_log')) || 
+                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
 
             // @ts-ignore
             const canvas = await window.html2canvas(element, { 
                 scale: 2, 
                 backgroundColor: '#ffffff', 
                 useCORS: true, 
-                windowWidth: isLandscape ? 1400 : 1200 
+                windowWidth: isLandscape ? 1300 : 1000 
             });
             const imgData = canvas.toDataURL('image/png');
             // @ts-ignore
             const { jsPDF } = window.jspdf;
             
             const orientation = isLandscape ? 'l' : 'p';
-            const w = isLandscape ? 297 : 210;
-            const h = isLandscape ? 210 : 297;
-
             const pdf = new jsPDF(orientation, 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+            
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgWidth = pdfWidth;
+            const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+            
+            // Center the image vertically if it's smaller than the page
+            const y = imgHeight < pdfHeight ? (pdfHeight - imgHeight) / 2 : 0;
+
+            pdf.addImage(imgData, 'PNG', 0, y, imgWidth, imgHeight);
             pdf.save(`Security_Report.pdf`);
         } catch (e) { console.error(e); alert("خطا در ایجاد PDF"); } finally { setIsGeneratingPdf(false); }
     };
@@ -620,7 +619,13 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             {showPrintModal && printTarget && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print"><button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2"><Printer size={16}/> چاپ</button><button onClick={() => setShowPrintModal(false)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded">بستن</button></div>
-                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh]"><div className="printable-content scale-75 origin-top">{printTarget.type === 'daily_log' && <PrintSecurityDailyLog date={printTarget.date} logs={printTarget.logs} meta={printTarget.meta} />}{printTarget.type === 'daily_delay' && <PrintPersonnelDelay delays={printTarget.delays} meta={printTarget.meta} />}{printTarget.type === 'incident' && <PrintIncidentReport incident={printTarget.incident} />}</div></div>
+                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh]">
+                        <div id="printable-area-view" className="printable-content scale-75 origin-top bg-white">
+                            {printTarget.type === 'daily_log' && <PrintSecurityDailyLog date={printTarget.date} logs={printTarget.logs} meta={printTarget.meta} />}
+                            {printTarget.type === 'daily_delay' && <PrintPersonnelDelay delays={printTarget.delays} meta={printTarget.meta} />}
+                            {printTarget.type === 'incident' && <PrintIncidentReport incident={printTarget.incident} />}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -793,7 +798,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        {/* REPLACED Edit Day Button with DELETE Button for Admin/CEO */}
                                         {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && item.type === 'daily_archive' && (
                                             <button 
                                                 onClick={() => handleDeleteDailyArchive(String(item.date), item.category)} 

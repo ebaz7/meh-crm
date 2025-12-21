@@ -33,52 +33,52 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
          </div>
       </div>
       
-      {/* Printable Content - A4 Landscape */}
+      {/* Printable Content - A4 Landscape Fixed Width */}
       <div className="order-2 w-full overflow-auto flex justify-center">
-          <div className="printable-content bg-white p-4 shadow-2xl relative text-black" 
+          <div className="printable-content bg-white shadow-2xl relative text-black" 
             style={{ 
                 // A4 Landscape: 297mm x 210mm
                 width: '296mm', 
                 height: '209mm', 
                 direction: 'rtl',
-                padding: '5mm', // Reduced Padding
+                padding: '5mm', 
                 boxSizing: 'border-box'
             }}>
                 {/* Header */}
-                <div className="text-center bg-yellow-300 border border-black py-1 mb-2 font-black text-xl">موجودی کلی انبارها</div>
+                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '1px solid black', padding: '4px', marginBottom: '8px', fontWeight: '900', fontSize: '18px' }}>موجودی کلی انبارها</div>
                 
-                {/* Grid Layout */}
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${data.length}, 1fr)`, border: '1px solid black' }}>
+                {/* Grid Layout using Flexbox for precise column control in print */}
+                <div style={{ display: 'flex', border: '1px solid black', borderLeft: 'none' }}>
                     {data.map((group, index) => {
-                        const headerColor = index === 0 ? 'bg-purple-300' : index === 1 ? 'bg-orange-300' : 'bg-blue-300';
+                        const headerColor = index === 0 ? '#d8b4fe' : index === 1 ? '#fdba74' : '#93c5fd';
                         return (
-                            <div key={group.company} className="border-l border-black last:border-l-0 text-[10px]">
-                                <div className={`${headerColor} text-black font-bold p-1 text-center border-b border-black text-sm`}>{group.company}</div>
-                                <div className="grid grid-cols-4 bg-gray-100 font-bold border-b border-black text-center">
-                                    <div className="p-1 border-l border-black">نخ</div>
-                                    <div className="p-1 border-l border-black">کارتن</div>
-                                    <div className="p-1 border-l border-black">وزن</div>
-                                    <div className="p-1">کانتینر</div>
+                            <div key={group.company} style={{ flex: 1, borderLeft: '1px solid black', fontSize: '10px' }}>
+                                <div style={{ backgroundColor: headerColor, color: 'black', fontWeight: 'bold', padding: '4px', textAlign: 'center', borderBottom: '1px solid black', fontSize: '12px' }}>{group.company}</div>
+                                <div style={{ display: 'flex', backgroundColor: '#f3f4f6', fontWeight: 'bold', borderBottom: '1px solid black', textAlign: 'center' }}>
+                                    <div style={{ flex: 1.5, padding: '2px', borderLeft: '1px solid black' }}>نخ</div>
+                                    <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black' }}>کارتن</div>
+                                    <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black' }}>وزن</div>
+                                    <div style={{ flex: 1, padding: '2px' }}>کانتینر</div>
                                 </div>
                                 <div>
                                     {group.items.map((item: any, i: number) => (
-                                        <div key={i} className="grid grid-cols-4 border-b border-gray-400 last:border-b-0 text-center leading-tight">
-                                            <div className="p-1 border-l border-black font-bold truncate text-right pr-2">{item.name}</div>
-                                            <div className="p-1 border-l border-black font-mono">{item.quantity}</div>
-                                            <div className="p-1 border-l border-black font-mono">{item.weight > 0 ? item.weight : 0}</div>
-                                            <div className="p-1 font-mono text-gray-500">
+                                        <div key={i} style={{ display: 'flex', borderBottom: '1px solid #9ca3af', textAlign: 'center', lineHeight: '1.2' }}>
+                                            <div style={{ flex: 1.5, padding: '2px', borderLeft: '1px solid black', fontWeight: 'bold', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden' }}>{item.name}</div>
+                                            <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black', fontFamily: 'monospace' }}>{item.quantity}</div>
+                                            <div style={{ flex: 1, padding: '2px', borderLeft: '1px solid black', fontFamily: 'monospace' }}>{item.weight > 0 ? item.weight : 0}</div>
+                                            <div style={{ flex: 1, padding: '2px', fontFamily: 'monospace', color: '#6b7280' }}>
                                                 {item.containerCount > 0 ? item.containerCount.toFixed(2) : '-'}
                                             </div>
                                         </div>
                                     ))}
-                                    {group.items.length === 0 && <div className="p-2 text-center text-gray-400">-</div>}
+                                    {group.items.length === 0 && <div style={{ padding: '8px', textAlign: 'center', color: '#9ca3af' }}>-</div>}
                                 </div>
                             </div>
                         );
                     })}
                 </div>
                 
-                <div className="text-center bg-yellow-300 border border-black py-1 mt-1 font-bold text-xs">گزارش سیستم مدیریت انبار</div>
+                <div style={{ textAlign: 'center', backgroundColor: '#fde047', border: '1px solid black', padding: '2px', marginTop: '4px', fontWeight: 'bold', fontSize: '10px' }}>گزارش سیستم مدیریت انبار - تاریخ چاپ: {new Date().toLocaleDateString('fa-IR')}</div>
           </div>
       </div>
     </div>
