@@ -298,10 +298,14 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
             {/* Report Table Area (Printable) */}
             <div className="flex-1 overflow-auto flex justify-center">
-                <div id="currency-report-print-area" className="printable-content bg-white w-full max-w-[297mm] p-4 text-black text-[10px] relative border-black" 
+                <div id="currency-report-print-area" className="printable-content bg-white p-4 text-black text-[10px] relative border-black" 
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
+                        width: '297mm', // A4 Landscape
+                        // minHeight: '210mm',
+                        margin: '0 auto',
+                        boxSizing: 'border-box'
                     }}
                 >
                     
@@ -317,10 +321,29 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     </div>
 
                     {/* Main Table */}
-                    <table className="w-full border-collapse border border-black text-center mb-4 text-black">
+                    <table className="w-full border-collapse border border-black text-center mb-4 text-black table-fixed">
+                        <colgroup>
+                            <col style={{width: '30px'}} /> {/* Row */}
+                            <col /> {/* Goods */}
+                            <col style={{width: '70px'}} /> {/* File No */}
+                            <col style={{width: '70px'}} /> {/* Reg No */}
+                            <col style={{width: '80px'}} /> {/* Company */}
+                            <col style={{width: '60px'}} /> {/* USD */}
+                            <col style={{width: '60px'}} /> {/* Orig Amount */}
+                            <col style={{width: '40px'}} /> {/* Currency */}
+                            <col style={{width: '60px'}} /> {/* Date */}
+                            <col style={{width: '80px'}} /> {/* Rial */}
+                            <col style={{width: '60px'}} /> {/* Exchange */}
+                            <col style={{width: '60px'}} /> {/* Broker */}
+                            <col style={{width: '70px'}} /> {/* Bank */}
+                            <col style={{width: '60px'}} /> {/* Delivered */}
+                            <col style={{width: '40px'}} /> {/* Status */}
+                            <col style={{width: '70px'}} /> {/* Return Amt */}
+                            <col style={{width: '60px'}} /> {/* Return Date */}
+                        </colgroup>
                         <thead>
                             <tr className="bg-gray-100 text-black">
-                                <th rowSpan={2} className="border border-black p-1 w-8 font-black text-center bg-white">ردیف</th>
+                                <th rowSpan={2} className="border border-black p-1 font-black text-center bg-white">ردیف</th>
                                 <th rowSpan={2} className="border border-black p-1 font-black text-center bg-white">شرح کالا</th>
                                 <th rowSpan={2} className="border border-black p-1 font-black text-center bg-white">شماره سفارش<br/>(پرونده)</th>
                                 <th rowSpan={2} className="border border-black p-1 font-black text-center bg-white">شماره ثبت<br/>سفارش</th>
@@ -353,7 +376,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                             {tIndex === 0 && (
                                                 <>
                                                     <td className="border border-black p-1 text-center font-bold text-black" rowSpan={group.tranches.length}>{gIndex + 1}</td>
-                                                    <td className="border border-black p-1 text-right truncate max-w-[100px] font-bold text-black" rowSpan={group.tranches.length} title={group.recordInfo.goodsName}>{group.recordInfo.goodsName}</td>
+                                                    <td className="border border-black p-1 text-right truncate font-bold text-black" rowSpan={group.tranches.length} title={group.recordInfo.goodsName}>{group.recordInfo.goodsName}</td>
                                                     <td className="border border-black p-1 font-mono font-bold text-center text-black" rowSpan={group.tranches.length}>{group.recordInfo.fileNumber}</td>
                                                     <td className="border border-black p-1 font-mono text-center text-black" rowSpan={group.tranches.length}>{group.recordInfo.registrationNumber || '-'}</td>
                                                     <td className="border border-black p-1 text-center font-bold text-black" rowSpan={group.tranches.length}>{group.recordInfo.company}</td>
@@ -366,7 +389,7 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                                             <td className="border border-black p-1 text-center font-bold text-black">{t.currencyType}</td>
                                             <td className="border border-black p-1 dir-ltr text-center font-bold text-black">{t.purchaseDate}</td>
                                             <td className="border border-black p-1 font-mono text-center font-bold text-black">{t.rialAmount > 0 ? formatNumberString(t.rialAmount) : '-'}</td>
-                                            <td className="border border-black p-1 text-[9px] truncate max-w-[80px] text-center font-bold text-black" title={t.exchangeName}>{t.exchangeName}</td>
+                                            <td className="border border-black p-1 text-[9px] truncate text-center font-bold text-black" title={t.exchangeName}>{t.exchangeName}</td>
                                             <td className="border border-black p-1 font-mono text-[9px] text-center font-bold text-black">{t.brokerName}</td> 
                                             
                                             {tIndex === 0 && <td className="border border-black p-1 text-center font-bold text-black" rowSpan={group.tranches.length}>{group.recordInfo.bank}</td>}

@@ -31,22 +31,38 @@ export const generatePdf = async ({
     }
 
     try {
-        // 1. Capture the element as a high-quality image
-        // We set windowWidth to 1200px to force "Desktop" layout even on mobile devices
+        // Define page size in mm
+        const pageWidth = format === 'a4' ? 210 : 148;
+        const pageHeight = format === 'a4' ? 297 : 210;
+        
+        // Swap for landscape
+        const finalPageWidth = orientation === 'landscape' ? pageHeight : pageWidth;
+        const finalPageHeight = orientation === 'landscape' ? pageWidth : pageHeight;
+
+        // 1. Capture the element
         const canvas = await html2canvas(element, {
-            scale: 2, // High resolution (Retina-like)
+            scale: 2, // High resolution
             backgroundColor: '#ffffff',
-            useCORS: true, // Allow cross-origin images (like user avatars)
-            windowWidth: 1280, // Force desktop width for consistent layout
+            useCORS: true,
             logging: false,
+            // Force full scroll width/height to be captured
+            windowWidth: element.scrollWidth + 100,
+            windowHeight: element.scrollHeight + 100,
+            x: 0,
+            y: 0,
+            width: element.offsetWidth,
+            height: element.offsetHeight,
             onclone: (clonedDoc) => {
-                // Ensure the cloned element is visible and has correct background
                 const el = clonedDoc.getElementById(elementId);
                 if (el) {
-                    el.style.visibility = 'visible';
-                    el.style.display = 'block';
-                    el.style.margin = '0';
+                    // Reset any transforms or margins that might shift content
                     el.style.transform = 'none';
+                    el.style.margin = '0';
+                    el.style.padding = '0'; // We handle padding via PDF positioning
+                    el.style.width = '100%';
+                    el.style.height = 'auto';
+                    el.style.overflow = 'visible';
+                    el.style.maxHeight = 'none';
                 }
             }
         });
@@ -64,7 +80,7 @@ export const generatePdf = async ({
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // 3. Calculate Image Dimensions to Fit Page (Maintain Aspect Ratio)
+        // 3. Calculate Dimensions to Fit
         const imgProps = pdf.getImageProperties(imgData);
         const imgRatio = imgProps.width / imgProps.height;
         const pageRatio = pdfWidth / pdfHeight;
@@ -77,7 +93,7 @@ export const generatePdf = async ({
             finalWidth = pdfWidth;
             finalHeight = finalWidth / imgRatio;
         } else {
-            // Fit by height
+            // If image is taller, fit by height (unless it's very long, then we might want multipage - but for now single page fit)
             finalHeight = pdfHeight;
             finalWidth = finalHeight * imgRatio;
         }
@@ -86,10 +102,9 @@ export const generatePdf = async ({
         const x = (pdfWidth - finalWidth) / 2;
         const y = (pdfHeight - finalHeight) / 2;
 
-        // 5. Add Image and Save
+        // 5. Add Image
         pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
         
-        // Ensure filename ends with .pdf
         const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
         pdf.save(safeFilename);
 

@@ -48,7 +48,7 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
                 width: '210mm', // A4 Portrait Fixed Width
                 height: '297mm', 
                 direction: 'rtl',
-                margin: '0 auto',
+                margin: '0 auto', // Center the page horizontally
                 boxSizing: 'border-box',
                 padding: '0'
             }}

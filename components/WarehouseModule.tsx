@@ -51,7 +51,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     // Reports State
     const [archiveFilterCompany, setArchiveFilterCompany] = useState('');
     const [reportSearch, setReportSearch] = useState('');
-    const [processingExport, setProcessingExport] = useState(false);
     
     // Print Report State
     const [showPrintStockReport, setShowPrintStockReport] = useState(false); 
@@ -354,7 +353,6 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
     const pendingBijaks = useMemo(() => transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING'), [transactions]);
 
     const handlePrintStock = () => { setShowPrintStockReport(true); };
-    const handleDownloadStockPDF = async () => { /* ... */ };
 
     if (!settings || loadingData) return <div className="flex flex-col items-center justify-center h-[50vh] text-gray-500 gap-2"><Loader2 className="animate-spin text-blue-600" size={32}/><span className="text-sm font-bold">در حال بارگذاری اطلاعات انبار...</span></div>;
     const companyList = settings.companies?.filter(c => c.showInWarehouse !== false).map(c => c.name) || [];
@@ -492,8 +490,7 @@ const WarehouseModule: React.FC<Props> = ({ currentUser, settings, initialTab = 
                         <div className="flex justify-between items-center mb-4 no-print">
                             <h2 className="text-xl font-bold">گزارش موجودی کلی انبارها (تفکیکی)</h2>
                             <div className="flex gap-2">
-                                <button onClick={handleDownloadStockPDF} disabled={processingExport} className="bg-red-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-red-700">{processingExport ? <Loader2 size={18} className="animate-spin"/> : <FileDown size={18}/>} دانلود PDF</button>
-                                <button onClick={handlePrintStock} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"><Printer size={18}/> چاپ (افقی)</button>
+                                <button onClick={handlePrintStock} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"><Printer size={18}/> چاپ / PDF</button>
                             </div>
                         </div>
                         <div id="stock-report-container" className="bg-white p-2 shadow-lg mx-auto w-full md:w-[297mm] min-h-[210mm] text-[10px]">
