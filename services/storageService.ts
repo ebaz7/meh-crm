@@ -14,9 +14,6 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
       if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
-      // VOIDED also requires CEO/Admin approval, so we log it
-      else if (status === OrderStatus.VOIDED) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
-      
       if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; }
       const updatedOrder = { ...order, ...updates };
       return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder);
