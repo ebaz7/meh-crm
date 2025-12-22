@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord, SystemSettings } from '../../types';
 import { formatCurrency, formatNumberString, parsePersianDate } from '../../constants';
 import { Printer, FileDown, Search, Filter, X, Loader2 } from 'lucide-react';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface Props {
     records: TradeRecord[];
@@ -108,28 +109,26 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
         return rows;
     }, [records, selectedInsCompany, searchTerm]);
 
+    const elementId = 'insurance-ledger-print';
+
     const handlePrint = () => {
-        const style = document.getElementById('page-size-style');
-        if (style) style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
-        setTimeout(() => window.print(), 800);
+        setIsGeneratingPdf(true);
+        setTimeout(() => {
+            window.print();
+            setIsGeneratingPdf(false);
+        }, 500);
     };
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('insurance-ledger-print');
-        if (!element) { setIsGeneratingPdf(false); return; }
-        try {
-            // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-            const imgData = canvas.toDataURL('image/png');
-            // @ts-ignore
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = 210;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Insurance_Ledger_${selectedInsCompany}.pdf`);
-        } catch (e) { alert('Error'); } finally { setIsGeneratingPdf(false); }
+        await generatePdf({
+            elementId: elementId,
+            filename: `Insurance_Ledger_${selectedInsCompany}.pdf`,
+            format: 'A4',
+            orientation: 'portrait',
+            onComplete: () => setIsGeneratingPdf(false),
+            onError: () => { alert('خطا در ایجاد PDF'); setIsGeneratingPdf(false); }
+        });
     };
 
     return (
@@ -152,7 +151,14 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
             </div>
 
             <div className="flex-1 overflow-auto flex justify-center bg-gray-50 p-4">
-                <div id="insurance-ledger-print" className="printable-content bg-white p-8 shadow-2xl relative text-black" style={{ width: '210mm', minHeight: '297mm', direction: 'rtl', padding: '10mm', boxSizing: 'border-box' }}>
+                <div id={elementId} className="printable-content bg-white p-8 shadow-2xl relative text-black" 
+                    style={{ 
+                        width: '210mm', 
+                        minHeight: '297mm', 
+                        direction: 'rtl', 
+                        padding: '10mm', 
+                        boxSizing: 'border-box' 
+                    }}>
                     <div className="border border-black mb-4">
                         <div className="bg-gray-200 font-black py-3 border-b border-black text-center text-lg">صورتحساب شرکت بیمه: {selectedInsCompany}</div>
                         <div className="flex justify-between px-4 py-2 bg-gray-50 text-xs font-bold">
@@ -172,7 +178,7 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
                         </thead>
                         <tbody>
                             {ledgerData.length === 0 ? (
-                                <tr><td colSpan={5} className="p-4 text-gray-400">تراکنشی یافت نشد</td></tr>
+                                <tr><td colSpan={5} className="p-4 text-gray-400 border border-gray-300">تراکنشی یافت نشد</td></tr>
                             ) : (
                                 ledgerData.map((row, idx) => (
                                     <tr key={row.id} className="hover:bg-gray-50">

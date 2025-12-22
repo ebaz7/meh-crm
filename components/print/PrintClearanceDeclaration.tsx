@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { TradeRecord, SystemSettings } from '../../types';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { formatNumberString } from '../../constants';
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface Props {
   record: TradeRecord;
@@ -43,6 +44,8 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
   const totalWeight = record.items.reduce((sum, i) => sum + i.weight, 0);
   const totalPackages = packingList?.packagesCount || 0;
 
+  const elementId = 'clearance-declaration-print';
+
   useEffect(() => {
     const style = document.getElementById('page-size-style');
     if (style && !embed) {
@@ -56,6 +59,18 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
           window.print();
           setProcessing(false);
       }, 500);
+  };
+
+  const handleDownloadPDF = async () => {
+      setProcessing(true);
+      await generatePdf({
+          elementId: elementId,
+          filename: `Clearance_Declaration_${record.fileNumber}.pdf`,
+          format: 'A4',
+          orientation: 'portrait',
+          onComplete: () => setProcessing(false),
+          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
+      });
   };
 
   const Input = ({ value, onChange, className = "", placeholder = "................" }: any) => (
@@ -74,7 +89,8 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
                 <div className="bg-white p-3 rounded-xl shadow-lg flex justify-between items-center gap-4">
                     <span className="font-bold text-sm">اعلام ورود کالا (ترخیصیه)</span>
                     <div className="flex gap-2">
-                        <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-xs flex items-center gap-1"><Printer size={16}/> چاپ</button>
+                        <button onClick={handleDownloadPDF} disabled={processing} className="bg-red-600 text-white p-2 rounded text-xs flex items-center gap-1 hover:bg-red-700 transition-colors">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
+                        <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-xs flex items-center gap-1 hover:bg-blue-700 transition-colors"><Printer size={16}/> چاپ</button>
                         <button onClick={onClose} className="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200"><X size={18}/></button>
                     </div>
                 </div>
@@ -82,14 +98,15 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
         )}
 
         <div className={`order-2 w-full overflow-auto flex justify-center ${embed ? 'block' : ''}`}>
-            <div className="printable-content bg-white shadow-2xl relative text-black overflow-hidden" 
+            <div id={elementId} className="printable-content bg-white shadow-2xl relative text-black overflow-hidden" 
                 style={{ 
                     width: '210mm', 
-                    minHeight: '297mm', 
+                    height: '296mm', // Fixed height to prevent 2nd page
                     direction: 'rtl',
                     boxSizing: 'border-box',
                     padding: '0',
-                    margin: embed ? '0' : '0 auto'
+                    margin: embed ? '0' : '0 auto',
+                    overflow: 'hidden' // Critical
                 }}>
                 
                 {/* Letterhead Background Image */}
@@ -111,7 +128,7 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
                 )}
 
                 {/* Content Container with Padding matching letterhead safe area */}
-                <div style={{ position: 'relative', zIndex: 1, padding: '40mm 20mm 20mm 20mm', height: '100%' }}>
+                <div style={{ position: 'relative', zIndex: 1, padding: '40mm 20mm 20mm 20mm', height: '100%', boxSizing: 'border-box' }}>
                     
                     {/* Header Info Overlay */}
                     <div className="absolute top-[40mm] left-[20mm] text-left text-sm font-bold space-y-1 w-48" style={{ direction: 'ltr' }}>

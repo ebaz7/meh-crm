@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, parsePersianDate, getCurrentShamsiDate, formatCurrency } from '../../constants';
@@ -152,16 +153,20 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         return acc;
     }, { usd: 0, original: 0, rial: 0 });
 
+    const elementId = 'currency-report-print-area';
+
     const handlePrint = () => {
-        const style = document.getElementById('page-size-style');
-        if (style) style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
-        setTimeout(() => window.print(), 500);
+        setIsGeneratingPdf(true);
+        setTimeout(() => {
+            window.print();
+            setIsGeneratingPdf(false);
+        }, 500);
     };
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
         await generatePdf({
-            elementId: 'currency-report-print-area',
+            elementId: elementId,
             filename: `Currency_Report_${selectedYear}.pdf`,
             format: 'A4',
             orientation: 'landscape',
@@ -241,12 +246,11 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
 
             {/* Report Table Area (Printable) */}
             <div className="flex-1 overflow-auto flex justify-center">
-                <div id="currency-report-print-area" className="printable-content bg-white p-4 text-black text-[10px] relative border-black" 
+                <div id={elementId} className="printable-content bg-white p-4 text-black text-[10px] relative border-black" 
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
-                        width: '100%', // Flexible for screen
-                        maxWidth: '297mm', // Cap at A4 landscape
+                        width: '296mm', // A4 Landscape
                         minHeight: '210mm',
                         margin: '0 auto',
                         boxSizing: 'border-box',

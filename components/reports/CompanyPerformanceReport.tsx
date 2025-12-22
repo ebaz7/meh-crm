@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../../constants';
@@ -113,7 +114,7 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
             details: Object.entries(summary).map(([name, total]) => ({
                 name,
                 total,
-                weeklyAvg: weeksPassed > 0 ? total / weeksPassed : 0
+                weeklyAvg: total / weeksPassed
             })).sort((a,b) => b.total - a.total),
             totalAll
         };
@@ -121,17 +122,21 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
 
     const formatUSD = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+    const elementId = 'performance-report-print-area';
+
     // -- Export Handlers --
     const handlePrint = () => {
-        const style = document.getElementById('page-size-style');
-        if (style) style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
-        setTimeout(() => window.print(), 800); // Slight delay to ensure styles render
+        setIsGeneratingPdf(true);
+        setTimeout(() => {
+            window.print();
+            setIsGeneratingPdf(false);
+        }, 500);
     };
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
         await generatePdf({
-            elementId: 'performance-report-print-area',
+            elementId: elementId,
             filename: `Company_Performance_${selectedYear}.pdf`,
             format: 'A4',
             orientation: 'portrait',
@@ -199,7 +204,7 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
 
             {/* Printable Report Area */}
             <div className="flex-1 overflow-auto flex justify-center bg-gray-50 p-4">
-                <div id="performance-report-print-area" className="printable-content bg-white p-8 shadow-2xl relative text-black" 
+                <div id={elementId} className="printable-content bg-white p-8 shadow-2xl relative text-black" 
                     style={{ 
                         // A4 Portrait
                         width: '210mm', 
