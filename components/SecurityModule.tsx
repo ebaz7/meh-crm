@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
@@ -346,7 +347,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             registrant: editingId ? incidentForm.registrant! : currentUser.fullName,
             witnesses: incidentForm.witnesses,
             status: statusToSave,
-            createdAt: editingId ? incidentForm.createdAt! : Date.now()
+            createdAt: editingId ? incidentForm.createdAt! : Date.now(),
+            shiftManagerOpinion: incidentForm.shiftManagerOpinion,
+            hrAction: incidentForm.hrAction,
+            safetyAction: incidentForm.safetyAction
         };
         if (editingId) await updateSecurityIncident(newInc); else await saveSecurityIncident(newInc);
         resetForms(); loadData();
@@ -463,9 +467,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const elementId = (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'log')) ? 'printable-area-view' :
-                          (printTarget && printTarget.type === 'incident') ? 'printable-area-view' : 
-                          'print-delay-form';
+        const elementId = 'printable-area-view';
+        
         const isLandscape = (printTarget && (printTarget.type === 'daily_log')) || (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
 
         await generatePdf({
@@ -478,8 +481,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         });
     };
 
-    // --- Added Handlers for Bulk Approval Workflow ---
-
     const handleSupervisorDailySubmit = async () => {
         if (!confirm('آیا از ارسال موارد تایید شده به مدیر کارخانه اطمینان دارید؟')) return;
         const delaysToSend = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
@@ -487,7 +488,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             await updatePersonnelDelay({ ...d, status: SecurityStatus.PENDING_FACTORY });
         }
         
-        // Update meta if needed
         if (settings) {
             const dates = new Set(delaysToSend.map(d => d.date));
             let updatedSettings = { ...settings };
@@ -521,7 +521,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         for (const l of logsToSend) await updateSecurityLog({ ...l, status: SecurityStatus.PENDING_CEO });
         for (const d of delaysToSend) await updatePersonnelDelay({ ...d, status: SecurityStatus.PENDING_CEO });
 
-        // Update meta
         if (settings) {
             const dates = new Set([...logsToSend.map(l => l.date), ...delaysToSend.map(d => d.date)]);
             let updatedSettings = { ...settings };
@@ -582,7 +581,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     return (
         <div className="p-4 md:p-6 bg-gray-50 h-[calc(100vh-100px)] overflow-y-auto animate-fade-in relative">
-            {/* Modal for Forms */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -614,6 +612,27 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                 <div><label className="text-xs font-bold block mb-1">شیفت</label><select className="w-full border rounded p-2 text-sm" value={incidentForm.shift || 'صبح'} onChange={e => setPartialIncidentForm({...incidentForm, shift: e.target.value})}><option value="صبح">صبح</option><option value="عصر">عصر</option><option value="شب">شب</option></select></div>
                                 <div><label className="text-xs font-bold block mb-1">شرح کامل ماجرا</label><textarea className="w-full border rounded p-2 text-sm h-32" value={incidentForm.description} onChange={e => setPartialIncidentForm({...incidentForm, description: e.target.value})}/></div>
                                 <div><label className="text-xs font-bold block mb-1">شهود (نام و نام خانوادگی)</label><input className="w-full border rounded p-2 text-sm" value={incidentForm.witnesses} onChange={e => setPartialIncidentForm({...incidentForm, witnesses: e.target.value})}/></div>
+                                
+                                {(currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN) && (
+                                    <div className="bg-blue-50 p-2 rounded border border-blue-100">
+                                        <label className="text-xs font-bold block mb-1 text-blue-800">نظر سر شیفت</label>
+                                        <textarea className="w-full border rounded p-2 text-sm h-16" value={incidentForm.shiftManagerOpinion} onChange={e => setPartialIncidentForm({...incidentForm, shiftManagerOpinion: e.target.value})}/>
+                                    </div>
+                                )}
+
+                                {(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-green-50 p-2 rounded border border-green-100">
+                                            <label className="text-xs font-bold block mb-1 text-green-800">اقدام ایمنی</label>
+                                            <textarea className="w-full border rounded p-2 text-sm h-16" value={incidentForm.safetyAction} onChange={e => setPartialIncidentForm({...incidentForm, safetyAction: e.target.value})}/>
+                                        </div>
+                                        <div className="bg-purple-50 p-2 rounded border border-purple-100">
+                                            <label className="text-xs font-bold block mb-1 text-purple-800">اقدام کارگزینی</label>
+                                            <textarea className="w-full border rounded p-2 text-sm h-16" value={incidentForm.hrAction} onChange={e => setPartialIncidentForm({...incidentForm, hrAction: e.target.value})}/>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <button onClick={handleSaveIncident} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold mt-2 hover:bg-red-700">ثبت گزارش</button>
                             </div>
                         )}
@@ -621,7 +640,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* Print Modal */}
             {showPrintModal && printTarget && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print">
@@ -629,8 +647,8 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-4 py-2 rounded flex items-center gap-2">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
                         <button onClick={() => setShowPrintModal(false)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded">بستن</button>
                     </div>
-                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh]">
-                        <div id="printable-area-view" className="printable-content scale-75 origin-top bg-white">
+                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full flex justify-center">
+                        <div id="printable-area-view" className="bg-white shadow-lg">
                             {printTarget.type === 'daily_log' && <PrintSecurityDailyLog date={printTarget.date} logs={printTarget.logs} meta={printTarget.meta} />}
                             {printTarget.type === 'daily_delay' && <PrintPersonnelDelay delays={printTarget.delays} meta={printTarget.meta} />}
                             {printTarget.type === 'incident' && <PrintIncidentReport incident={printTarget.incident} />}
@@ -639,7 +657,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* Shift Modal */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -655,15 +672,47 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* View Cartable Item Modal */}
             {viewCartableItem && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print w-full max-w-2xl justify-between items-center"><div className="font-bold text-lg text-gray-800">{viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive' ? `گزارش روزانه - ${formatDate(viewCartableItem.date)}` : 'بررسی'}</div><div className="flex gap-2"><button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow"><Printer size={18}/></button><button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-4 py-2 rounded font-bold shadow">{isGeneratingPdf ? <Loader2 size={18} className="animate-spin"/> : <FileDown size={18}/>}</button>{(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && viewCartableItem.type === 'daily_archive' && (<button onClick={() => handleJumpToEdit(String(viewCartableItem.date), viewCartableItem.category)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded font-bold border border-amber-300">ویرایش روز</button>)}{viewCartableItem.mode !== 'view_only' && (<>{(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && (viewCartableItem.status === SecurityStatus.PENDING_FACTORY) ? (<button onClick={() => handleApprove(viewCartableItem)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">تایید اولیه</button>) : (<button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold">تایید</button>)}<button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold">رد</button></>)}<button onClick={() => setViewCartableItem(null)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold">بستن</button></div></div>
-                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full max-w-5xl flex justify-center"><div className="scale-75 origin-top"><div id="printable-area-view" className="bg-white shadow-lg flex justify-center">{(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'log' && (<PrintSecurityDailyLog date={viewCartableItem.date} logs={logs.filter(l => l.date === viewCartableItem.date)} meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}/>)}{(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'delay' && (<PrintPersonnelDelay delays={delays.filter(d => d.date === viewCartableItem.date)} meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}/>)}{viewCartableItem.type === 'log' && (<PrintSecurityDailyLog date={viewCartableItem.date} logs={logs.filter(l => l.date === viewCartableItem.date)} meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}/>)}{viewCartableItem.type === 'delay' && (<PrintPersonnelDelay delays={delays.filter(d => d.date === viewCartableItem.date)} meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}/>)}{viewCartableItem.type === 'incident' && (<PrintIncidentReport incident={viewCartableItem} />)}</div></div></div>
+                    <div className="overflow-auto bg-gray-200 p-4 rounded shadow-inner max-h-[80vh] w-full flex justify-center">
+                        <div className="bg-white shadow-lg" id="printable-area-view">
+                            {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'log' && (
+                                <PrintSecurityDailyLog 
+                                    date={viewCartableItem.date} 
+                                    logs={logs.filter(l => l.date === viewCartableItem.date)} 
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
+                                />
+                            )}
+                            {(viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive') && viewCartableItem.category === 'delay' && (
+                                <PrintPersonnelDelay 
+                                    delays={delays.filter(d => d.date === viewCartableItem.date)} 
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
+                                />
+                            )}
+                            {viewCartableItem.type === 'log' && (
+                                <PrintSecurityDailyLog 
+                                    date={viewCartableItem.date} 
+                                    logs={logs.filter(l => l.date === viewCartableItem.date)} 
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
+                                />
+                            )}
+                            {viewCartableItem.type === 'delay' && (
+                                <PrintPersonnelDelay 
+                                    delays={delays.filter(d => d.date === viewCartableItem.date)} 
+                                    meta={(settings?.dailySecurityMeta || {})[String(viewCartableItem.date)]}
+                                />
+                            )}
+                            {viewCartableItem.type === 'incident' && (
+                                <PrintIncidentReport incident={viewCartableItem} />
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
+                {/* ... (Header controls kept the same) ... */}
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Shield className="text-blue-600"/> واحد انتظامات</h1>
                 <div className="flex flex-wrap gap-2 items-center w-full xl:w-auto">
                     {(activeTab === 'logs' || activeTab === 'delays') && (<div className="flex gap-2"><button onClick={() => setShowShiftModal(true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1"><FileText size={16}/> شیفت</button><DateFilter /></div>)}
@@ -672,6 +721,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
+                {/* ... (Logs and Delays Tabs Content kept the same) ... */}
                 {activeTab === 'logs' && (
                     <>
                         <div className="flex border-b">

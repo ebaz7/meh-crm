@@ -199,77 +199,159 @@ export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[], meta?: Da
 };
 
 export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ incident }) => {
+    // Signature component for cleaner reuse
+    const SignatureBox = ({ title, name, type }: { title: string, name?: string, type?: 'supervisor' | 'manager' | 'ceo' }) => {
+        let borderColor = 'black';
+        let textColor = 'black';
+        let label = 'امضاء';
+        
+        if (name) {
+            if (type === 'supervisor') { borderColor = 'blue'; textColor = 'blue'; label = 'تایید شد'; }
+            else if (type === 'manager') { borderColor = 'green'; textColor = 'green'; label = 'دستور اقدام'; }
+            else if (type === 'ceo') { borderColor = 'purple'; textColor = 'purple'; label = 'تایید نهایی'; }
+        }
+
+        return (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{title}</span>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                    {name ? (
+                        <div style={{ 
+                            border: `2px solid ${borderColor}`, 
+                            color: textColor, 
+                            padding: '4px 8px', 
+                            borderRadius: '5px', 
+                            transform: 'rotate(-3deg)',
+                            fontWeight: 'bold',
+                            fontSize: '10px',
+                            textAlign: 'center'
+                        }}>
+                            <div style={{ borderBottom: `1px solid ${borderColor}`, marginBottom: '2px', fontSize: '8px' }}>{label}</div>
+                            {name}
+                        </div>
+                    ) : (
+                        <span style={{ color: '#d1d5db', fontSize: '9px' }}>........</span>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div style={{ 
-            width: '210mm', 
-            height: '297mm', 
-            backgroundColor: 'white', 
-            color: 'black', 
-            fontFamily: 'sans-serif', 
-            position: 'relative', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            padding: '20px', 
-            boxSizing: 'border-box',
-            direction: 'rtl' 
-        }}>
-            <div style={{ border: '2px solid black', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '5px' }}>
-                <div style={{ display: 'flex', borderBottom: '2px solid black', paddingBottom: '10px', marginBottom: '10px', paddingTop: '10px' }}>
-                    <div style={{ width: '33%', textAlign: 'right', paddingRight: '10px' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '18px' }}>شماره: {incident.reportNumber}</div>
-                        <div style={{ fontWeight: 'bold' }}>تاریخ: {formatDate(incident.date)}</div>
+        <div className="printable-content bg-white text-black font-sans relative" 
+            style={{ 
+                width: '210mm', 
+                minHeight: '297mm', 
+                direction: 'rtl', 
+                margin: '0 auto',
+                boxSizing: 'border-box',
+                padding: '10mm',
+            }}
+        >
+            <div style={{ border: '3px solid black', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                
+                {/* Header */}
+                <div style={{ display: 'flex', borderBottom: '2px solid black', height: '100px' }}>
+                    
+                    {/* Right: Meta */}
+                    <div style={{ width: '150px', borderLeft: '2px solid black', padding: '10px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '5px' }}>
+                        <div>شماره: <span style={{ fontFamily: 'monospace' }}>{incident.reportNumber || '735'}</span></div>
+                        <div>تاریخ: <span style={{ fontFamily: 'monospace' }}>{formatDate(incident.date)}</span></div>
+                        <div>روز / تاریخ: <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>{new Date(incident.date).toLocaleDateString('fa-IR', {weekday:'long'})}</span></div>
+                        <div>شیفت / ساعت: <span style={{ fontFamily: 'monospace' }}>{incident.shift} / {new Date(incident.createdAt).toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'})}</span></div>
                     </div>
-                    <div style={{ width: '33%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <h1 style={{ fontSize: '24px', fontWeight: '900', backgroundColor: '#e5e7eb', padding: '5px 20px', borderRadius: '5px', border: '1px solid black', marginBottom: '5px' }}>فرم گزارش واحد انتظامات</h1>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>گروه تولیدی</span>
-                    </div>
-                    <div style={{ width: '33%', textAlign: 'left', paddingLeft: '10px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                       <div style={{ border: '1px dashed #9ca3af', width: '100px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#d1d5db' }}>لوگو</div>
-                    </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid black', paddingBottom: '10px', paddingLeft: '10px', paddingRight: '10px' }}>
-                    <div><span style={{ fontWeight: 'bold' }}>گزارش کننده:</span> {incident.registrant}</div>
-                    <div><span style={{ fontWeight: 'bold' }}>موضوع:</span> {incident.subject}</div>
-                    <div><span style={{ fontWeight: 'bold' }}>شیفت:</span> {incident.shift}</div>
-                </div>
-
-                <div style={{ flex: 1, border: '1px solid black', padding: '20px', position: 'relative', margin: '10px', borderRadius: '4px' }}>
-                    <h3 style={{ fontWeight: 'bold', borderBottom: '1px solid black', display: 'inline-block', marginBottom: '20px', fontSize: '18px' }}>شرح دقیق موضوع:</h3>
-                    <p style={{ lineHeight: '2', textAlign: 'justify', whiteSpace: 'pre-wrap', fontSize: '14px', fontWeight: '500' }}>{incident.description}</p>
-                </div>
-
-                <div style={{ height: '60px', borderBottom: '1px solid black', display: 'flex', alignItems: 'center', padding: '10px', margin: '0 10px' }}>
-                    <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>شهود:</span> {incident.witnesses || '...................................................'}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', borderTop: '2px solid black', marginTop: 'auto' }}>
-                    <div style={{ height: '100px', borderBottom: '1px solid black', padding: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                        <div style={{ borderLeft: '1px solid black', paddingRight: '10px' }}>
-                            <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>سرپرست انتظامات:</span>
-                            {incident.approverSupervisor && <div style={{ border: '2px solid blue', color: 'blue', padding: '5px', transform: 'rotate(-5deg)', fontWeight: 'bold', borderRadius: '5px', width: 'fit-content', fontSize: '14px', opacity: 0.8 }}>تایید شد: {incident.approverSupervisor}</div>}
-                        </div>
-                        <div style={{ paddingRight: '10px' }}>
-                            <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>دستور مدیریت:</span>
-                            {incident.approverFactory && <div style={{ border: '2px solid green', color: 'green', padding: '5px', transform: 'rotate(-5deg)', fontWeight: 'bold', borderRadius: '5px', width: 'fit-content', fontSize: '14px', opacity: 0.8 }}>دستور اقدام: {incident.approverFactory}</div>}
-                        </div>
+                    {/* Center: Title */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <h2 style={{ fontSize: '22px', fontWeight: '900', margin: '0 0 5px 0' }}>فرم گزارش واحد انتظامات</h2>
+                        <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#4b5563' }}>گروه تولیدی</h1>
                     </div>
-                    <div style={{ height: '70px', borderBottom: '1px solid black', padding: '10px', backgroundColor: 'rgba(250, 245, 255, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold' }}>دستور مدیرعامل:</span>
-                        {incident.approverCeo && <span style={{ marginRight: '10px', fontWeight: '900', color: 'purple', fontSize: '18px', border: '2px solid purple', padding: '5px 10px', borderRadius: '5px', transform: 'rotate(-2deg)', opacity: 0.8 }}>{incident.approverCeo} (تایید نهایی)</span>}
-                        <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#9ca3af' }}>محل امضاء</div>
-                    </div>
-                    <div style={{ display: 'flex', height: '70px' }}>
-                        <div style={{ width: '50%', borderLeft: '1px solid black', padding: '10px' }}>
-                            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>اقدام کارگزینی:</span> 
-                            <div style={{ textAlign: 'right', fontSize: '12px', marginTop: '5px' }}>{incident.hrAction}</div>
-                        </div>
-                        <div style={{ width: '50%', padding: '10px' }}>
-                            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>اقدام ایمنی:</span> 
-                            <div style={{ textAlign: 'right', fontSize: '12px', marginTop: '5px' }}>{incident.safetyAction}</div>
+
+                    {/* Left: Logo */}
+                    <div style={{ width: '150px', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #ccc', color: '#ccc', fontWeight: 'bold' }}>
+                            لوگو
                         </div>
                     </div>
                 </div>
+
+                {/* Reporter Info Row */}
+                <div style={{ display: 'flex', borderBottom: '2px solid black', padding: '8px 10px', fontSize: '12px', alignItems: 'center', backgroundColor: '#f9fafb' }}>
+                    <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 'bold' }}>گزارش کننده: </span>
+                        <span style={{ fontFamily: 'Tahoma' }}>{incident.registrant}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 'bold' }}>موضوع گزارش: </span>
+                        <span style={{ fontFamily: 'Tahoma' }}>{incident.subject}</span>
+                    </div>
+                    <div style={{ width: '150px' }}>
+                        <span style={{ fontWeight: 'bold' }}>شماره گزارش: </span>
+                        <span style={{ fontFamily: 'monospace' }}>{incident.reportNumber}</span>
+                    </div>
+                </div>
+
+                {/* Main Body */}
+                <div style={{ flex: 1, padding: '15px', position: 'relative' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '10px', textDecoration: 'underline' }}>شرح دقیق موضوع :</div>
+                    <div style={{ 
+                        textAlign: 'justify', 
+                        lineHeight: '2.2', 
+                        fontSize: '13px', 
+                        whiteSpace: 'pre-wrap', 
+                        backgroundImage: 'linear-gradient(to bottom, transparent 95%, #e5e7eb 95%)',
+                        backgroundSize: '100% 30px',
+                        minHeight: '400px'
+                    }}>
+                        {incident.description}
+                    </div>
+                </div>
+
+                {/* Witnesses */}
+                <div style={{ borderTop: '2px solid black', padding: '10px 15px', display: 'flex', alignItems: 'center', height: '60px' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '13px', width: '60px' }}>شهود :</span>
+                    <div style={{ flex: 1, borderBottom: '1px dotted black', height: '30px', display: 'flex', alignItems: 'center', paddingRight: '10px', fontSize: '12px' }}>
+                        {incident.witnesses || '...................................................'}
+                    </div>
+                    <div style={{ width: '200px', fontSize: '11px', textAlign: 'center', paddingTop: '15px' }}>
+                        نام و نام خانوادگی و امضاء گزارش کننده
+                    </div>
+                </div>
+
+                {/* Shift Head Opinion */}
+                <div style={{ borderTop: '2px solid black', height: '50px', padding: '5px 15px', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '12px' }}>نظر سر شیفت :</span>
+                    <div style={{ flex: 1, marginRight: '10px', fontSize: '12px' }}>{incident.shiftManagerOpinion}</div>
+                </div>
+
+                {/* Approvals Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', borderTop: '2px solid black' }}>
+                    
+                    {/* Supervisor Row */}
+                    <div style={{ height: '70px', borderBottom: '1px solid black', padding: '5px 15px', display: 'flex', alignItems: 'center' }}>
+                        <div style={{ width: '100%' }}><SignatureBox title="سرپرست انتظامات :" name={incident.approverSupervisor} type="supervisor"/></div>
+                    </div>
+
+                    {/* Management Order Row */}
+                    <div style={{ height: '70px', borderBottom: '1px solid black', padding: '5px 15px', backgroundColor: 'rgba(255,255,255,0.5)' }}>
+                        <div style={{ width: '100%' }}><SignatureBox title="دستور مدیریت :" name={incident.approverFactory} type="manager"/></div>
+                    </div>
+
+                    {/* HR & Safety Row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '70px', borderBottom: '1px solid black' }}>
+                        <div style={{ borderLeft: '1px solid black', padding: '5px 15px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '5px' }}>اقدام کارگزینی :</div>
+                            <div style={{ fontSize: '11px' }}>{incident.hrAction}</div>
+                            <div style={{ textAlign: 'left', fontSize: '9px', color: '#9ca3af', marginTop: '15px' }}>امضاء</div>
+                        </div>
+                        <div style={{ padding: '5px 15px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '5px' }}>اقدام ایمنی و بهداشت :</div>
+                            <div style={{ fontSize: '11px' }}>{incident.safetyAction}</div>
+                            <div style={{ textAlign: 'left', fontSize: '9px', color: '#9ca3af', marginTop: '15px' }}>امضاء</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     );
