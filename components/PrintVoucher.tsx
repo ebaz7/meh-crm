@@ -91,11 +91,16 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         className="printable-content bg-white relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            width: '100%', 
-            height: '100%',
-            padding: '8mm', 
+            // A5 Landscape Dimensions (exact)
+            width: '210mm', 
+            height: '148mm',
+            // Padding inside the fixed container to prevent clipping
+            padding: '10mm', 
             boxSizing: 'border-box',
-            margin: '0 auto' 
+            margin: '0 auto',
+            // Critical for preventing 2nd page
+            maxHeight: '148mm',
+            overflow: 'hidden'
         }}
       >
         {order.status === OrderStatus.REJECTED && (
@@ -177,7 +182,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       
       {/* Container specifically for on-screen viewing, matches A5 ratio roughly but scales */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          <div style={{ width: '209mm', height: '147mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <div style={{ width: '210mm', height: '148mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             {content}
           </div>
       </div>

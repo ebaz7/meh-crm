@@ -25,7 +25,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
-          style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
+          style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
       }
   }, [embed]);
 
@@ -89,7 +89,19 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
   const content = (
       <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} 
         className="printable-content bg-white mx-auto shadow-2xl relative text-gray-900 flex flex-col" 
-        style={{ direction: 'rtl', width: '210mm', minHeight: '297mm', padding: '15mm', boxSizing: 'border-box' }}>
+        style={{ 
+            direction: 'rtl', 
+            // A4 Portrait dimensions
+            width: '210mm', 
+            height: '296mm', 
+            // Internal Padding to avoid edge clipping
+            padding: '15mm', 
+            boxSizing: 'border-box',
+            margin: '0 auto',
+            // Prevent overflow page
+            maxHeight: '296mm',
+            overflow: 'hidden'
+        }}>
             {/* ... Content ... */}
             <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-8">
                 <div className="flex flex-col"><h1 className="text-3xl font-black mb-1">مجوز خروج کالا از کارخانه</h1><p className="text-sm font-bold text-gray-600">سیستم مکانیزه مدیریت بار و خروج</p></div>

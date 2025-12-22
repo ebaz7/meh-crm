@@ -160,7 +160,10 @@ app.post('/api/render-pdf', async (req, res) => {
             format: format || 'A4',
             landscape: landscape || false,
             printBackground: true,
-            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+            // CRITICAL FIX: Zero margins here. We handle padding in CSS/HTML.
+            // This prevents the browser from shrinking content to fit its own margins.
+            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
+            preferCSSPageSize: true
         });
 
         await browser.close();

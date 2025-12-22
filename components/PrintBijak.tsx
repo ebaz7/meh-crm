@@ -139,11 +139,16 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none`} 
         style={{ 
             direction: 'rtl',
-            width: '147mm',
+            // A5 Portrait Size
+            width: '148mm',
             height: '209mm',
             margin: '0 auto',
+            // Inner padding to avoid clipping
             padding: '8mm', 
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            // Prevent 2nd page
+            maxHeight: '209mm',
+            overflow: 'hidden'
         }}>
             {/* ... Content ... */}
             {tx.status === 'REJECTED' && (

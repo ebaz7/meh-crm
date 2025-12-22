@@ -63,11 +63,22 @@ export const generatePdf = async ({
                 <script src="https://cdn.tailwindcss.com"></script>
                 <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
                 <style>
-                    body { font-family: 'Vazirmatn', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    /* ZERO MARGIN RESET FOR PDF ENGINE */
+                    @page { margin: 0; size: auto; }
+                    
+                    body { 
+                        font-family: 'Vazirmatn', sans-serif; 
+                        -webkit-print-color-adjust: exact; 
+                        print-color-adjust: exact; 
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                        height: 100%;
+                    }
                     /* Ensure inputs look like text in print */
                     input, select, textarea { background: transparent; border: none; font-family: inherit; }
                     /* Layout fixes */
-                    .printable-content { margin: 0 auto; width: 100%; box-shadow: none !important; }
+                    .printable-content { margin: 0 auto; width: 100%; height: 100%; box-shadow: none !important; }
                 </style>
             </head>
             <body>

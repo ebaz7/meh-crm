@@ -41,15 +41,20 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                width: '297mm', // A4 Landscape Fixed Width
-                minHeight: '210mm', 
+                // A4 Landscape fixed dims
+                width: '296mm', 
+                height: '209mm', 
                 direction: 'rtl',
                 margin: '0 auto',
                 boxSizing: 'border-box',
-                padding: '0' 
+                // Internal padding to prevent cutting edges
+                padding: '5mm', 
+                // Prevent 2nd page
+                maxHeight: '209mm',
+                overflow: 'hidden'
             }}
         >
-            <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column', margin: '5px' }}>
+            <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 
                 {/* 1. Header Table */}
                 <div style={{ borderBottom: '2px solid black', height: '100px', display: 'flex' }}>
@@ -240,12 +245,15 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
+                // A4 Portrait
                 width: '210mm', 
-                minHeight: '297mm', 
+                height: '296mm', 
                 direction: 'rtl', 
                 margin: '0 auto',
                 boxSizing: 'border-box',
                 padding: '10mm',
+                maxHeight: '296mm',
+                overflow: 'hidden'
             }}
         >
             <div style={{ border: '3px solid black', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
