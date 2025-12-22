@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, SystemSettings, UserRole } from '../types';
 import { formatDate, formatCurrency } from '../constants';
 import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle, Share2, Edit, Loader2, Users, Search, FileDown } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
-import { generatePdf } from '../utils/pdfGenerator'; 
+import { generatePdf } from '../utils/pdfGenerator'; // Import Utility
 
 interface Props {
   permit: ExitPermit;
@@ -44,7 +43,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
       await generatePdf({
           elementId: elementId,
           filename: `Permit_${permit.permitNumber}.pdf`,
-          format: 'a4',
+          format: 'A4',
           orientation: 'portrait',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }

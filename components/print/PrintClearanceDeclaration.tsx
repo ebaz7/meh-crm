@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { TradeRecord, SystemSettings } from '../../types';
-import { X, Printer, Loader2, FileDown } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { formatNumberString } from '../../constants';
-import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface Props {
   record: TradeRecord;
@@ -59,18 +58,6 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
       }, 500);
   };
 
-  const handleDownloadPDF = async () => {
-      setProcessing(true);
-      await generatePdf({
-          elementId: 'clearance-print-area',
-          filename: `Clearance_${record.fileNumber}.pdf`,
-          format: 'a4',
-          orientation: 'portrait',
-          onComplete: () => setProcessing(false),
-          onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
-      });
-  };
-
   const Input = ({ value, onChange, className = "", placeholder = "................" }: any) => (
       <input 
         value={value} 
@@ -87,7 +74,6 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
                 <div className="bg-white p-3 rounded-xl shadow-lg flex justify-between items-center gap-4">
                     <span className="font-bold text-sm">اعلام ورود کالا (ترخیصیه)</span>
                     <div className="flex gap-2">
-                        <button onClick={handleDownloadPDF} disabled={processing} className="bg-red-600 text-white p-2 rounded text-xs flex items-center gap-1">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
                         <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-xs flex items-center gap-1"><Printer size={16}/> چاپ</button>
                         <button onClick={onClose} className="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200"><X size={18}/></button>
                     </div>
@@ -96,7 +82,7 @@ const PrintClearanceDeclaration: React.FC<Props> = ({ record, settings, onClose,
         )}
 
         <div className={`order-2 w-full overflow-auto flex justify-center ${embed ? 'block' : ''}`}>
-            <div id="clearance-print-area" className="printable-content bg-white shadow-2xl relative text-black overflow-hidden" 
+            <div className="printable-content bg-white shadow-2xl relative text-black overflow-hidden" 
                 style={{ 
                     width: '210mm', 
                     minHeight: '297mm', 

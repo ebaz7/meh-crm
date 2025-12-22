@@ -1,9 +1,8 @@
-
 import React, { useEffect, useState } from 'react';
 import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { TradeRecord, TradeStage } from '../../types';
 import { formatCurrency, formatNumberString } from '../../constants';
-import { generatePdf } from '../../utils/pdfGenerator'; 
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface Props {
   record: TradeRecord;
@@ -28,13 +27,15 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   const totalWeight = record.items.reduce((sum, item) => sum + item.weight, 0);
   const totalFreightCurrency = record.freightCost || 0;
   
+  // Calculate Net Currency Cost for Display in Expenses
   const tranches = record.currencyPurchaseData?.tranches || [];
   const netCurrencyRialCost = tranches.reduce((acc, t) => {
       const cost = t.amount * (t.rate || 0);
-      const ret = t.returnAmount || 0; 
+      const ret = t.returnAmount || 0; // Already in Rial
       return acc + (cost - ret);
   }, 0);
 
+  // Gather Expenses for Bill Table
   const expenses = [
       { name: 'هزینه خرید ارز (خالص ریالی)', amount: netCurrencyRialCost },
       { name: 'هزینه‌های ثبت سفارش و بانکی', amount: record.stages[TradeStage.LICENSES]?.costRial || 0 },
@@ -51,7 +52,7 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
       await generatePdf({
           elementId: 'final-cost-print-area',
           filename: `Cost_Report_${record.fileNumber}.pdf`,
-          format: 'a4',
+          format: 'A4',
           orientation: 'portrait',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
@@ -59,6 +60,8 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
   };
 
   const costPerKg = totalWeight > 0 ? grandTotalRial / totalWeight : 0;
+  
+  // Freight Per KG (Currency)
   const freightPerKgCurrency = totalWeight > 0 ? totalFreightCurrency / totalWeight : 0;
 
   return (
@@ -158,10 +161,19 @@ const PrintFinalCostReport: React.FC<Props> = ({ record, totalRial, totalCurrenc
                     </thead>
                     <tbody>
                         {record.items.map((item, idx) => {
+                            // 1. Calculate Item Share of Freight in Currency based on weight
                             const itemFreightShareCurrency = item.weight * freightPerKgCurrency;
+                            
+                            // 2. Adjusted Item Total Price in Currency
                             const itemAdjustedTotalPriceCurrency = item.totalPrice + itemFreightShareCurrency;
+                            
+                            // 3. Final Cost in Rial = Adjusted Currency Total * Effective Rate
                             const itemFinalCostRial = itemAdjustedTotalPriceCurrency * exchangeRate;
+                            
+                            // 4. Per Kg
                             const itemFinalCostPerKg = item.weight > 0 ? itemFinalCostRial / item.weight : 0;
+                            
+                            // Display: Unit Price Adjusted
                             const itemAdjustedUnitPriceCurrency = item.weight > 0 ? itemAdjustedTotalPriceCurrency / item.weight : 0;
 
                             return (

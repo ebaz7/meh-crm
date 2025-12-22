@@ -24,63 +24,79 @@
       body {
         font-family: 'Vazirmatn', sans-serif;
         background-color: #f3f4f6;
-        overscroll-behavior-y: none;
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile PWA */
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
       
-      .safe-pb { padding-bottom: env(safe-area-inset-bottom) !important; }
-      .safe-pt { padding-top: env(safe-area-inset-top) !important; }
+      /* Safe Area Utilities for Mobile */
+      .safe-pb {
+        padding-bottom: env(safe-area-inset-bottom) !important;
+      }
+      .safe-pt {
+        padding-top: env(safe-area-inset-top) !important;
+      }
 
-      /* PDF Generation & Print Optimization Classes */
+      /* PDF Generation & Print Optimization */
       .printable-content {
+        box-sizing: border-box !important;
         background-color: white !important;
         color: black !important;
-        font-variant-ligatures: no-common-ligatures;
-        -webkit-print-color-adjust: exact !important;
+        font-variant-ligatures: no-common-ligatures; /* Helps with some Persian font renderers */
+        -webkit-print-color-adjust: exact !important; /* Force background colors */
         print-color-adjust: exact !important;
-        overflow: visible !important;
       }
       
-      /* Global Print CSS for Ctrl+P */
+      /* Standard Print CSS */
       @media print {
         @page {
-          margin: 0; /* Reset browser margins */
-          size: auto; /* Allow CSS to control size via @page injections */
+          margin: 0; /* Let the content control margins completely */
         }
         
-        body {
-          margin: 0;
-          padding: 0;
-          background-color: white !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+        /* CRITICAL RESET: Force border-box to prevent padding from expanding width */
+        *, *::before, *::after {
+          box-sizing: border-box !important;
+          text-shadow: none !important;
+          box-shadow: none !important;
         }
 
-        /* Hide UI Elements */
+        /* Collapse the main document flow */
+        html, body {
+          height: 100%;
+          width: 100%;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+          overflow: hidden !important; /* Prevent scrollbars triggering pages */
+        }
+
+        /* Hide everything by default */
         body * {
           visibility: hidden;
         }
 
+        /* Collapse Root to prevent ghost pages */
         #root {
-          display: none !important;
+          display: block !important;
+          height: 0 !important;
+          overflow: hidden !important;
         }
 
-        /* Only show things marked as printable-content */
+        /* Show ONLY the printable content */
         .printable-content, .printable-content * {
           visibility: visible !important;
         }
 
-        /* Ensure proper positioning for print */
+        /* Position the print content exactly at 0,0 of the paper */
         .printable-content {
           position: absolute !important;
-          left: 0 !important;
           top: 0 !important;
+          left: 0 !important;
           margin: 0 !important;
-          padding: 0 !important;
-          width: 100% !important;
-          box-shadow: none !important;
+          background-color: white !important;
+          z-index: 99999 !important;
           border: none !important;
+          box-shadow: none !important;
         }
         
         .no-print, .hidden-print-export {

@@ -1,8 +1,7 @@
 
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { apiCall } from '../services/apiService';
 
-type PdfFormat = 'a4' | 'a5';
+type PdfFormat = 'A4' | 'A5' | 'A3';
 type PdfOrientation = 'portrait' | 'landscape';
 
 interface PdfOptions {
@@ -17,7 +16,7 @@ interface PdfOptions {
 export const generatePdf = async ({
     elementId,
     filename,
-    format = 'a4',
+    format = 'A4',
     orientation = 'portrait',
     onComplete,
     onError
@@ -30,153 +29,86 @@ export const generatePdf = async ({
     }
 
     try {
-        // 1. Wait for fonts/images to fully load
-        await document.fonts.ready;
-        const images = Array.from(originalElement.querySelectorAll('img'));
-        await Promise.all(images.map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
-        }));
+        // 1. Get HTML Content
+        // We clone to ensure we get current values of inputs/selects which innerHTML might miss
+        const clone = originalElement.cloneNode(true) as HTMLElement;
+        
+        // Remove no-print elements from clone
+        const noPrints = clone.querySelectorAll('.no-print');
+        noPrints.forEach(el => el.remove());
 
-        // 2. Define dimensions (MM to Pixels helper logic internal to logic)
-        // Standard ISO Paper Sizes
-        const widthMm = format === 'a4' ? 210 : 148;
-        const heightMm = format === 'a4' ? 297 : 210;
-        
-        // Logical Dimensions based on orientation
-        const pdfPageWidthMm = orientation === 'landscape' ? heightMm : widthMm;
-        const pdfPageHeightMm = orientation === 'landscape' ? widthMm : heightMm;
-        
-        // 3. Create Sandbox (The "Virtual Printer")
-        // This forces the content to layout exactly as it would on paper
-        const sandbox = document.createElement('div');
-        sandbox.id = 'pdf-gen-sandbox';
-        sandbox.style.position = 'fixed'; // Fixed to avoid scrollbars affecting it
-        sandbox.style.top = '-10000px';
-        sandbox.style.left = '0';
-        sandbox.style.width = `${pdfPageWidthMm}mm`; 
-        sandbox.style.minHeight = `${pdfPageHeightMm}mm`;
-        sandbox.style.backgroundColor = '#ffffff';
-        sandbox.style.zIndex = '-1000';
-        
-        // CRITICAL: Force Direction and Font for Persian
-        sandbox.style.direction = 'rtl';
-        sandbox.style.fontFamily = "'Vazirmatn', sans-serif";
-        sandbox.style.textAlign = 'right';
-        sandbox.style.boxSizing = 'border-box';
-        
-        // 4. Clone Element deeply
-        const clonedElement = originalElement.cloneNode(true) as HTMLElement;
-        
-        // 5. Sanitize and Prepare Clone
-        clonedElement.style.margin = '0';
-        clonedElement.style.padding = '0';
-        clonedElement.style.transform = 'none';
-        clonedElement.style.boxShadow = 'none';
-        clonedElement.style.width = '100%'; 
-        clonedElement.style.maxWidth = '100%';
-        clonedElement.style.height = 'auto'; 
-        clonedElement.style.overflow = 'visible'; 
-        
-        // Remove no-print elements
-        const noPrintElements = clonedElement.querySelectorAll('.no-print, button');
-        noPrintElements.forEach(el => el.remove());
-
-        // Fix Form Inputs: Convert inputs to text spans or copy values
-        // HTML cloning doesn't copy current value of inputs/textareas/selects
-        const originalInputs = originalElement.querySelectorAll('input, select, textarea');
-        const clonedInputs = clonedElement.querySelectorAll('input, select, textarea');
-        
-        originalInputs.forEach((input, index) => {
-            if (clonedInputs[index]) {
-                const clonedInput = clonedInputs[index];
-                if (input.tagName === 'SELECT') {
-                    // Replace select with span for better printing
-                    const selectedOpt = (input as HTMLSelectElement).options[(input as HTMLSelectElement).selectedIndex];
-                    const span = document.createElement('span');
-                    span.textContent = selectedOpt ? selectedOpt.text : '';
-                    span.className = input.className; // Keep styles
-                    span.style.border = 'none';
-                    span.style.padding = '0 5px';
-                    span.style.display = 'inline-block';
-                    if(clonedInput.parentNode) clonedInput.parentNode.replaceChild(span, clonedInput);
-                } else if (input.tagName === 'TEXTAREA') {
-                    (clonedInput as HTMLTextAreaElement).value = (input as HTMLTextAreaElement).value;
-                    (clonedInput as HTMLTextAreaElement).textContent = (input as HTMLTextAreaElement).value;
-                } else if (input.tagName === 'INPUT') {
-                    const inp = input as HTMLInputElement;
-                    if (inp.type === 'checkbox' || inp.type === 'radio') {
-                        (clonedInput as HTMLInputElement).checked = inp.checked;
-                    } else {
-                        // For text inputs, replace with value to ensure visibility
-                        (clonedInput as HTMLInputElement).setAttribute('value', inp.value);
-                        (clonedInput as HTMLInputElement).value = inp.value;
-                    }
-                }
+        // Sync inputs values to attributes for proper rendering
+        const inputs = clone.querySelectorAll('input, select, textarea');
+        inputs.forEach((input: any) => {
+            if (input.type === 'checkbox' || input.type === 'radio') {
+                if (input.checked) input.setAttribute('checked', 'checked');
+            } else if (input.tagName === 'SELECT') {
+                const selectedOption = input.options[input.selectedIndex];
+                if (selectedOption) selectedOption.setAttribute('selected', 'selected');
+            } else {
+                input.setAttribute('value', input.value);
+                input.textContent = input.value; // For textarea
             }
         });
 
-        document.body.appendChild(sandbox);
-        sandbox.appendChild(clonedElement);
+        const htmlContent = clone.outerHTML;
 
-        // 6. Capture using html2canvas
-        // High scale (2 or 3) ensures text is crisp
-        const canvas = await html2canvas(sandbox, {
-            scale: 2, 
-            useCORS: true, 
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            windowWidth: sandbox.scrollWidth,
-            windowHeight: sandbox.scrollHeight
+        // 2. Prepare Full HTML Document for Puppeteer
+        // We inject the standard Tailwind CDN and local styles to ensure exact replication
+        const fullHtml = `
+            <!DOCTYPE html>
+            <html lang="fa" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+                <style>
+                    body { font-family: 'Vazirmatn', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    /* Ensure inputs look like text in print */
+                    input, select, textarea { background: transparent; border: none; font-family: inherit; }
+                    /* Layout fixes */
+                    .printable-content { margin: 0 auto; width: 100%; box-shadow: none !important; }
+                </style>
+            </head>
+            <body>
+                ${htmlContent}
+            </body>
+            </html>
+        `;
+
+        // 3. Send to Backend
+        const response = await fetch('/api/render-pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                html: fullHtml,
+                landscape: orientation === 'landscape',
+                format: format
+            })
         });
 
-        // Cleanup DOM
-        document.body.removeChild(sandbox);
+        if (!response.ok) throw new Error('Server PDF Generation Failed');
 
-        // 7. Generate PDF
-        // @ts-ignore
-        const pdf = new jsPDF({
-            orientation: orientation === 'portrait' ? 'p' : 'l',
-            unit: 'mm',
-            format: format,
-            compress: true
-        });
-
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        
-        const imgProps = pdf.getImageProperties(canvas.toDataURL('image/jpeg', 0.95));
-        const pdfImgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        // Intelligent Paging Logic
-        let heightLeft = pdfImgHeight;
-        let position = 0;
-        let pageCount = 0;
-
-        // First Page
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, pdfWidth, pdfImgHeight);
-        heightLeft -= pdfHeight;
-        pageCount++;
-
-        // Subsequent Pages (if content overflows)
-        while (heightLeft > 0) {
-            position = heightLeft - pdfImgHeight; 
-            pdf.addPage();
-            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, pdfWidth, pdfImgHeight);
-            heightLeft -= pdfHeight;
-            pageCount++;
-        }
-        
-        const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-        pdf.save(safeFilename);
+        // 4. Download Blob
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
 
         if (onComplete) onComplete();
 
     } catch (error) {
-        console.error('PDF Generation Error:', error);
-        const sb = document.getElementById('pdf-gen-sandbox');
-        if (sb) document.body.removeChild(sb);
+        console.error('PDF Generator Error:', error);
+        // Fallback to window.print if server fails (optional, but good UX)
+        // alert('تولید PDF سمت سرور با خطا مواجه شد. از چاپ مرورگر استفاده می‌شود.');
+        // window.print();
         if (onError) onError(error);
     }
 };

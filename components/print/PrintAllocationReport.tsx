@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../constants';
-import { generatePdf } from '../../utils/pdfGenerator'; 
+import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
 
 interface PrintAllocationReportProps {
   records: any[];
@@ -35,7 +34,7 @@ const PrintAllocationReport: React.FC<PrintAllocationReportProps> = ({ records, 
       await generatePdf({
           elementId: 'allocation-report-print-area',
           filename: `Allocation_Report_${new Date().toISOString().slice(0,10)}.pdf`,
-          format: 'a4',
+          format: 'A4',
           orientation: 'landscape',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }

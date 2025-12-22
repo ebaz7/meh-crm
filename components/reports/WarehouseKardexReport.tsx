@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { WarehouseItem, WarehouseTransaction } from '../../types';
 import { formatDate, formatCurrency, formatNumberString, parsePersianDate, jalaliToGregorian } from '../../constants';
 import { Filter, Printer, FileDown, Search, ArrowDownCircle, ArrowUpCircle, X, Loader2 } from 'lucide-react';
-import { generatePdf } from '../../utils/pdfGenerator';
 
 interface Props {
     items: WarehouseItem[];
@@ -94,21 +93,62 @@ const WarehouseKardexReport: React.FC<Props> = ({ items, transactions, companies
 
     // Print & PDF
     const handlePrint = () => {
-        const style = document.getElementById('page-size-style');
-        if (style) style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
-        setTimeout(() => window.print(), 800);
+        const content = document.getElementById('kardex-print-area');
+        if (!content) return;
+        
+        const printWindow = window.open('', '_blank', 'width=1100,height=800');
+        if (!printWindow) return;
+
+        const html = `
+            <html dir="rtl" lang="fa">
+            <head>
+                <title>کاردکس کالا - ${activeItemName}</title>
+                <style>
+                    body { font-family: 'Tahoma', sans-serif; padding: 20px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                    th, td { border: 1px solid #333; padding: 5px; text-align: center; }
+                    th { background-color: #f0f0f0; }
+                    .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                    .meta { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; font-weight: bold; }
+                    .balance { direction: ltr; font-family: monospace; font-weight: bold; }
+                    .in-row { background-color: #f0fdf4; }
+                    .out-row { background-color: #fef2f2; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                ${content.innerHTML}
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
     };
 
     const handleDownloadPDF = async () => {
         setIsGenerating(true);
-        await generatePdf({
-            elementId: 'kardex-print-area',
-            filename: `Kardex_${activeItemName}_${new Date().toISOString().slice(0,10)}.pdf`,
-            format: 'a4',
-            orientation: 'portrait',
-            onComplete: () => setIsGenerating(false),
-            onError: () => { alert('خطا در ایجاد PDF'); setIsGenerating(false); }
-        });
+        const element = document.getElementById('kardex-print-area');
+        if (!element) { setIsGenerating(false); return; }
+        
+        try {
+            // @ts-ignore
+            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            // @ts-ignore
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = 210;
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Kardex_${activeItemName}_${new Date().toISOString().slice(0,10)}.pdf`);
+        } catch (e) {
+            alert('خطا در ایجاد PDF');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     return (
@@ -160,33 +200,33 @@ const WarehouseKardexReport: React.FC<Props> = ({ items, transactions, companies
             {/* Report Display Area */}
             <div className="flex-1 bg-gray-50 border rounded-xl overflow-hidden relative">
                 <div className="absolute inset-0 overflow-auto flex justify-center p-4">
-                    <div id="kardex-print-area" className="printable-content bg-white p-8 shadow-lg text-black" style={{ width: '210mm', minHeight: '297mm', boxSizing: 'border-box' }}>
+                    <div id="kardex-print-area" className="bg-white p-8 shadow-lg min-h-[297mm] w-[210mm] text-black">
                         
                         {/* Header */}
-                        <div className="header text-center mb-6 border-b-2 border-black pb-4">
+                        <div className="header">
                             <h2 className="text-xl font-black mb-1">کاردکس تعدادی کالا</h2>
                             <p className="text-sm text-gray-600">گزارش گردش انبار</p>
                         </div>
 
                         {/* Meta */}
-                        <div className="meta bg-gray-100 p-2 rounded border border-gray-300 mb-4 flex justify-between text-xs font-bold">
+                        <div className="meta bg-gray-100 p-2 rounded border border-gray-300">
                             <div>شرکت: {selectedCompany}</div>
                             <div>کالا: {activeItemName}</div>
                             <div>تاریخ گزارش: {new Date().toLocaleDateString('fa-IR')}</div>
                         </div>
 
                         {/* Table */}
-                        <table className="w-full border-collapse text-center text-[10px] border border-black">
+                        <table className="w-full border-collapse text-center text-[10px]">
                             <thead>
                                 <tr className="bg-gray-800 text-white">
-                                    <th className="p-2 border border-gray-600">ردیف</th>
-                                    <th className="p-2 border border-gray-600">تاریخ</th>
-                                    <th className="p-2 border border-gray-600">نوع</th>
-                                    <th className="p-2 border border-gray-600">شماره سند</th>
-                                    <th className="p-2 border border-gray-600 w-1/3">شرح / طرف حساب</th>
-                                    <th className="p-2 border border-gray-600 bg-green-700">وارده</th>
-                                    <th className="p-2 border border-gray-600 bg-red-700">صادره</th>
-                                    <th className="p-2 border border-gray-600 bg-blue-800">مانده</th>
+                                    <th className="p-2 border-gray-600">ردیف</th>
+                                    <th className="p-2 border-gray-600">تاریخ</th>
+                                    <th className="p-2 border-gray-600">نوع</th>
+                                    <th className="p-2 border-gray-600">شماره سند</th>
+                                    <th className="p-2 border-gray-600 w-1/3">شرح / طرف حساب</th>
+                                    <th className="p-2 border-gray-600 bg-green-700">وارده</th>
+                                    <th className="p-2 border-gray-600 bg-red-700">صادره</th>
+                                    <th className="p-2 border-gray-600 bg-blue-800">مانده</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -194,15 +234,15 @@ const WarehouseKardexReport: React.FC<Props> = ({ items, transactions, companies
                                     <tr><td colSpan={8} className="p-4 text-gray-400">گردشی برای این کالا یافت نشد.</td></tr>
                                 ) : (
                                     kardexRows.map((row, idx) => (
-                                        <tr key={row.id} className={row.type === 'IN' ? 'bg-green-50' : 'bg-red-50'}>
-                                            <td className="border border-black p-2">{idx + 1}</td>
-                                            <td className="border border-black p-2 font-mono">{formatDate(row.date)}</td>
-                                            <td className="border border-black p-2 font-bold">{row.type === 'IN' ? 'ورود' : 'خروج'}</td>
-                                            <td className="border border-black p-2 font-mono font-bold">{row.number}</td>
-                                            <td className="border border-black p-2 text-right pr-2">{row.description}</td>
-                                            <td className="border border-black p-2 font-mono font-bold text-green-700 text-lg">{row.in > 0 ? row.in : '-'}</td>
-                                            <td className="border border-black p-2 font-mono font-bold text-red-700 text-lg">{row.out > 0 ? row.out : '-'}</td>
-                                            <td className="border border-black p-2 balance bg-gray-100 text-blue-800 text-lg font-black">{row.balance}</td>
+                                        <tr key={row.id} className={row.type === 'IN' ? 'in-row' : 'out-row'}>
+                                            <td>{idx + 1}</td>
+                                            <td className="font-mono">{formatDate(row.date)}</td>
+                                            <td>{row.type === 'IN' ? <span className="text-green-700 font-bold flex items-center justify-center gap-1"><ArrowDownCircle size={10}/> ورود</span> : <span className="text-red-700 font-bold flex items-center justify-center gap-1"><ArrowUpCircle size={10}/> خروج</span>}</td>
+                                            <td className="font-mono font-bold">{row.number}</td>
+                                            <td className="text-right pr-2">{row.description}</td>
+                                            <td className="font-mono font-bold text-green-700 text-lg">{row.in > 0 ? row.in : '-'}</td>
+                                            <td className="font-mono font-bold text-red-700 text-lg">{row.out > 0 ? row.out : '-'}</td>
+                                            <td className="balance bg-gray-100 text-blue-800 text-lg">{row.balance}</td>
                                         </tr>
                                     ))
                                 )}

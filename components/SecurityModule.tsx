@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
@@ -509,7 +508,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         await generatePdf({
             elementId: elementId,
             filename: `Security_Report.pdf`,
-            format: 'a4',
+            format: 'A4',
             orientation: isLandscape ? 'landscape' : 'portrait',
             onComplete: () => setIsGeneratingPdf(false),
             onError: () => { alert("خطا در ایجاد PDF"); setIsGeneratingPdf(false); }

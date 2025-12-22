@@ -8,6 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import cron from 'node-cron';
+import puppeteer from 'puppeteer'; // Ensure puppeteer is imported
 
 // *** CRASH PREVENTION HANDLERS (MUST BE AT THE VERY TOP) ***
 process.on('uncaughtException', (err) => {
@@ -41,8 +42,9 @@ const WAUTH_DIR = path.join(__dirname, 'wauth');
 });
 
 app.use(cors());
-app.use(express.json({ limit: '500mb' })); 
-app.use(express.urlencoded({ limit: '500mb', extended: true }));
+// Increased limit for PDF HTML content
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(express.static(path.join(__dirname, 'dist')));
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -137,6 +139,44 @@ const formatCurrency = (amount) => {
 };
 
 // --- ROUTES ---
+
+// --- NEW: PDF GENERATION ENDPOINT ---
+app.post('/api/render-pdf', async (req, res) => {
+    try {
+        const { html, landscape, format } = req.body;
+        
+        const browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        
+        const page = await browser.newPage();
+        
+        // Optimize for print
+        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+        await page.emulateMediaType('print');
+        
+        const pdfBuffer = await page.pdf({
+            format: format || 'A4',
+            landscape: landscape || false,
+            printBackground: true,
+            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+        });
+
+        await browser.close();
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Length': pdfBuffer.length
+        });
+        
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error('PDF Generation Error:', error);
+        res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
+    }
+});
 
 // 1. Order Routes
 app.get('/api/orders', (req, res) => res.json(getDb().orders));

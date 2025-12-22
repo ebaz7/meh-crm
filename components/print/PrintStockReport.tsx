@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { X, Printer, FileDown, Loader2 } from 'lucide-react';
 import { generatePdf } from '../../utils/pdfGenerator'; 
@@ -26,7 +25,7 @@ const PrintStockReport: React.FC<PrintStockReportProps> = ({ data, onClose }) =>
       await generatePdf({
           elementId: 'stock-report-content',
           filename: `Stock_Report_${new Date().toISOString().slice(0,10)}.pdf`,
-          format: 'a4',
+          format: 'A4',
           orientation: 'landscape',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
