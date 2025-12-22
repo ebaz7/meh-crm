@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, SecurityLog, PersonnelDelay, SecurityIncident, SecurityStatus, UserRole, DailySecurityMeta, SystemSettings } from '../types';
 import { getSecurityLogs, saveSecurityLog, updateSecurityLog, deleteSecurityLog, getPersonnelDelays, savePersonnelDelay, updatePersonnelDelay, deletePersonnelDelay, getSecurityIncidents, saveSecurityIncident, updateSecurityIncident, deleteSecurityIncident, getSettings, saveSettings } from '../services/storageService';
 import { generateUUID, getCurrentShamsiDate, jalaliToGregorian, formatDate, getShamsiDateFromIso } from '../constants';
-import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil, ChevronDown, ChevronUp, FolderOpen, Folder } from 'lucide-react';
+import { Shield, Plus, CheckCircle, XCircle, Clock, Truck, AlertTriangle, UserCheck, Calendar, Printer, Archive, FileSymlink, Edit, Trash2, Eye, FileText, CheckSquare, User as UserIcon, ListChecks, Activity, FileDown, Loader2, Pencil, ChevronDown, ChevronUp, FolderOpen, Folder, Save, X } from 'lucide-react';
 import { PrintSecurityDailyLog, PrintPersonnelDelay, PrintIncidentReport } from './security/SecurityPrints';
 import { getRolePermissions } from '../services/authService';
-import { generatePdf } from '../utils/pdfGenerator'; // Import the new utility
+import { generatePdf } from '../utils/pdfGenerator';
 
 interface Props {
     currentUser: User;
@@ -49,22 +48,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         setSubTab('current');
     }, [activeTab, selectedDate]);
 
-    // This hook is kept for direct print (Ctrl+P), but PDF generation now handles its own sizing
-    useEffect(() => {
-        const style = document.getElementById('page-size-style');
-        if (style) {
-            const isLandscape = 
-                (printTarget && (printTarget.type === 'daily_log')) || 
-                (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
-            
-            if (isLandscape) {
-                style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
-            } else {
-                style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
-            }
-        }
-    }, [printTarget, viewCartableItem]);
-
     const loadData = async () => {
         try {
             const [l, d, i, s] = await Promise.all([getSecurityLogs(), getPersonnelDelays(), getSecurityIncidents(), getSettings()]);
@@ -96,19 +79,11 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     }, [selectedDate, settings]);
 
-    // ... (rest of the functions like handleJumpToEdit, formatTime, etc. remain the same) ...
     const handleJumpToEdit = (dateString: string, category: 'log' | 'delay') => {
         const shamsi = getShamsiDateFromIso(dateString);
         setSelectedDate({ year: shamsi.year, month: shamsi.month, day: shamsi.day });
         if (settings?.dailySecurityMeta && settings.dailySecurityMeta[dateString]) {
             setMetaForm({ ...settings.dailySecurityMeta[dateString] });
-        } else {
-            setMetaForm({ 
-                dailyDescription: '',
-                morningGuard: { name: '', entry: '', exit: '' },
-                eveningGuard: { name: '', entry: '', exit: '' },
-                nightGuard: { name: '', entry: '', exit: '' }
-            });
         }
         setActiveTab(category === 'log' ? 'logs' : 'delays');
         setViewCartableItem(null);
@@ -136,18 +111,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         const formatted = formatTime(val);
         if (formatted !== val) {
             formSetter({ ...currentForm, [field]: formatted });
-        }
-    };
-
-    const handleEnterKey = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const form = (e.target as HTMLElement).closest('form');
-            if (form) {
-                const index = Array.prototype.indexOf.call(form, e.target);
-                const nextElement = form.elements[index + 1] as HTMLElement;
-                if (nextElement) nextElement.focus();
-            }
         }
     };
 
@@ -226,7 +189,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const dailyDelaysArchived = allDailyDelays.filter(d => d.status === SecurityStatus.ARCHIVED);
     const displayDelays = subTab === 'current' ? dailyDelaysActive : dailyDelaysArchived;
     
-    // ... (getCartableItems, getInProgressItems, getArchivedItems, handleSaveLog, handleSaveDelay, handleSaveIncident, resetForms, handleEditItem, handleApprove, handleSupervisorDailySubmit, handleFactoryDailySubmit, handleReject, handleSaveShiftMeta, handleDeleteItem, handleDeleteDailyArchive remain same) ...
     const getCartableItems = () => {
         const role = currentUser.role;
         const allPending: any[] = [];
@@ -457,38 +419,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    const handleSupervisorDailySubmit = async () => {
-        if (!confirm("آیا تایید نهایی روزانه تاخیرات را انجام می‌دهید؟")) return;
-        const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
-        if (readyDelays.length === 0) return;
-        const datesToApprove = new Set<string>(readyDelays.map(d => d.date));
-        if (settings) {
-            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
-            datesToApprove.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelaySupervisorApproved: true }; });
-            await saveSettings({ ...settings, dailySecurityMeta: newMeta });
-        }
-        for (const delay of readyDelays) await updatePersonnelDelay({ ...delay, status: SecurityStatus.PENDING_FACTORY });
-        alert("تاخیرات ارسال شد."); loadData();
-    };
-
-    const handleFactoryDailySubmit = async () => {
-        if (!confirm("آیا تایید نهایی روزانه را انجام می‌دهید؟")) return;
-        const readyLogs = logs.filter(l => l.status === SecurityStatus.APPROVED_FACTORY_CHECK);
-        const readyDelays = delays.filter(d => d.status === SecurityStatus.APPROVED_FACTORY_CHECK);
-        if (readyLogs.length === 0 && readyDelays.length === 0) return;
-        const logDates = new Set<string>(readyLogs.map(l => l.date));
-        const delayDates = new Set<string>(readyDelays.map(d => d.date));
-        if (settings) {
-            let newMeta: Record<string, DailySecurityMeta> = { ...(settings.dailySecurityMeta || {}) };
-            logDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isFactoryDailyApproved: true }; });
-            delayDates.forEach((date: string) => { newMeta[date] = { ...newMeta[date], isDelayFactoryApproved: true }; });
-            await saveSettings({ ...settings, dailySecurityMeta: newMeta });
-        }
-        for (const log of readyLogs) await updateSecurityLog({ ...log, status: SecurityStatus.PENDING_CEO });
-        for (const delay of readyDelays) await updatePersonnelDelay({ ...delay, status: SecurityStatus.PENDING_CEO });
-        alert("گزارشات ارسال شد."); loadData();
-    };
-
     const handleReject = async (item: any) => {
         const reason = prompt("دلیل رد:");
         if (reason) {
@@ -531,49 +461,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
     };
 
-    const handleDeleteDailyArchive = async (date: string, category: 'log' | 'delay') => {
-        const title = category === 'log' ? 'نگهبانی' : 'تاخیر';
-        if (!confirm(`آیا از حذف کامل گزارشات ${title} تاریخ ${formatDate(date)} اطمینان دارید؟ این عملیات غیرقابل بازگشت است.`)) return;
-
-        const key = `${date}_${category}`;
-        setDeletingItemKey(key);
-
-        try {
-            if (category === 'log') {
-                const itemsToDelete = logs.filter(l => l.date === date && l.status === SecurityStatus.ARCHIVED);
-                for (const item of itemsToDelete) await deleteSecurityLog(item.id);
-            } else {
-                const itemsToDelete = delays.filter(d => d.date === date && d.status === SecurityStatus.ARCHIVED);
-                for (const item of itemsToDelete) await deletePersonnelDelay(item.id);
-            }
-            if (settings) {
-                const currentMeta = (settings.dailySecurityMeta || {})[date];
-                if (currentMeta) {
-                    const updatedMeta = { ...currentMeta };
-                    if (category === 'log') updatedMeta.isCeoDailyApproved = false;
-                    else updatedMeta.isDelayCeoApproved = false;
-                    await saveSettings({ ...settings, dailySecurityMeta: { ...settings.dailySecurityMeta, [date]: updatedMeta } });
-                }
-            }
-            await loadData();
-        } catch (e) {
-            alert("خطا در حذف گزارشات.");
-        } finally {
-            setDeletingItemKey(null);
-        }
-    };
-
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        // Look for the specific print ID first (view modal), fallback to standard
         const elementId = (printTarget && (printTarget.type === 'daily_log' || printTarget.type === 'log')) ? 'printable-area-view' :
                           (printTarget && printTarget.type === 'incident') ? 'printable-area-view' : 
                           'print-delay-form';
-        
-        // Determine settings based on content
-        const isLandscape = 
-            (printTarget && (printTarget.type === 'daily_log')) || 
-            (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
+        const isLandscape = (printTarget && (printTarget.type === 'daily_log')) || (viewCartableItem && (viewCartableItem.category === 'log' || viewCartableItem.type === 'log'));
 
         await generatePdf({
             elementId: elementId,
@@ -583,6 +476,97 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             onComplete: () => setIsGeneratingPdf(false),
             onError: () => { alert("خطا در ایجاد PDF"); setIsGeneratingPdf(false); }
         });
+    };
+
+    // --- Added Handlers for Bulk Approval Workflow ---
+
+    const handleSupervisorDailySubmit = async () => {
+        if (!confirm('آیا از ارسال موارد تایید شده به مدیر کارخانه اطمینان دارید؟')) return;
+        const delaysToSend = delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK);
+        for (const d of delaysToSend) {
+            await updatePersonnelDelay({ ...d, status: SecurityStatus.PENDING_FACTORY });
+        }
+        
+        // Update meta if needed
+        if (settings) {
+            const dates = new Set(delaysToSend.map(d => d.date));
+            let updatedSettings = { ...settings };
+            let changed = false;
+            dates.forEach(date => {
+                const meta = updatedSettings.dailySecurityMeta?.[date] || {};
+                if (!meta.isDelaySupervisorApproved) {
+                    updatedSettings.dailySecurityMeta = {
+                        ...updatedSettings.dailySecurityMeta,
+                        [date]: { ...meta, isDelaySupervisorApproved: true }
+                    };
+                    changed = true;
+                }
+            });
+            if (changed) {
+                await saveSettings(updatedSettings);
+                setSettings(updatedSettings);
+            }
+        }
+
+        alert('موارد به کارتابل مدیر کارخانه ارسال شد.');
+        loadData();
+    };
+
+    const handleFactoryDailySubmit = async () => {
+        if (!confirm('آیا از ارسال نهایی موارد تایید شده به مدیرعامل اطمینان دارید؟')) return;
+        
+        const logsToSend = logs.filter(l => l.status === SecurityStatus.APPROVED_FACTORY_CHECK);
+        const delaysToSend = delays.filter(d => d.status === SecurityStatus.APPROVED_FACTORY_CHECK);
+        
+        for (const l of logsToSend) await updateSecurityLog({ ...l, status: SecurityStatus.PENDING_CEO });
+        for (const d of delaysToSend) await updatePersonnelDelay({ ...d, status: SecurityStatus.PENDING_CEO });
+
+        // Update meta
+        if (settings) {
+            const dates = new Set([...logsToSend.map(l => l.date), ...delaysToSend.map(d => d.date)]);
+            let updatedSettings = { ...settings };
+            let changed = false;
+            dates.forEach(date => {
+                const meta = updatedSettings.dailySecurityMeta?.[date] || {};
+                let newMeta = { ...meta };
+                if (logsToSend.some(l => l.date === date)) newMeta.isFactoryDailyApproved = true;
+                if (delaysToSend.some(d => d.date === date)) newMeta.isDelayFactoryApproved = true;
+                
+                updatedSettings.dailySecurityMeta = {
+                    ...updatedSettings.dailySecurityMeta,
+                    [date]: newMeta
+                };
+                changed = true;
+            });
+            if (changed) {
+                await saveSettings(updatedSettings);
+                setSettings(updatedSettings);
+            }
+        }
+
+        alert('موارد به کارتابل مدیرعامل ارسال شد.');
+        loadData();
+    };
+
+    const handleDeleteDailyArchive = async (date: string, category: 'log' | 'delay') => {
+        if (!confirm(`آیا از حذف کامل آرشیو ${category === 'log' ? 'نگهبانی' : 'تاخیر'} تاریخ ${formatDate(date)} اطمینان دارید؟ این عملیات غیرقابل بازگشت است.`)) return;
+        
+        setDeletingItemKey(`${date}_${category}`);
+        try {
+            if (category === 'log') {
+                const itemsToDelete = logs.filter(l => l.date === date && l.status === SecurityStatus.ARCHIVED);
+                for (const item of itemsToDelete) await deleteSecurityLog(item.id);
+            } else {
+                const itemsToDelete = delays.filter(d => d.date === date && d.status === SecurityStatus.ARCHIVED);
+                for (const item of itemsToDelete) await deletePersonnelDelay(item.id);
+            }
+            alert('آرشیو حذف شد.');
+            loadData();
+        } catch (e) {
+            alert('خطا در حذف.');
+        } finally {
+            setDeletingItemKey(null);
+        }
     };
 
     const DateFilter = () => (
@@ -598,6 +582,46 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
 
     return (
         <div className="p-4 md:p-6 bg-gray-50 h-[calc(100vh-100px)] overflow-y-auto animate-fade-in relative">
+            {/* Modal for Forms */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg text-gray-800">{editingId ? 'ویرایش' : 'ثبت جدید'} - {activeTab === 'logs' ? 'نگهبانی' : activeTab === 'delays' ? 'تاخیر پرسنل' : 'واقعه'}</h3><button onClick={resetForms} className="text-gray-400 hover:text-red-500"><XCircle size={24}/></button></div>
+                        {activeTab === 'logs' && (
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">شیفت</label><select className="w-full border rounded p-2 text-sm" value={logForm.shift || 'صبح'} onChange={e => setLogForm({...logForm, shift: e.target.value})}><option value="صبح">صبح</option><option value="عصر">عصر</option><option value="شب">شب</option></select></div><div><label className="text-xs font-bold block mb-1">مبدا / شرکت</label><input className="w-full border rounded p-2 text-sm" value={logForm.origin} onChange={e => setLogForm({...logForm, origin: e.target.value})}/></div></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-sm text-center dir-ltr" value={logForm.entryTime} onChange={handleTimeChange('entryTime', setLogForm, logForm)} onBlur={handleTimeBlur('entryTime', setLogForm, logForm)}/></div><div><label className="text-xs font-bold block mb-1">ساعت خروج</label><input className="w-full border rounded p-2 text-sm text-center dir-ltr" value={logForm.exitTime} onChange={handleTimeChange('exitTime', setLogForm, logForm)} onBlur={handleTimeBlur('exitTime', setLogForm, logForm)}/></div></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">نام راننده</label><input className="w-full border rounded p-2 text-sm" value={logForm.driverName} onChange={e => setLogForm({...logForm, driverName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">شماره پلاک</label><input className="w-full border rounded p-2 text-sm dir-ltr" value={logForm.plateNumber} onChange={e => setLogForm({...logForm, plateNumber: e.target.value})}/></div></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">نام کالا</label><input className="w-full border rounded p-2 text-sm" value={logForm.goodsName} onChange={e => setLogForm({...logForm, goodsName: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">تعداد / مقدار</label><input className="w-full border rounded p-2 text-sm" value={logForm.quantity} onChange={e => setLogForm({...logForm, quantity: e.target.value})}/></div></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">مقصد</label><input className="w-full border rounded p-2 text-sm" value={logForm.destination} onChange={e => setLogForm({...logForm, destination: e.target.value})}/></div><div><label className="text-xs font-bold block mb-1">تحویل گیرنده</label><input className="w-full border rounded p-2 text-sm" value={logForm.receiver} onChange={e => setLogForm({...logForm, receiver: e.target.value})}/></div></div>
+                                <div><label className="text-xs font-bold block mb-1">توضیحات</label><input className="w-full border rounded p-2 text-sm" value={logForm.workDescription} onChange={e => setLogForm({...logForm, workDescription: e.target.value})}/></div>
+                                <div><label className="text-xs font-bold block mb-1">مجوز دهنده</label><input className="w-full border rounded p-2 text-sm" value={logForm.permitProvider} onChange={e => setLogForm({...logForm, permitProvider: e.target.value})}/></div>
+                                <button onClick={handleSaveLog} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-2 hover:bg-blue-700">ذخیره گزارش</button>
+                            </div>
+                        )}
+                        {activeTab === 'delays' && (
+                            <div className="space-y-3">
+                                <div><label className="text-xs font-bold block mb-1">نام و نام خانوادگی</label><input className="w-full border rounded p-2 text-sm" value={delayForm.personnelName} onChange={e => setDelayForm({...delayForm, personnelName: e.target.value})}/></div>
+                                <div><label className="text-xs font-bold block mb-1">واحد / بخش</label><input className="w-full border rounded p-2 text-sm" value={delayForm.unit} onChange={e => setDelayForm({...delayForm, unit: e.target.value})}/></div>
+                                <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold block mb-1">ساعت ورود</label><input className="w-full border rounded p-2 text-sm text-center dir-ltr" value={delayForm.arrivalTime} onChange={handleTimeChange('arrivalTime', setDelayForm, delayForm)} onBlur={handleTimeBlur('arrivalTime', setDelayForm, delayForm)}/></div><div><label className="text-xs font-bold block mb-1">مدت تاخیر</label><input className="w-full border rounded p-2 text-sm text-center" value={delayForm.delayAmount} onChange={e => setDelayForm({...delayForm, delayAmount: e.target.value})}/></div></div>
+                                <div><label className="text-xs font-bold block mb-1">تعداد تکرار در ماه</label><input className="w-full border rounded p-2 text-sm text-center" type="number" value={delayForm.repeatCount} onChange={e => setDelayForm({...delayForm, repeatCount: e.target.value})}/></div>
+                                <button onClick={handleSaveDelay} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold mt-2 hover:bg-orange-700">ذخیره تاخیر</button>
+                            </div>
+                        )}
+                        {activeTab === 'incidents' && (
+                            <div className="space-y-3">
+                                <div><label className="text-xs font-bold block mb-1">موضوع حادثه / واقعه</label><input className="w-full border rounded p-2 text-sm" value={incidentForm.subject} onChange={e => setPartialIncidentForm({...incidentForm, subject: e.target.value})}/></div>
+                                <div><label className="text-xs font-bold block mb-1">شیفت</label><select className="w-full border rounded p-2 text-sm" value={incidentForm.shift || 'صبح'} onChange={e => setPartialIncidentForm({...incidentForm, shift: e.target.value})}><option value="صبح">صبح</option><option value="عصر">عصر</option><option value="شب">شب</option></select></div>
+                                <div><label className="text-xs font-bold block mb-1">شرح کامل ماجرا</label><textarea className="w-full border rounded p-2 text-sm h-32" value={incidentForm.description} onChange={e => setPartialIncidentForm({...incidentForm, description: e.target.value})}/></div>
+                                <div><label className="text-xs font-bold block mb-1">شهود (نام و نام خانوادگی)</label><input className="w-full border rounded p-2 text-sm" value={incidentForm.witnesses} onChange={e => setPartialIncidentForm({...incidentForm, witnesses: e.target.value})}/></div>
+                                <button onClick={handleSaveIncident} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold mt-2 hover:bg-red-700">ثبت گزارش</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Print Modal */}
             {showPrintModal && printTarget && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print">
@@ -615,14 +639,12 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
-            {/* Shift Modal, View Cartable Modal, etc. */}
-            {/* ... (Rest of the JSX remains exactly the same as original) ... */}
+            {/* Shift Modal */}
             {showShiftModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">اطلاعات شیفت و توضیحات روزانه ({formatDate(getIsoSelectedDate())})</h3><button onClick={() => setShowShiftModal(false)} className="text-gray-400 hover:text-red-500"><XCircle size={24}/></button></div>
                         <div className="space-y-4">
-                            {/* ... (Shift form fields) ... */}
                             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm text-blue-800">شیفت صبح</h4><button onClick={() => setMyName('morning')} className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50">نام من</button></div><div className="flex gap-2"><input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.morningGuard?.name} onChange={e => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, name: e.target.value}})}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="ورود" value={metaForm.morningGuard?.entry} onChange={handleTimeChange('entry', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, entry: val.entry}}), metaForm.morningGuard!)} onBlur={handleTimeBlur('entry', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, entry: val.entry}}), metaForm.morningGuard!)}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="خروج" value={metaForm.morningGuard?.exit} onChange={handleTimeChange('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)} onBlur={handleTimeBlur('exit', (val: any) => setMetaForm({...metaForm, morningGuard: {...metaForm.morningGuard!, exit: val.exit}}), metaForm.morningGuard!)}/></div></div>
                             <div className="bg-orange-50 p-3 rounded-lg border border-orange-100"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm text-orange-800">شیفت عصر</h4><button onClick={() => setMyName('evening')} className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50">نام من</button></div><div className="flex gap-2"><input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.eveningGuard?.name} onChange={e => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, name: e.target.value}})}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="ورود" value={metaForm.eveningGuard?.entry} onChange={handleTimeChange('entry', (val: any) => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, entry: val.entry}}), metaForm.eveningGuard!)} onBlur={handleTimeBlur('entry', (val: any) => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, entry: val.entry}}), metaForm.eveningGuard!)}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="خروج" value={metaForm.eveningGuard?.exit} onChange={handleTimeChange('exit', (val: any) => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, exit: val.exit}}), metaForm.eveningGuard!)} onBlur={handleTimeBlur('exit', (val: any) => setMetaForm({...metaForm, eveningGuard: {...metaForm.eveningGuard!, exit: val.exit}}), metaForm.eveningGuard!)}/></div></div>
                             <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm text-indigo-800">شیفت شب</h4><button onClick={() => setMyName('night')} className="text-[10px] bg-white border border-indigo-200 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-50">نام من</button></div><div className="flex gap-2"><input className="flex-1 border rounded p-2 text-sm" placeholder="نام نگهبان" value={metaForm.nightGuard?.name} onChange={e => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, name: e.target.value}})}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="ورود" value={metaForm.nightGuard?.entry} onChange={handleTimeChange('entry', (val: any) => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, entry: val.entry}}), metaForm.nightGuard!)} onBlur={handleTimeBlur('entry', (val: any) => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, entry: val.entry}}), metaForm.nightGuard!)}/><input className="w-20 border rounded p-2 text-sm text-center" placeholder="خروج" value={metaForm.nightGuard?.exit} onChange={handleTimeChange('exit', (val: any) => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, exit: val.exit}}), metaForm.nightGuard!)} onBlur={handleTimeBlur('exit', (val: any) => setMetaForm({...metaForm, nightGuard: {...metaForm.nightGuard!, exit: val.exit}}), metaForm.nightGuard!)}/></div></div>
@@ -633,6 +655,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 </div>
             )}
 
+            {/* View Cartable Item Modal */}
             {viewCartableItem && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center p-4">
                     <div className="bg-white p-4 rounded-xl shadow-lg mb-4 flex gap-4 no-print w-full max-w-2xl justify-between items-center"><div className="font-bold text-lg text-gray-800">{viewCartableItem.type === 'daily_approval' || viewCartableItem.type === 'daily_archive' ? `گزارش روزانه - ${formatDate(viewCartableItem.date)}` : 'بررسی'}</div><div className="flex gap-2"><button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow"><Printer size={18}/></button><button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-4 py-2 rounded font-bold shadow">{isGeneratingPdf ? <Loader2 size={18} className="animate-spin"/> : <FileDown size={18}/>}</button>{(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && viewCartableItem.type === 'daily_archive' && (<button onClick={() => handleJumpToEdit(String(viewCartableItem.date), viewCartableItem.category)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded font-bold border border-amber-300">ویرایش روز</button>)}{viewCartableItem.mode !== 'view_only' && (<>{(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && (viewCartableItem.status === SecurityStatus.PENDING_FACTORY) ? (<button onClick={() => handleApprove(viewCartableItem)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">تایید اولیه</button>) : (<button onClick={() => handleApprove(viewCartableItem)} className="bg-green-600 text-white px-6 py-2 rounded font-bold">تایید</button>)}<button onClick={() => handleReject(viewCartableItem)} className="bg-red-600 text-white px-6 py-2 rounded font-bold">رد</button></>)}<button onClick={() => setViewCartableItem(null)} className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold">بستن</button></div></div>
@@ -651,7 +674,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
                 {activeTab === 'logs' && (
                     <>
-                        {/* Sub-Tabs for Logs */}
                         <div className="flex border-b">
                             <button onClick={() => setSubTab('current')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'current' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>لیست جاری (در جریان)</button>
                             <button onClick={() => setSubTab('archived')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'archived' ? 'border-green-600 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>بایگانی روز (نهایی شده)</button>
@@ -694,7 +716,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 )}
                 {activeTab === 'delays' && (
                     <>
-                        {/* Sub-Tabs for Delays */}
                         <div className="flex border-b">
                             <button onClick={() => setSubTab('current')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'current' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>لیست جاری (در جریان)</button>
                             <button onClick={() => setSubTab('archived')} className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${subTab === 'archived' ? 'border-green-600 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>بایگانی روز (نهایی شده)</button>
@@ -740,11 +761,105 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <div className="p-4 grid grid-cols-1 gap-4">{incidents.filter(i => i.status !== SecurityStatus.ARCHIVED).map(inc => (<div key={inc.id} className="border rounded-xl p-4 hover:shadow-md transition-shadow relative"><div className="flex justify-between mb-2"><span className="font-bold text-lg">{inc.subject}</span><span className="text-xs bg-gray-100 px-2 py-1 rounded">{formatDate(inc.date)}</span></div><p className="text-sm text-gray-600 mb-4">{inc.description}</p><div className="flex justify-between items-center"><span className="text-xs text-gray-400">{inc.registrant}</span><div className="flex gap-2"><button onClick={() => { setPrintTarget({type:'incident', incident:inc}); setShowPrintModal(true); }} className="p-2 text-blue-600 bg-blue-50 rounded"><Printer size={16}/></button>{canEdit(inc) && <button onClick={() => handleEditItem(inc, 'incident')} className="p-2 text-amber-600 bg-amber-50 rounded"><Edit size={16}/></button>}</div></div></div>))}</div>
                     </>
                 )}
-                {/* ... (rest of cartable, in_progress, archive, modals as before) ... */}
-                {/* Just updating the PDF calls in the modals/buttons to be safe, but main logic is in handleDownloadPDF */}
+                {activeTab === 'cartable' && (
+                    <div className="p-4 space-y-3">
+                        <div className="text-sm font-bold text-gray-600 mb-2">موارد منتظر بررسی و اقدام شما:</div>
+                        {getCartableItems().length === 0 ? (
+                            <div className="text-center text-gray-400 p-8 border rounded-xl border-dashed">هیچ موردی در کارتابل شما نیست.</div>
+                        ) : (
+                            getCartableItems().map((item, idx) => (
+                                <div key={idx} className="bg-white border rounded-xl p-4 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => setViewCartableItem(item)}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-3 rounded-full ${item.type === 'daily_approval' ? 'bg-purple-100 text-purple-600' : item.type === 'incident' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                            {item.type === 'daily_approval' ? <CheckSquare size={20}/> : item.type === 'incident' ? <AlertTriangle size={20}/> : <ListChecks size={20}/>}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-gray-800 text-sm">
+                                                {item.type === 'daily_approval' ? `تایید نهایی گزارش روزانه (${item.category === 'log' ? 'نگهبانی' : 'تاخیر'})` : 
+                                                 item.type === 'log' ? 'تایید گزارش ورود/خروج' : 
+                                                 item.type === 'delay' ? 'تایید تاخیر پرسنل' : 'بررسی حادثه'}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                {item.type === 'daily_approval' ? `تاریخ: ${formatDate(item.date)} | تعداد: ${item.count} مورد` : 
+                                                 item.type === 'log' ? `${item.goodsName} - ${item.driverName}` : 
+                                                 item.type === 'delay' ? `${item.personnelName} - ${item.delayAmount}` : item.subject}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700">بررسی</button>
+                                </div>
+                            ))
+                        )}
+                        {(currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN) && delays.some(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK) && (
+                            <div className="mt-6 border-t pt-4">
+                                <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                    <div className="text-sm font-bold text-blue-800">تاخیرات تایید شده (آماده ارسال به مدیریت): {delays.filter(d => d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK).length} مورد</div>
+                                    <button onClick={handleSupervisorDailySubmit} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700">ارسال نهایی به کارخانه</button>
+                                </div>
+                            </div>
+                        )}
+                        {(currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && (logs.some(l => l.status === SecurityStatus.APPROVED_FACTORY_CHECK) || delays.some(d => d.status === SecurityStatus.APPROVED_FACTORY_CHECK)) && (
+                            <div className="mt-6 border-t pt-4">
+                                <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-200">
+                                    <div className="text-sm font-bold text-green-800">موارد تایید شده (آماده ارسال به مدیرعامل)</div>
+                                    <button onClick={handleFactoryDailySubmit} className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700">ارسال نهایی گزارش روزانه</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {activeTab === 'in_progress' && (
+                    <div className="p-4">
+                        <div className="text-xs font-bold text-gray-500 mb-2">موارد در جریان (هنوز بایگانی نشده):</div>
+                        <div className="space-y-2">
+                            {getInProgressItems().map((item, idx) => (
+                                <div key={idx} className="bg-white border p-3 rounded-lg flex justify-between items-center hover:bg-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <Activity size={16} className="text-gray-400"/>
+                                        <div className="text-sm">
+                                            <span className="font-bold block">{item.type === 'log' ? 'نگهبانی' : item.type === 'delay' ? 'تاخیر' : 'حادثه'} - {formatDate(item.date)}</span>
+                                            <span className="text-xs text-gray-500">{item.status}</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">{item.registrant}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'archive' && (
+                    <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {getArchivedItems().map((group, idx) => (
+                                <div key={idx} className="bg-white border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer relative group" onClick={() => setViewCartableItem({...group, mode: 'view_only'})}>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className={`p-2 rounded-full ${group.category === 'log' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
+                                            {group.category === 'log' ? <Truck size={20}/> : <Clock size={20}/>}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-gray-800">{group.category === 'log' ? 'گزارش نگهبانی' : 'گزارش تاخیر'}</div>
+                                            <div className="text-xs text-gray-500">{formatDate(group.date)}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-100">بایگانی شده</span>
+                                        <span className="text-xs font-bold text-gray-400">{group.count} مورد</span>
+                                    </div>
+                                    {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteDailyArchive(group.date, group.category); }}
+                                            className="absolute top-2 left-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                            title="حذف کامل آرشیو این روز"
+                                        >
+                                            {deletingItemKey === `${group.date}_${group.category}` ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
-            
-            {/* ... */}
         </div>
     );
 };
