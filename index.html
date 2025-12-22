@@ -25,6 +25,8 @@
         font-family: 'Vazirmatn', sans-serif;
         background-color: #f3f4f6;
         overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile PWA */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       
       /* Safe Area Utilities for Mobile */
@@ -34,7 +36,16 @@
       .safe-pt {
         padding-top: env(safe-area-inset-top) !important;
       }
+
+      /* PDF Generation & Print Optimization */
+      .printable-content {
+        box-sizing: border-box !important;
+        background-color: white !important;
+        color: black !important;
+        font-variant-ligatures: no-common-ligatures; /* Helps with some Persian font renderers */
+      }
       
+      /* Standard Print CSS */
       @media print {
         @page {
           margin: 0; /* Let the content control margins completely */
