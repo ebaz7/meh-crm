@@ -44,16 +44,16 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
 
   // --- CALC PENDING COUNTS FOR ACTION CARDS ---
   
-  // 1. Payment Pending Count (Based on user role) - Includes Void Workflow
+  // 1. Payment Pending Count (Based on user role)
   let pendingPaymentCount = 0;
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.PENDING_VOID_FINANCE).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING).length;
   }
   if (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.PENDING_VOID_MANAGER).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
   }
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.PENDING_VOID_CEO).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
   }
 
   // 2. Exit Pending Count
@@ -74,17 +74,15 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const showActionSection = pendingPaymentCount > 0 || pendingExitCount > 0 || pendingBijakCount > 0;
 
   // ... (Existing Charts logic) ...
-  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.VOIDED); // Include VOIDED in history count
-  const totalAmount = completedOrders.filter(o => o.status === OrderStatus.APPROVED_CEO).reduce((sum, order) => sum + order.totalAmount, 0); // Sum only real approved ones
+  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
+  const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
   const countPending = orders.filter(o => o.status === OrderStatus.PENDING).length;
   const countFin = orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
   const countMgr = orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
-  const isVoidStatus = (s: OrderStatus) => s === OrderStatus.PENDING_VOID_FINANCE || s === OrderStatus.PENDING_VOID_MANAGER || s === OrderStatus.PENDING_VOID_CEO;
-
   const activeCartable = hasPaymentAccess ? orders
-    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.VOIDED && o.status !== OrderStatus.REJECTED)
+    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10) : [];
 
@@ -108,14 +106,13 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
 
   const bankStats = useMemo(() => {
     const stats: Record<string, number> = {};
-    // Only approved orders for stats
-    orders.filter(o => o.status === OrderStatus.APPROVED_CEO).forEach(order => { order.paymentDetails.forEach(detail => { if (detail.bankName && detail.bankName.trim() !== '') { const normalizedName = detail.bankName.trim(); stats[normalizedName] = (stats[normalizedName] || 0) + detail.amount; } }); });
+    completedOrders.forEach(order => { order.paymentDetails.forEach(detail => { if (detail.bankName && detail.bankName.trim() !== '') { const normalizedName = detail.bankName.trim(); stats[normalizedName] = (stats[normalizedName] || 0) + detail.amount; } }); });
     return Object.entries(stats).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [orders]);
+  }, [completedOrders]);
 
   const bankTimeline = useMemo(() => {
       const groups: Record<string, { label: string, total: number, count: number, days: Record<string, { total: number, items: any[] }> }> = {};
-      orders.filter(o => o.status === OrderStatus.APPROVED_CEO).forEach(order => {
+      completedOrders.forEach(order => {
           const dateParts = getShamsiDateFromIso(order.date);
           const monthKey = `${dateParts.year}/${String(dateParts.month).padStart(2, '0')}`;
           const monthLabel = `${MONTHS[dateParts.month - 1]} ${dateParts.year}`;
@@ -133,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
           });
       });
       return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0])).map(([key, data]) => ({ key, ...data, days: Object.entries(data.days).sort((a, b) => Number(b[0]) - Number(a[0])).map(([day, dayData]) => ({ day, ...dayData })) }));
-  }, [orders]);
+  }, [completedOrders]);
 
   const topBank = bankStats.length > 0 ? bankStats[0] : { name: '-', value: 0 };
   const mostActiveMonth = bankTimeline.length > 0 ? bankTimeline[0] : { label: '-', total: 0 };
@@ -243,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             </div>
         </div>
 
-        {/* Active Cartable List */}
+        {/* Active Cartable List (Payments Only for brevity, or mixed?) - Kept as Payments for now */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20} className="text-orange-500"/> آخرین فعالیت‌ها (پرداخت)</h3>
@@ -266,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                         activeCartable.map(order => (
                             <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : isVoidStatus(order.status) ? 'bg-gray-200 text-gray-600 animate-pulse' : 'bg-blue-100 text-blue-600'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
                                         {order.trackingNumber % 100}
                                     </div>
                                     <div>
@@ -280,8 +277,8 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                                 </div>
                                 <div className="text-right">
                                     <div className="font-bold text-gray-900 font-mono text-sm">{formatCurrency(order.totalAmount)}</div>
-                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : isVoidStatus(order.status) ? 'bg-gray-100 text-gray-800 border border-gray-300' : 'bg-blue-50 text-blue-600'}`}>
-                                        {isVoidStatus(order.status) ? 'در حال ابطال...' : order.status}
+                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                                        {order.status}
                                     </div>
                                 </div>
                             </div>
@@ -321,7 +318,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                                                 <tr key={idx} className="hover:bg-gray-50">
                                                     <td className="p-3 font-bold text-gray-800">{bank.name}</td>
                                                     <td className="p-3 font-mono text-gray-600">{formatCurrency(bank.value)}</td>
-                                                    <td className="p-3 font-mono text-gray-500 dir-ltr">{totalAmount > 0 ? ((bank.value / totalAmount) * 100).toFixed(1) : 0}%</td>
+                                                    <td className="p-3 font-mono text-gray-500 dir-ltr">{((bank.value / totalAmount) * 100).toFixed(1)}%</td>
                                                 </tr>
                                             ))}
                                         </tbody>
