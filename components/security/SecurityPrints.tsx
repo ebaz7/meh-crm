@@ -41,25 +41,23 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                // A4 Landscape Fixed Width (Exact ISO)
-                width: '297mm', 
+                width: '297mm', // A4 Landscape Fixed Width
                 minHeight: '210mm', 
                 direction: 'rtl',
                 margin: '0 auto',
                 boxSizing: 'border-box',
-                padding: '5mm', // Padding for printer margins
-                overflow: 'hidden'
+                padding: '0' 
             }}
         >
-            <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ border: '2px solid black', height: '100%', display: 'flex', flexDirection: 'column', margin: '5px' }}>
                 
                 {/* 1. Header Table */}
-                <div style={{ borderBottom: '2px solid black', height: '30mm', display: 'flex' }}>
+                <div style={{ borderBottom: '2px solid black', height: '100px', display: 'flex' }}>
                     
                     {/* Right: Meta */}
-                    <div style={{ width: '60mm', borderLeft: '2px solid black', padding: '5px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}><span>شماره:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}><span>تاریخ:</span><span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{formatDate(date)}</span></div>
+                    <div style={{ width: '200px', borderLeft: '2px solid black', padding: '10px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}><span>شماره:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}><span>تاریخ:</span><span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{formatDate(date)}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>پیوست:</span><span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>........</span></div>
                     </div>
 
@@ -67,12 +65,12 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
                         <h1 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '8px' }}>گروه تولیدی</h1>
                         <div style={{ border: '2px solid black', backgroundColor: 'white', padding: '5px 30px', borderRadius: '8px' }}>
-                            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>فرم گزارش روزانه نگهبانی</h2>
+                            <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>فرم گزارش روزانه نگهبانی</h2>
                         </div>
                     </div>
 
                     {/* Left: Logo Placeholder */}
-                    <div style={{ width: '60mm', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}>
+                    <div style={{ width: '200px', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
                         <div style={{ border: '1px dashed #9ca3af', width: '100%', height: '100%', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>
                             محل درج لوگو
                         </div>
@@ -80,46 +78,46 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
                 </div>
 
                 {/* 2. Main Data Table */}
-                <div style={{ flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'center', tableLayout: 'fixed' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'center', tableLayout: 'fixed' }}>
                         <colgroup>
-                            <col style={{ width: '10mm' }} /> {/* Row */}
-                            <col style={{ width: '25mm' }} /> {/* Origin */}
-                            <col style={{ width: '15mm' }} /> {/* Entry */}
-                            <col style={{ width: '15mm' }} /> {/* Exit */}
-                            <col style={{ width: '25mm' }} /> {/* Driver */}
-                            <col style={{ width: '20mm' }} /> {/* Plate */}
-                            <col style={{ width: '25mm' }} /> {/* Permit */}
+                            <col style={{ width: '35px' }} /> {/* Row */}
+                            <col style={{ width: '90px' }} /> {/* Origin */}
+                            <col style={{ width: '50px' }} /> {/* Entry */}
+                            <col style={{ width: '50px' }} /> {/* Exit */}
+                            <col style={{ width: '90px' }} /> {/* Driver */}
+                            <col style={{ width: '80px' }} /> {/* Plate */}
+                            <col style={{ width: '90px' }} /> {/* Permit */}
                             <col />                           {/* Goods */}
-                            <col style={{ width: '15mm' }} /> {/* Qty */}
-                            <col style={{ width: '25mm' }} /> {/* Dest */}
-                            <col style={{ width: '25mm' }} /> {/* Receiver */}
-                            <col style={{ width: '35mm' }} /> {/* Desc */}
+                            <col style={{ width: '50px' }} /> {/* Qty */}
+                            <col style={{ width: '90px' }} /> {/* Dest */}
+                            <col style={{ width: '90px' }} /> {/* Receiver */}
+                            <col style={{ width: '130px' }} /> {/* Desc */}
                         </colgroup>
                         <thead>
-                            <tr style={{ backgroundColor: '#e5e7eb', height: '10mm' }}>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>ردیف</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مبدا</th>
-                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>ساعت</th>
-                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مشخصات خودرو / راننده</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مجوز دهنده</th>
-                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مشخصات کالا</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>مقصد</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>تحویل گیرنده</th>
-                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle' }}>توضیحات</th>
+                            <tr style={{ backgroundColor: '#e5e7eb', height: '35px' }}>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '35px', textAlign: 'center' }}>ردیف</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px', textAlign: 'center' }}>مبدا</th>
+                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', textAlign: 'center' }}>ساعت</th>
+                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', textAlign: 'center' }}>مشخصات خودرو / راننده</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px', textAlign: 'center' }}>مجوز دهنده</th>
+                                <th colSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', textAlign: 'center' }}>مشخصات کالا</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px', textAlign: 'center' }}>مقصد</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px', textAlign: 'center' }}>تحویل گیرنده</th>
+                                <th rowSpan={2} style={{ border: '1px solid black', verticalAlign: 'middle', width: '130px', textAlign: 'center' }}>توضیحات</th>
                             </tr>
-                            <tr style={{ backgroundColor: '#e5e7eb', height: '8mm' }}>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>ورود</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>خروج</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>نام راننده</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>پلاک</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>نام کالا</th>
-                                <th style={{ border: '1px solid black', verticalAlign: 'middle' }}>تعداد</th>
+                            <tr style={{ backgroundColor: '#e5e7eb', height: '30px' }}>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px', textAlign: 'center' }}>ورود</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px', textAlign: 'center' }}>خروج</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '90px', textAlign: 'center' }}>نام راننده</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '80px', textAlign: 'center' }}>پلاک</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', textAlign: 'center' }}>نام کالا</th>
+                                <th style={{ border: '1px solid black', verticalAlign: 'middle', width: '50px', textAlign: 'center' }}>تعداد</th>
                             </tr>
                         </thead>
                         <tbody>
                             {displayLogs.map((log, index) => (
-                                <tr key={index} style={{ height: '7mm' }}>
+                                <tr key={index} style={{ height: '28px' }}>
                                     <td style={{ border: '1px solid black', fontWeight: 'bold' }}>{log.id ? index + 1 : ''}</td>
                                     <td style={{ border: '1px solid black', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap' }}>{log.origin}</td>
                                     <td style={{ border: '1px solid black', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px' }}>{log.entryTime}</td>
@@ -139,10 +137,10 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
                 </div>
 
                 {/* 3. Footer Section */}
-                <div style={{ height: '40mm', borderTop: '2px solid black', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ height: '130px', borderTop: '2px solid black', display: 'flex', flexDirection: 'column' }}>
                     
                     {/* Shift Description */}
-                    <div style={{ height: '10mm', borderBottom: '1px solid black', display: 'flex', alignItems: 'center', backgroundColor: '#f9fafb', padding: '0 5px' }}>
+                    <div style={{ height: '40px', borderBottom: '1px solid black', display: 'flex', alignItems: 'center', backgroundColor: '#f9fafb', padding: '0 5px' }}>
                         <span style={{ fontSize: '10px', fontWeight: 'bold', textDecoration: 'underline', flexShrink: 0, marginLeft: '5px' }}>توضیحات شیفت:</span>
                         <div style={{ fontSize: '10px', flex: 1, textAlign: 'right', fontWeight: '500' }}>
                             {meta?.dailyDescription}
@@ -242,7 +240,6 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                // A4 Portrait Fixed Width
                 width: '210mm', 
                 minHeight: '297mm', 
                 direction: 'rtl', 
@@ -254,10 +251,10 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
             <div style={{ border: '3px solid black', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 
                 {/* Header */}
-                <div style={{ display: 'flex', borderBottom: '2px solid black', height: '30mm' }}>
+                <div style={{ display: 'flex', borderBottom: '2px solid black', height: '100px' }}>
                     
                     {/* Right: Meta */}
-                    <div style={{ width: '50mm', borderLeft: '2px solid black', padding: '10px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '5px' }}>
+                    <div style={{ width: '150px', borderLeft: '2px solid black', padding: '10px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '5px' }}>
                         <div>شماره: <span style={{ fontFamily: 'monospace' }}>{incident.reportNumber || '735'}</span></div>
                         <div>تاریخ: <span style={{ fontFamily: 'monospace' }}>{formatDate(incident.date)}</span></div>
                         <div>روز / تاریخ: <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>{new Date(incident.date).toLocaleDateString('fa-IR', {weekday:'long'})}</span></div>
@@ -271,7 +268,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                     </div>
 
                     {/* Left: Logo */}
-                    <div style={{ width: '50mm', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                    <div style={{ width: '150px', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #ccc', color: '#ccc', fontWeight: 'bold' }}>
                             لوگو
                         </div>
@@ -311,7 +308,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                 </div>
 
                 {/* Witnesses */}
-                <div style={{ borderTop: '2px solid black', padding: '10px 15px', display: 'flex', alignItems: 'center', height: '15mm' }}>
+                <div style={{ borderTop: '2px solid black', padding: '10px 15px', display: 'flex', alignItems: 'center', height: '60px' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '13px', width: '60px' }}>شهود :</span>
                     <div style={{ flex: 1, borderBottom: '1px dotted black', height: '30px', display: 'flex', alignItems: 'center', paddingRight: '10px', fontSize: '12px' }}>
                         {incident.witnesses || '...................................................'}
@@ -322,13 +319,13 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                 </div>
 
                 {/* Shift Head Opinion */}
-                <div style={{ borderTop: '2px solid black', height: '15mm', padding: '5px 15px', display: 'flex', alignItems: 'center' }}>
+                <div style={{ borderTop: '2px solid black', height: '50px', padding: '5px 15px', display: 'flex', alignItems: 'center' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '12px' }}>نظر سر شیفت :</span>
                     <div style={{ flex: 1, marginRight: '10px', fontSize: '12px' }}>{incident.shiftManagerOpinion}</div>
                 </div>
 
                 {/* Approvals Grid - REVISED FOR 3 STAGES */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '2px solid black', height: '25mm' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '2px solid black', height: '90px' }}>
                     
                     {/* Supervisor */}
                     <div style={{ borderLeft: '1px solid black', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -348,7 +345,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
 
                 {/* HR & Safety Row (Optional/Additional Info) */}
                 {(incident.hrAction || incident.safetyAction) && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '15mm', borderTop: '1px solid black' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '60px', borderTop: '1px solid black' }}>
                         <div style={{ borderLeft: '1px solid black', padding: '5px 15px' }}>
                             <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '2px' }}>اقدام کارگزینی :</div>
                             <div style={{ fontSize: '10px' }}>{incident.hrAction}</div>

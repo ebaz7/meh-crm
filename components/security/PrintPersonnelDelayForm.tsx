@@ -42,9 +42,8 @@ const PrintPersonnelDelayForm: React.FC<Props> = ({ delays, date, meta }) => {
             id="print-delay-form"
             className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                // A4 Portrait Width
-                width: '210mm', 
-                minHeight: '297mm',
+                width: '100%', 
+                height: '100%',
                 direction: 'rtl',
                 margin: '0 auto', 
                 boxSizing: 'border-box',
