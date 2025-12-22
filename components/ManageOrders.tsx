@@ -40,32 +40,36 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : null;
 
   const canApprove = (order: PaymentOrder) => {
+      // Normal Flow
       if (order.status === OrderStatus.PENDING && permissions?.canApproveFinancial) return true;
       if (order.status === OrderStatus.APPROVED_FINANCE && permissions?.canApproveManager) return true;
       if (order.status === OrderStatus.APPROVED_MANAGER && permissions?.canApproveCeo) return true;
-      // Void Approval: CEO/Admin only
-      if (order.status === OrderStatus.PENDING_CANCELLATION && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
+      
+      // Void Flow
+      if (order.status === OrderStatus.PENDING_VOID_FINANCE && permissions?.canApproveFinancial) return true;
+      if (order.status === OrderStatus.PENDING_VOID_MANAGER && permissions?.canApproveManager) return true;
+      if (order.status === OrderStatus.PENDING_VOID_CEO && permissions?.canApproveCeo) return true;
+
       return false;
   };
 
   const handleApprove = async (order: PaymentOrder) => {
-      // Special Handling for VOID Confirmation
-      if (order.status === OrderStatus.PENDING_CANCELLATION) {
-          if (window.confirm('آیا ابطال نهایی این دستور پرداخت را تایید می‌کنید؟')) {
-              setProcessingId(order.id);
-              await updateOrderStatus(order.id, OrderStatus.VOIDED, currentUser);
-              refreshData();
-              setProcessingId(null);
-          }
-          return;
-      }
+      // Determine Next Status based on Current Status
+      let nextStatus: OrderStatus | null = null;
+      let confirmMsg = 'آیا از تایید این دستور پرداخت اطمینان دارید؟';
 
-      if (window.confirm('آیا از تایید این دستور پرداخت اطمینان دارید؟')) {
+      // Normal Approval
+      if (order.status === OrderStatus.PENDING) nextStatus = OrderStatus.APPROVED_FINANCE;
+      else if (order.status === OrderStatus.APPROVED_FINANCE) nextStatus = OrderStatus.APPROVED_MANAGER;
+      else if (order.status === OrderStatus.APPROVED_MANAGER) nextStatus = OrderStatus.APPROVED_CEO;
+      
+      // Void Approval (Cancellation Workflow)
+      else if (order.status === OrderStatus.PENDING_VOID_FINANCE) { nextStatus = OrderStatus.PENDING_VOID_MANAGER; confirmMsg = 'آیا تایید ابطال (مرحله مالی) را انجام می‌دهید؟'; }
+      else if (order.status === OrderStatus.PENDING_VOID_MANAGER) { nextStatus = OrderStatus.PENDING_VOID_CEO; confirmMsg = 'آیا تایید ابطال (مرحله مدیریت) را انجام می‌دهید؟'; }
+      else if (order.status === OrderStatus.PENDING_VOID_CEO) { nextStatus = OrderStatus.VOIDED; confirmMsg = 'آیا ابطال نهایی این دستور را تایید می‌کنید؟ (این عملیات غیرقابل بازگشت است)'; }
+
+      if (nextStatus && window.confirm(confirmMsg)) {
           setProcessingId(order.id);
-          let nextStatus = OrderStatus.APPROVED_FINANCE;
-          if (order.status === OrderStatus.APPROVED_FINANCE) nextStatus = OrderStatus.APPROVED_MANAGER;
-          else if (order.status === OrderStatus.APPROVED_MANAGER) nextStatus = OrderStatus.APPROVED_CEO;
-          
           await updateOrderStatus(order.id, nextStatus, currentUser);
           refreshData();
           setProcessingId(null);
@@ -83,9 +87,9 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const handleVoidRequest = async (order: PaymentOrder) => {
-      if (window.confirm('آیا از درخواست ابطال این دستور اطمینان دارید؟ (این درخواست برای تایید به مدیرعامل ارسال خواهد شد)')) {
+      if (window.confirm('آیا از درخواست ابطال این دستور اطمینان دارید؟ (این درخواست مجدداً تمام مراحل تایید را طی خواهد کرد)')) {
           setProcessingId(order.id);
-          await updateOrderStatus(order.id, OrderStatus.PENDING_CANCELLATION, currentUser);
+          await updateOrderStatus(order.id, OrderStatus.PENDING_VOID_FINANCE, currentUser);
           refreshData();
           setProcessingId(null);
       }
@@ -137,11 +141,20 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           case OrderStatus.APPROVED_MANAGER: return 'bg-indigo-100 text-indigo-800 border-indigo-200';
           case OrderStatus.APPROVED_CEO: return 'bg-green-100 text-green-800 border-green-200';
           case OrderStatus.REJECTED: return 'bg-red-100 text-red-800 border-red-200';
-          case OrderStatus.PENDING_CANCELLATION: return 'bg-gray-100 text-gray-800 border-gray-400 border-dashed animate-pulse';
+          // Void Colors
+          case OrderStatus.PENDING_VOID_FINANCE: 
+          case OrderStatus.PENDING_VOID_MANAGER: 
+          case OrderStatus.PENDING_VOID_CEO: 
+              return 'bg-gray-100 text-gray-800 border-gray-400 border-dashed animate-pulse';
           case OrderStatus.VOIDED: return 'bg-gray-200 text-gray-500 border-gray-300 line-through';
           default: return 'bg-gray-100 text-gray-800';
       }
   };
+
+  const isVoidStatus = (s: OrderStatus) => 
+      s === OrderStatus.PENDING_VOID_FINANCE || 
+      s === OrderStatus.PENDING_VOID_MANAGER || 
+      s === OrderStatus.PENDING_VOID_CEO;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full flex flex-col animate-fade-in relative">
@@ -153,7 +166,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                 settings={settings}
                 onApprove={canApprove(selectedOrder) ? () => handleApprove(selectedOrder) : undefined}
                 onReject={(selectedOrder.status !== OrderStatus.APPROVED_CEO && selectedOrder.status !== OrderStatus.VOIDED && selectedOrder.status !== OrderStatus.REJECTED && canApprove(selectedOrder)) ? () => handleReject(selectedOrder) : undefined}
-                onEdit={(permissions?.canEditAll || (permissions?.canEditOwn && selectedOrder.requester === currentUser.fullName && selectedOrder.status !== OrderStatus.APPROVED_CEO && selectedOrder.status !== OrderStatus.VOIDED && selectedOrder.status !== OrderStatus.PENDING_CANCELLATION)) ? () => { setEditingOrder(selectedOrder); setSelectedOrder(null); } : undefined}
+                onEdit={(permissions?.canEditAll || (permissions?.canEditOwn && selectedOrder.requester === currentUser.fullName && !isVoidStatus(selectedOrder.status) && selectedOrder.status !== OrderStatus.APPROVED_CEO && selectedOrder.status !== OrderStatus.VOIDED)) ? () => { setEditingOrder(selectedOrder); setSelectedOrder(null); } : undefined}
             />
         )}
 
@@ -229,13 +242,13 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
                                         {/* APPROVE BUTTON (Works for normal approval AND Void approval) */}
                                         {canApprove(order) && (
-                                            <button onClick={() => handleApprove(order)} className={`p-1.5 rounded transition-colors ${order.status === OrderStatus.PENDING_CANCELLATION ? 'text-red-600 bg-red-50 hover:bg-red-100 border border-red-200' : 'text-green-600 bg-green-50 hover:bg-green-100'}`} title={order.status === OrderStatus.PENDING_CANCELLATION ? "تایید ابطال نهایی" : "تایید"}>
-                                                {order.status === OrderStatus.PENDING_CANCELLATION ? <XCircle size={16}/> : <CheckCircle size={16} />}
+                                            <button onClick={() => handleApprove(order)} className={`p-1.5 rounded transition-colors ${isVoidStatus(order.status) ? 'text-red-600 bg-red-50 hover:bg-red-100 border border-red-200' : 'text-green-600 bg-green-50 hover:bg-green-100'}`} title={isVoidStatus(order.status) ? "تایید ابطال" : "تایید"}>
+                                                {isVoidStatus(order.status) ? <XCircle size={16}/> : <CheckCircle size={16} />}
                                             </button>
                                         )}
                                         
                                         {/* EDIT BUTTON */}
-                                        {((permissions?.canEditAll) || (permissions?.canEditOwn && order.requester === currentUser.fullName && order.status !== OrderStatus.APPROVED_CEO && order.status !== OrderStatus.VOIDED && order.status !== OrderStatus.PENDING_CANCELLATION)) && (
+                                        {((permissions?.canEditAll) || (permissions?.canEditOwn && order.requester === currentUser.fullName && !isVoidStatus(order.status) && order.status !== OrderStatus.APPROVED_CEO && order.status !== OrderStatus.VOIDED)) && (
                                             <button onClick={() => setEditingOrder(order)} className="p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded transition-colors" title="ویرایش"><Edit size={16} /></button>
                                         )}
                                         

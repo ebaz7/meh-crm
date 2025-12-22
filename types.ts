@@ -12,7 +12,11 @@ export enum OrderStatus {
   APPROVED_MANAGER = 'تایید مدیریت / در انتظار مدیرعامل', 
   APPROVED_CEO = 'تایید نهایی', 
   REJECTED = 'رد شده',
-  PENDING_CANCELLATION = 'در انتظار تایید ابطال',
+  
+  // Void Workflow Stages
+  PENDING_VOID_FINANCE = 'درخواست ابطال - مالی',
+  PENDING_VOID_MANAGER = 'درخواست ابطال - مدیریت',
+  PENDING_VOID_CEO = 'درخواست ابطال - مدیرعامل',
   VOIDED = 'ابطال شده'
 }
 

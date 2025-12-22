@@ -49,7 +49,10 @@ export const getStatusLabel = (status: OrderStatus) => {
         case OrderStatus.APPROVED_MANAGER: return 'تایید مدیریت';
         case OrderStatus.APPROVED_CEO: return 'تایید نهایی';
         case OrderStatus.REJECTED: return 'رد شده';
-        case OrderStatus.PENDING_CANCELLATION: return 'در انتظار تایید ابطال';
+        // Void Workflow
+        case OrderStatus.PENDING_VOID_FINANCE: return 'درخواست ابطال - مالی';
+        case OrderStatus.PENDING_VOID_MANAGER: return 'درخواست ابطال - مدیریت';
+        case OrderStatus.PENDING_VOID_CEO: return 'درخواست ابطال - مدیرعامل';
         case OrderStatus.VOIDED: return 'ابطال شده';
         default: return status;
     }

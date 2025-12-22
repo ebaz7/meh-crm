@@ -11,13 +11,28 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
   const order = orders.find(o => o.id === id);
   if (order) {
       const updates: any = { status };
+      
+      // Standard Flow
       if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
-      // VOIDED status approval is also handled by CEO (or Admin)
-      else if (status === OrderStatus.VOIDED) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
       
+      // Void Flow (re-approval chain)
+      // Since it's a void request, we might want to log who approved the void at each stage, 
+      // but for simplicity and consistency with the "Approved by X" fields, we can reuse them or just track status.
+      // The requirement "go through the whole process" implies different actors act on it.
+      // We will trust the status transition for now. 
+      // If needed, we could add `voidApproverFinancial`, etc., but standard approver fields are usually for payment authorization.
+      // Let's assume for voiding, the status history is enough or we reuse the same fields (overwriting them).
+      // Overwriting makes sense if we consider the "Void" a new "Order" of sorts. 
+      // Let's overwrite them to indicate who approved the VOID.
+      
+      else if (status === OrderStatus.PENDING_VOID_MANAGER) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName + ' (ابطال)'; }
+      else if (status === OrderStatus.PENDING_VOID_CEO) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName + ' (ابطال)'; }
+      else if (status === OrderStatus.VOIDED) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName + ' (ابطال)'; }
+
       if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; }
+      
       const updatedOrder = { ...order, ...updates };
       return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder);
   }
