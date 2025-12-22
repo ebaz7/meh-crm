@@ -11,9 +11,7 @@ export enum OrderStatus {
   APPROVED_FINANCE = 'تایید مالی / در انتظار مدیریت', 
   APPROVED_MANAGER = 'تایید مدیریت / در انتظار مدیرعامل', 
   APPROVED_CEO = 'تایید نهایی', 
-  REJECTED = 'رد شده',
-  PENDING_CANCELLATION = 'در انتظار تایید ابطال',
-  VOIDED = 'ابطال شده'
+  REJECTED = 'رد شده'
 }
 
 export enum ExitPermitStatus {
@@ -132,6 +130,7 @@ export interface ExitPermit {
   updatedAt?: number;
 }
 
+// ... rest of types remain same ...
 export interface WarehouseItem { id: string; code: string; name: string; unit: string; containerCapacity?: number; description?: string; }
 export interface WarehouseTransactionItem { itemId: string; itemName: string; quantity: number; weight: number; unitPrice?: number; }
 export interface WarehouseTransaction { id: string; type: 'IN' | 'OUT'; date: string; company: string; number: number; proformaNumber?: string; recipientName?: string; driverName?: string; plateNumber?: string; destination?: string; items: WarehouseTransactionItem[]; description?: string; status?: 'PENDING' | 'APPROVED' | 'REJECTED'; approvedBy?: string; rejectionReason?: string; rejectedBy?: string; createdAt: number; createdBy: string; updatedAt?: number; }

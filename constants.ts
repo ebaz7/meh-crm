@@ -44,13 +44,11 @@ export const INITIAL_ORDERS: PaymentOrder[] = [];
 
 export const getStatusLabel = (status: OrderStatus) => {
     switch (status) {
-        case OrderStatus.PENDING: return 'در انتظار بررسی مالی';
+        case OrderStatus.PENDING: return 'در انتظار مالی';
         case OrderStatus.APPROVED_FINANCE: return 'تایید مالی';
         case OrderStatus.APPROVED_MANAGER: return 'تایید مدیریت';
         case OrderStatus.APPROVED_CEO: return 'تایید نهایی';
         case OrderStatus.REJECTED: return 'رد شده';
-        case OrderStatus.PENDING_CANCELLATION: return 'در انتظار تایید ابطال';
-        case OrderStatus.VOIDED: return 'ابطال شده';
         default: return status;
     }
 };
