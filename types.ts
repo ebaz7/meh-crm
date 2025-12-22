@@ -11,7 +11,12 @@ export enum OrderStatus {
   APPROVED_FINANCE = 'تایید مالی / در انتظار مدیریت', 
   APPROVED_MANAGER = 'تایید مدیریت / در انتظار مدیرعامل', 
   APPROVED_CEO = 'تایید نهایی', 
-  REJECTED = 'رد شده'
+  REJECTED = 'رد شده',
+  // Revocation Workflow
+  REVOCATION_PENDING_FINANCE = 'درخواست ابطال / منتظر تایید مالی',
+  REVOCATION_PENDING_MANAGER = 'تایید ابطال مالی / منتظر مدیریت',
+  REVOCATION_PENDING_CEO = 'تایید ابطال مدیریت / منتظر مدیرعامل',
+  REVOKED = 'باطل شده (نهایی)'
 }
 
 export enum ExitPermitStatus {

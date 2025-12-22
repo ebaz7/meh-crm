@@ -223,17 +223,15 @@ app.put('/api/orders/:id', async (req, res) => {
                 let targetPhone = null;
                 let msg = '';
 
-                // 1. Financial Approved -> Notify Manager
+                // --- NORMAL WORKFLOW ---
                 if (newStatus === 'تایید مالی / در انتظار مدیریت') {
                     targetPhone = findUserPhoneByRole(db, 'manager'); 
                     msg = `✅ *تایید مالی انجام شد*\nدستور پرداخت: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\n\nمنتظر تایید مدیریت.`;
                 }
-                // 2. Manager Approved -> Notify CEO
                 else if (newStatus === 'تایید مدیریت / در انتظار مدیرعامل') {
                     targetPhone = findUserPhoneByRole(db, 'ceo') || db.settings?.defaultSalesManager; 
                     msg = `✅ *تایید مدیریت انجام شد*\nدستور پرداخت: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\nذی‌نفع: ${newOrder.payee}\n\nمنتظر تایید نهایی مدیرعامل.`;
                 }
-                // 3. CEO Approved -> Notify Requester & Finance
                 else if (newStatus === 'تایید نهایی') {
                     // Notify Requester
                     const reqPhone = findUserPhoneByName(db, newOrder.requester);
@@ -244,15 +242,31 @@ app.put('/api/orders/:id', async (req, res) => {
                     targetPhone = findUserPhoneByRole(db, 'financial');
                     msg = `💰 *دستور پرداخت تایید نهایی شد*\nشماره: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\n\nلطفا نسبت به پرداخت اقدام نمایید.`;
                 }
-                // 4. Rejected -> Notify Requester
                 else if (newStatus === 'رد شده') {
                     targetPhone = findUserPhoneByName(db, newOrder.requester);
                     msg = `⛔ *درخواست پرداخت رد شد*\nشماره: ${newOrder.trackingNumber}\nدلیل: ${newOrder.rejectionReason || 'نامشخص'}`;
                 }
-                // 5. Rejected -> Pending (Revoke/Resubmit)
-                else if (oldStatus === 'رد شده' && newStatus === 'در انتظار بررسی مالی') {
+                
+                // --- REVOCATION WORKFLOW ---
+                else if (newStatus === 'درخواست ابطال / منتظر تایید مالی') {
                      targetPhone = findUserPhoneByRole(db, 'financial');
-                     msg = `🔄 *درخواست مجدد (ابطال رد)*\nدستور پرداخت: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\nدرخواست کننده: ${newOrder.requester}\n\nاین دستور جهت بررسی مجدد به کارتابل بازگشت.`;
+                     msg = `⚠️ *درخواست ابطال دستور پرداخت*\nشماره: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\n\nاین دستور جهت ابطال به کارتابل شما ارسال شد. لطفا بررسی نمایید.`;
+                }
+                else if (newStatus === 'تایید ابطال مالی / منتظر مدیریت') {
+                     targetPhone = findUserPhoneByRole(db, 'manager');
+                     msg = `⚠️ *تایید اولیه ابطال (مالی)*\nشماره: ${newOrder.trackingNumber}\n\nمدیر مالی درخواست ابطال را تایید کرد. منتظر تایید مدیریت.`;
+                }
+                else if (newStatus === 'تایید ابطال مدیریت / منتظر مدیرعامل') {
+                     targetPhone = findUserPhoneByRole(db, 'ceo');
+                     msg = `⚠️ *تایید ثانویه ابطال (مدیریت)*\nشماره: ${newOrder.trackingNumber}\n\nمدیریت درخواست ابطال را تایید کرد. منتظر تایید نهایی مدیرعامل جهت بایگانی باطل شده.`;
+                }
+                else if (newStatus === 'باطل شده (نهایی)') {
+                     // Notify Finance & Requester
+                     const reqPhone = findUserPhoneByName(db, newOrder.requester);
+                     if (reqPhone) sendSmartNotification(reqPhone, `❌ *دستور پرداخت باطل شد*\nشماره: ${newOrder.trackingNumber}\nوضعیت: بایگانی باطل شده`);
+                     
+                     targetPhone = findUserPhoneByRole(db, 'financial');
+                     msg = `❌ *دستور پرداخت باطل شد (نهایی)*\nشماره: ${newOrder.trackingNumber}\n\nتوسط مدیرعامل تایید و بایگانی شد.`;
                 }
 
                 if (targetPhone) {

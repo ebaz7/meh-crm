@@ -49,6 +49,11 @@ export const getStatusLabel = (status: OrderStatus) => {
         case OrderStatus.APPROVED_MANAGER: return 'تایید مدیریت';
         case OrderStatus.APPROVED_CEO: return 'تایید نهایی';
         case OrderStatus.REJECTED: return 'رد شده';
+        // Revocation
+        case OrderStatus.REVOCATION_PENDING_FINANCE: return 'درخواست ابطال (مالی)';
+        case OrderStatus.REVOCATION_PENDING_MANAGER: return 'تایید ابطال (مدیریت)';
+        case OrderStatus.REVOCATION_PENDING_CEO: return 'تایید ابطال (مدیرعامل)';
+        case OrderStatus.REVOKED: return 'باطل شده';
         default: return status;
     }
 };
