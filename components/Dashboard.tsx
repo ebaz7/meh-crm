@@ -53,7 +53,8 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
   }
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
+      // CEO needs to approve normal flow AND void requests
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.PENDING_CANCELLATION).length;
   }
 
   // 2. Exit Pending Count
@@ -82,7 +83,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
   const activeCartable = hasPaymentAccess ? orders
-    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED)
+    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED && o.status !== OrderStatus.VOIDED)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10) : [];
 
@@ -263,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                         activeCartable.map(order => (
                             <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : order.status === OrderStatus.PENDING_CANCELLATION ? 'bg-gray-200 text-gray-600 animate-pulse' : 'bg-blue-100 text-blue-600'}`}>
                                         {order.trackingNumber % 100}
                                     </div>
                                     <div>
@@ -277,8 +278,8 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                                 </div>
                                 <div className="text-right">
                                     <div className="font-bold text-gray-900 font-mono text-sm">{formatCurrency(order.totalAmount)}</div>
-                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
-                                        {order.status}
+                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : order.status === OrderStatus.PENDING_CANCELLATION ? 'bg-gray-100 text-gray-800 border border-gray-300' : 'bg-blue-50 text-blue-600'}`}>
+                                        {order.status === OrderStatus.PENDING_CANCELLATION ? 'در انتظار ابطال' : order.status}
                                     </div>
                                 </div>
                             </div>

@@ -14,6 +14,9 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
       if (status === OrderStatus.APPROVED_FINANCE) { if (approverUser.role === UserRole.FINANCIAL || approverUser.role === UserRole.ADMIN) updates.approverFinancial = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_MANAGER) { if (approverUser.role === UserRole.MANAGER || approverUser.role === UserRole.ADMIN) updates.approverManager = approverUser.fullName; }
       else if (status === OrderStatus.APPROVED_CEO) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
+      // VOIDED also requires CEO/Admin approval, so we log it
+      else if (status === OrderStatus.VOIDED) { if (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN) updates.approverCeo = approverUser.fullName; }
+      
       if (status === OrderStatus.REJECTED) { if (rejectionReason) updates.rejectionReason = rejectionReason; updates.rejectedBy = approverUser.fullName; }
       const updatedOrder = { ...order, ...updates };
       return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'PUT', updatedOrder);
@@ -77,7 +80,7 @@ export const updateSecurityIncident = async (incident: SecurityIncident): Promis
 export const deleteSecurityIncident = async (id: string): Promise<SecurityIncident[]> => { return await apiCall<SecurityIncident[]>(`/security/incidents/${id}`, 'DELETE'); };
 export const getSettings = async (): Promise<SystemSettings> => { return await apiCall<SystemSettings>('/settings'); };
 export const saveSettings = async (settings: SystemSettings): Promise<SystemSettings> => { return await apiCall<SystemSettings>('/settings', 'POST', settings); };
-export const getNextTrackingNumber = async (): Promise<number> => { try { const response = await apiCall<{ nextTrackingNumber: number }>('/next-tracking-number'); return response.nextTrackingNumber; } catch (e) { const settings = await getSettings(); return settings.currentTrackingNumber + 1; } };
+export const getNextTrackingNumber = async (): Promise<number> => { try { const response = await apiCall<{ nextTrackingNumber: number }>('/next-tracking-number'); return response.nextTrackingNumber; } catch(e) { const settings = await getSettings(); return settings.currentTrackingNumber + 1; } };
 export const restoreSystemData = async (backupData: any): Promise<void> => { await apiCall('/restore', 'POST', backupData); };
 export const getMessages = async (): Promise<ChatMessage[]> => { return await apiCall<ChatMessage[]>('/chat'); };
 export const sendMessage = async (message: ChatMessage): Promise<ChatMessage[]> => { return await apiCall<ChatMessage[]>('/chat', 'POST', message); };
