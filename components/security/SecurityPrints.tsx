@@ -41,7 +41,8 @@ export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, met
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
-                width: '297mm', // A4 Landscape Fixed Width
+                // A4 Landscape Width is 297mm. Set height min to 210mm.
+                width: '297mm', 
                 minHeight: '210mm', 
                 direction: 'rtl',
                 margin: '0 auto',
@@ -199,7 +200,7 @@ export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[], meta?: Da
 };
 
 export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ incident }) => {
-    // Signature component for cleaner reuse
+    // ... (rest of incident report same as before) ...
     const SignatureBox = ({ title, name, type }: { title: string, name?: string, type?: 'supervisor' | 'manager' | 'ceo' }) => {
         let borderColor = 'black';
         let textColor = 'black';
@@ -240,6 +241,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
     return (
         <div className="printable-content bg-white text-black font-sans relative" 
             style={{ 
+                // A4 Portrait: 210mm width
                 width: '210mm', 
                 minHeight: '297mm', 
                 direction: 'rtl', 
