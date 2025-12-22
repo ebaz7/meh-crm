@@ -207,7 +207,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
         
         if (name) {
             if (type === 'supervisor') { borderColor = 'blue'; textColor = 'blue'; label = 'تایید شد'; }
-            else if (type === 'manager') { borderColor = 'green'; textColor = 'green'; label = 'دستور اقدام'; }
+            else if (type === 'manager') { borderColor = 'green'; textColor = 'green'; label = 'تایید اولیه'; }
             else if (type === 'ceo') { borderColor = 'purple'; textColor = 'purple'; label = 'تایید نهایی'; }
         }
 
@@ -301,7 +301,7 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                         whiteSpace: 'pre-wrap', 
                         backgroundImage: 'linear-gradient(to bottom, transparent 95%, #e5e7eb 95%)',
                         backgroundSize: '100% 30px',
-                        minHeight: '400px'
+                        minHeight: '300px'
                     }}>
                         {incident.description}
                     </div>
@@ -324,33 +324,38 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                     <div style={{ flex: 1, marginRight: '10px', fontSize: '12px' }}>{incident.shiftManagerOpinion}</div>
                 </div>
 
-                {/* Approvals Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', borderTop: '2px solid black' }}>
+                {/* Approvals Grid - REVISED FOR 3 STAGES */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '2px solid black', height: '90px' }}>
                     
-                    {/* Supervisor Row */}
-                    <div style={{ height: '70px', borderBottom: '1px solid black', padding: '5px 15px', display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '100%' }}><SignatureBox title="سرپرست انتظامات :" name={incident.approverSupervisor} type="supervisor"/></div>
+                    {/* Supervisor */}
+                    <div style={{ borderLeft: '1px solid black', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '100%', height: '100%' }}><SignatureBox title="سرپرست انتظامات :" name={incident.approverSupervisor} type="supervisor"/></div>
                     </div>
 
-                    {/* Management Order Row */}
-                    <div style={{ height: '70px', borderBottom: '1px solid black', padding: '5px 15px', backgroundColor: 'rgba(255,255,255,0.5)' }}>
-                        <div style={{ width: '100%' }}><SignatureBox title="دستور مدیریت :" name={incident.approverFactory} type="manager"/></div>
+                    {/* Manager */}
+                    <div style={{ borderLeft: '1px solid black', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(240, 253, 244, 0.3)' }}>
+                        <div style={{ width: '100%', height: '100%' }}><SignatureBox title="مدیر کارخانه :" name={incident.approverFactory} type="manager"/></div>
                     </div>
 
-                    {/* HR & Safety Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '70px', borderBottom: '1px solid black' }}>
-                        <div style={{ borderLeft: '1px solid black', padding: '5px 15px' }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '5px' }}>اقدام کارگزینی :</div>
-                            <div style={{ fontSize: '11px' }}>{incident.hrAction}</div>
-                            <div style={{ textAlign: 'left', fontSize: '9px', color: '#9ca3af', marginTop: '15px' }}>امضاء</div>
-                        </div>
-                        <div style={{ padding: '5px 15px' }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '5px' }}>اقدام ایمنی و بهداشت :</div>
-                            <div style={{ fontSize: '11px' }}>{incident.safetyAction}</div>
-                            <div style={{ textAlign: 'left', fontSize: '9px', color: '#9ca3af', marginTop: '15px' }}>امضاء</div>
-                        </div>
+                    {/* CEO */}
+                    <div style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(250, 245, 255, 0.3)' }}>
+                        <div style={{ width: '100%', height: '100%' }}><SignatureBox title="مدیرعامل (نهایی) :" name={incident.approverCeo} type="ceo"/></div>
                     </div>
                 </div>
+
+                {/* HR & Safety Row (Optional/Additional Info) */}
+                {(incident.hrAction || incident.safetyAction) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '60px', borderTop: '1px solid black' }}>
+                        <div style={{ borderLeft: '1px solid black', padding: '5px 15px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '2px' }}>اقدام کارگزینی :</div>
+                            <div style={{ fontSize: '10px' }}>{incident.hrAction}</div>
+                        </div>
+                        <div style={{ padding: '5px 15px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '2px' }}>اقدام ایمنی و بهداشت :</div>
+                            <div style={{ fontSize: '10px' }}>{incident.safetyAction}</div>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>

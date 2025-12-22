@@ -59,7 +59,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         } catch(e) { console.error(e); }
     };
 
-    const getIsoSelectedDate = () => {
+    const getIsoSelectedDate = (): string => {
         try {
             const d = jalaliToGregorian(selectedDate.year, selectedDate.month, selectedDate.day);
             return d.toISOString().split('T')[0];
@@ -193,9 +193,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     const getCartableItems = () => {
         const role = currentUser.role;
         const allPending: any[] = [];
+        
+        // CEO / Admin
         if (role === UserRole.CEO || role === UserRole.ADMIN) {
             const ceoLogs = logs.filter(l => l.status === SecurityStatus.PENDING_CEO);
             const ceoDelays = delays.filter(d => d.status === SecurityStatus.PENDING_CEO);
+            const ceoIncidents = incidents.filter(i => i.status === SecurityStatus.PENDING_CEO);
+
+            // Group Daily Logs/Delays
             const groupedByDate: Record<string, {count: number, type: 'daily_approval', date: string, category: 'log' | 'delay'}> = {};
             ceoLogs.forEach(l => {
                 if (!groupedByDate[`log_${l.date}`]) groupedByDate[`log_${l.date}`] = { count: 0, type: 'daily_approval', date: l.date, category: 'log' };
@@ -206,20 +211,31 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                 groupedByDate[`delay_${d.date}`].count++;
             });
             Object.values(groupedByDate).forEach(group => allPending.push(group));
-            incidents.filter(i => i.status === SecurityStatus.PENDING_CEO).forEach(i => allPending.push({...i, type: 'incident'}));
+            
+            // Add Incidents
+            ceoIncidents.forEach(i => allPending.push({...i, type: 'incident'}));
+
+            // Admin Visibility for debug/override
             if (role === UserRole.ADMIN) {
                  logs.filter(l => (l.status === SecurityStatus.PENDING_SUPERVISOR || l.status === SecurityStatus.PENDING_FACTORY || l.status === SecurityStatus.APPROVED_FACTORY_CHECK)).forEach(l => allPending.push({...l, type: 'log'}));
                  delays.filter(d => (d.status === SecurityStatus.PENDING_SUPERVISOR || d.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK || d.status === SecurityStatus.PENDING_FACTORY)).forEach(d => allPending.push({...d, type: 'delay'}));
+                 incidents.filter(i => (i.status === SecurityStatus.PENDING_SUPERVISOR || i.status === SecurityStatus.PENDING_FACTORY)).forEach(i => allPending.push({...i, type: 'incident'}));
             }
-        } else {
+        } 
+        else {
+            // General Checker
             const check = (item: any, type: string) => {
                 const isSupervisor = role === UserRole.SECURITY_HEAD || (permissions && permissions.canApproveSecuritySupervisor);
+                
                 if (isSupervisor) {
                     if (item.status === SecurityStatus.PENDING_SUPERVISOR) allPending.push({ ...item, type });
+                    // Delays have a special intermediate status APPROVED_SUPERVISOR_CHECK before going to Factory
                     if (type === 'delay' && item.status === SecurityStatus.APPROVED_SUPERVISOR_CHECK) allPending.push({ ...item, type });
                 } 
-                else if (role === UserRole.FACTORY_MANAGER && (item.status === SecurityStatus.PENDING_FACTORY || item.status === SecurityStatus.APPROVED_FACTORY_CHECK)) {
-                    allPending.push({ ...item, type });
+                else if (role === UserRole.FACTORY_MANAGER) {
+                    if (item.status === SecurityStatus.PENDING_FACTORY) allPending.push({ ...item, type });
+                    // Daily logs/delays waiting for "Send to CEO" batch action
+                    if (type !== 'incident' && item.status === SecurityStatus.APPROVED_FACTORY_CHECK) allPending.push({ ...item, type });
                 }
             };
             logs.forEach(l => check(l, 'log'));
@@ -371,9 +387,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
     };
 
     const handleApprove = async (item: any) => {
+        // 1. Daily Bulk Approval (Logs & Delays) for CEO
         if (item.type === 'daily_approval') {
             if (!confirm('آیا تایید نهایی و بایگانی می‌کنید؟')) return;
-            const date = item.date;
+            const date = String(item.date); // FIX: Ensure date is string
             const category = item.category;
             if (settings) {
                 const currentMeta = (settings.dailySecurityMeta || {})[date] || {};
@@ -392,16 +409,37 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             alert(`گزارش روزانه تایید نهایی شد.`);
             setViewCartableItem(null); loadData(); return;
         }
+
         const isSupervisor = currentUser.role === UserRole.SECURITY_HEAD || (permissions && permissions.canApproveSecuritySupervisor);
+        
+        // 2. Incident Approval Workflow (3 Stages)
+        if (item.type === 'incident') {
+            if (item.status === SecurityStatus.PENDING_SUPERVISOR && isSupervisor) {
+                if (!confirm('تایید سرپرست انتظامات؟')) return;
+                await updateSecurityIncident({ ...item, status: SecurityStatus.PENDING_FACTORY, approverSupervisor: currentUser.fullName });
+            } 
+            else if (item.status === SecurityStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) {
+                if (!confirm('تایید مدیر کارخانه؟')) return;
+                await updateSecurityIncident({ ...item, status: SecurityStatus.PENDING_CEO, approverFactory: currentUser.fullName });
+            } 
+            else if (item.status === SecurityStatus.PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) {
+                if (!confirm('تایید نهایی و بایگانی؟')) return;
+                await updateSecurityIncident({ ...item, status: SecurityStatus.ARCHIVED, approverCeo: currentUser.fullName });
+            }
+            setViewCartableItem(null); loadData(); return;
+        }
+
+        // 3. Delay Approval (Supervisor -> Manager)
         if (item.type === 'delay') {
             if (isSupervisor && item.status === SecurityStatus.PENDING_SUPERVISOR) {
                 if (confirm('آیا تایید می‌کنید؟')) { await updatePersonnelDelay({ ...item, status: SecurityStatus.APPROVED_SUPERVISOR_CHECK, approverSupervisor: currentUser.fullName }); loadData(); }
                 return;
             }
         }
+
+        // 4. Factory Manager Daily Checks
         if ((currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) && item.status === SecurityStatus.PENDING_FACTORY) {
             const updates: any = { status: SecurityStatus.APPROVED_FACTORY_CHECK, approverFactory: currentUser.fullName };
-            
             if (item.type === 'log') {
                 await updateSecurityLog({ ...item, ...updates });
             } 
@@ -413,13 +451,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             }
             loadData(); return;
         }
+
+        // 5. Supervisor Log Check
         if (item.type === 'log' && isSupervisor && item.status === SecurityStatus.PENDING_SUPERVISOR) {
             if (confirm('آیا تایید می‌کنید؟')) { await updateSecurityLog({ ...item, status: SecurityStatus.PENDING_FACTORY, approverSupervisor: currentUser.fullName }); setViewCartableItem(null); loadData(); }
-        }
-        if (item.type === 'incident') {
-             let nextStatus = item.status === SecurityStatus.PENDING_SUPERVISOR ? SecurityStatus.PENDING_FACTORY : item.status;
-             await updateSecurityIncident({ ...item, status: nextStatus, approverSupervisor: currentUser.fullName });
-             setViewCartableItem(null); loadData();
         }
     };
 
@@ -489,10 +524,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         }
         
         if (settings) {
-            const dates = new Set(delaysToSend.map(d => d.date));
+            const dates: Set<string> = new Set(delaysToSend.map(d => d.date)); // Fix: Typed Set
             let updatedSettings = { ...settings };
             let changed = false;
-            dates.forEach(date => {
+            dates.forEach((date: string) => { // Fix: Typed iterator
                 const meta = updatedSettings.dailySecurityMeta?.[date] || {};
                 if (!meta.isDelaySupervisorApproved) {
                     updatedSettings.dailySecurityMeta = {
@@ -522,10 +557,10 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
         for (const d of delaysToSend) await updatePersonnelDelay({ ...d, status: SecurityStatus.PENDING_CEO });
 
         if (settings) {
-            const dates = new Set([...logsToSend.map(l => l.date), ...delaysToSend.map(d => d.date)]);
+            const dates: Set<string> = new Set([...logsToSend.map(l => l.date), ...delaysToSend.map(d => d.date)]); // Fix: Typed Set
             let updatedSettings = { ...settings };
             let changed = false;
-            dates.forEach(date => {
+            dates.forEach((date: string) => { // Fix: Typed iterator
                 const meta = updatedSettings.dailySecurityMeta?.[date] || {};
                 let newMeta = { ...meta };
                 if (logsToSend.some(l => l.date === date)) newMeta.isFactoryDailyApproved = true;
@@ -712,7 +747,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             )}
 
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
-                {/* ... (Header controls kept the same) ... */}
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Shield className="text-blue-600"/> واحد انتظامات</h1>
                 <div className="flex flex-wrap gap-2 items-center w-full xl:w-auto">
                     {(activeTab === 'logs' || activeTab === 'delays') && (<div className="flex gap-2"><button onClick={() => setShowShiftModal(true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1"><FileText size={16}/> شیفت</button><DateFilter /></div>)}
@@ -721,7 +755,6 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
-                {/* ... (Logs and Delays Tabs Content kept the same) ... */}
                 {activeTab === 'logs' && (
                     <>
                         <div className="flex border-b">
@@ -732,7 +765,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-gray-700 flex items-center gap-2"><Truck size={18}/> گزارش نگهبانی {subTab === 'archived' && <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">(بایگانی)</span>}</h3>
                             <div className="flex gap-2">
-                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:allDailyLogs, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
+                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_log', date:iso, logs:subTab === 'current' ? dailyLogsActive : dailyLogsArchived, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
                                 {subTab === 'current' && <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button>}
                             </div>
                         </div>
@@ -774,7 +807,7 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-gray-700 flex items-center gap-2"><Clock size={18}/> تاخیر پرسنل {subTab === 'archived' && <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">(بایگانی)</span>}</h3>
                             <div className="flex gap-2">
-                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_delay', date:iso, delays:allDailyDelays, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
+                                <button onClick={() => { const iso=getIsoSelectedDate(); setPrintTarget({type:'daily_delay', date:iso, delays:subTab === 'current' ? dailyDelaysActive : dailyDelaysArchived, meta:settings?.dailySecurityMeta?.[iso]}); setShowPrintModal(true); }} className="text-gray-600 border rounded bg-white p-2"><Printer size={18}/></button>
                                 {subTab === 'current' && <button onClick={() => setShowModal(true)} className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm"><Plus size={16}/> ثبت</button>}
                             </div>
                         </div>
@@ -827,12 +860,14 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                                             <div className="font-bold text-gray-800 text-sm">
                                                 {item.type === 'daily_approval' ? `تایید نهایی گزارش روزانه (${item.category === 'log' ? 'نگهبانی' : 'تاخیر'})` : 
                                                  item.type === 'log' ? 'تایید گزارش ورود/خروج' : 
-                                                 item.type === 'delay' ? 'تایید تاخیر پرسنل' : 'بررسی حادثه'}
+                                                 item.type === 'delay' ? 'تایید تاخیر پرسنل' : 
+                                                 item.type === 'incident' ? 'بررسی حادثه' : ''}
                                             </div>
                                             <div className="text-xs text-gray-500 mt-1">
                                                 {item.type === 'daily_approval' ? `تاریخ: ${formatDate(item.date)} | تعداد: ${item.count} مورد` : 
                                                  item.type === 'log' ? `${item.goodsName} - ${item.driverName}` : 
-                                                 item.type === 'delay' ? `${item.personnelName} - ${item.delayAmount}` : item.subject}
+                                                 item.type === 'delay' ? `${item.personnelName} - ${item.delayAmount}` : 
+                                                 item.type === 'incident' ? item.subject : ''}
                                             </div>
                                         </div>
                                     </div>
@@ -883,19 +918,20 @@ const SecurityModule: React.FC<Props> = ({ currentUser }) => {
                             {getArchivedItems().map((group, idx) => (
                                 <div key={idx} className="bg-white border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer relative group" onClick={() => setViewCartableItem({...group, mode: 'view_only'})}>
                                     <div className="flex items-center gap-3 mb-2">
-                                        <div className={`p-2 rounded-full ${group.category === 'log' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
-                                            {group.category === 'log' ? <Truck size={20}/> : <Clock size={20}/>}
+                                        <div className={`p-2 rounded-full ${group.category === 'log' ? 'bg-blue-100 text-blue-600' : group.category === 'delay' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
+                                            {group.category === 'log' ? <Truck size={20}/> : group.category === 'delay' ? <Clock size={20}/> : <AlertTriangle size={20}/>}
                                         </div>
                                         <div>
-                                            <div className="font-bold text-gray-800">{group.category === 'log' ? 'گزارش نگهبانی' : 'گزارش تاخیر'}</div>
+                                            <div className="font-bold text-gray-800">{group.type === 'incident' ? 'گزارش حادثه' : group.category === 'log' ? 'گزارش نگهبانی' : 'گزارش تاخیر'}</div>
                                             <div className="text-xs text-gray-500">{formatDate(group.date)}</div>
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center mt-2">
                                         <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-100">بایگانی شده</span>
-                                        <span className="text-xs font-bold text-gray-400">{group.count} مورد</span>
+                                        {group.type !== 'incident' && <span className="text-xs font-bold text-gray-400">{group.count} مورد</span>}
+                                        {group.type === 'incident' && <span className="text-xs font-bold text-gray-400 truncate max-w-[100px]">{group.subject}</span>}
                                     </div>
-                                    {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && (
+                                    {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) && group.type !== 'incident' && (
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleDeleteDailyArchive(group.date, group.category); }}
                                             className="absolute top-2 left-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
