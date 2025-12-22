@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, getStatusLabel, jalaliToGregorian, formatNu
 import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import EditOrderModal from './EditOrderModal';
+import { apiCall } from '../services/apiService';
 
 interface ManageOrdersProps {
   orders: PaymentOrder[];
@@ -107,6 +108,32 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           await updateOrderStatus(id, OrderStatus.REJECTED, currentUser, reason || 'بدون توضیح');
           refreshData();
           setViewOrder(null); 
+      }
+  };
+
+  // NEW: Handle Revoke (Reset to Pending)
+  const handleRevoke = async (id: string) => {
+      if (window.confirm('آیا از ابطال وضعیت رد شده و ارسال مجدد به چرخه تایید (مدیر مالی) اطمینان دارید؟')) {
+          // Manually reset fields to restart workflow
+          const resetUpdates = {
+              status: OrderStatus.PENDING,
+              approverFinancial: null,
+              approverManager: null,
+              approverCeo: null,
+              rejectionReason: null,
+              rejectedBy: null,
+              updatedAt: Date.now()
+          };
+          
+          try {
+              // Using direct apiCall to ensure fields are nulled out properly as updateOrderStatus implies forward progression
+              await apiCall(`/orders/${id}`, 'PUT', resetUpdates);
+              refreshData();
+              setViewOrder(null);
+              alert('دستور پرداخت با موفقیت به چرخه تایید بازگشت.');
+          } catch (e) {
+              alert('خطا در عملیات ابطال.');
+          }
       }
   };
 
@@ -325,6 +352,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             onApprove={canApprove(viewOrder) ? () => handleApprove(viewOrder.id, viewOrder.status) : undefined}
             onReject={canApprove(viewOrder) ? () => handleReject(viewOrder.id) : undefined}
             onEdit={canEdit(viewOrder) ? () => handleEdit(viewOrder) : undefined}
+            onRevoke={viewOrder.status === OrderStatus.REJECTED && (canEdit(viewOrder) || currentUser.role === UserRole.ADMIN) ? () => handleRevoke(viewOrder.id) : undefined}
           />
       )}
       

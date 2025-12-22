@@ -249,6 +249,11 @@ app.put('/api/orders/:id', async (req, res) => {
                     targetPhone = findUserPhoneByName(db, newOrder.requester);
                     msg = `⛔ *درخواست پرداخت رد شد*\nشماره: ${newOrder.trackingNumber}\nدلیل: ${newOrder.rejectionReason || 'نامشخص'}`;
                 }
+                // 5. Rejected -> Pending (Revoke/Resubmit)
+                else if (oldStatus === 'رد شده' && newStatus === 'در انتظار بررسی مالی') {
+                     targetPhone = findUserPhoneByRole(db, 'financial');
+                     msg = `🔄 *درخواست مجدد (ابطال رد)*\nدستور پرداخت: ${newOrder.trackingNumber}\nمبلغ: ${formatCurrency(newOrder.totalAmount)}\nدرخواست کننده: ${newOrder.requester}\n\nاین دستور جهت بررسی مجدد به کارتابل بازگشت.`;
+                }
 
                 if (targetPhone) {
                     await sendSmartNotification(targetPhone, msg);
