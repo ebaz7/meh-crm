@@ -5,7 +5,7 @@ import { formatDate, formatCurrency } from '../constants';
 import { X, Printer, Clock, MapPin, Package, Truck, CheckCircle, Share2, Edit, Loader2, Users, Search, FileDown } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
-import { generatePdf } from '../utils/pdfGenerator'; // Import Utility
+import { generatePdf } from '../utils/pdfGenerator'; 
 
 interface Props {
   permit: ExitPermit;

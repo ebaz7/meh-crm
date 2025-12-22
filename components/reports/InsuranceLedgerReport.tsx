@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord, SystemSettings } from '../../types';
 import { formatCurrency, formatNumberString, parsePersianDate } from '../../constants';
 import { Printer, FileDown, Search, Filter, X, Loader2 } from 'lucide-react';
+import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface Props {
     records: TradeRecord[];
@@ -116,20 +117,14 @@ const InsuranceLedgerReport: React.FC<Props> = ({ records, settings }) => {
 
     const handleDownloadPDF = async () => {
         setIsGeneratingPdf(true);
-        const element = document.getElementById('insurance-ledger-print');
-        if (!element) { setIsGeneratingPdf(false); return; }
-        try {
-            // @ts-ignore
-            const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-            const imgData = canvas.toDataURL('image/png');
-            // @ts-ignore
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = 210;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Insurance_Ledger_${selectedInsCompany}.pdf`);
-        } catch (e) { alert('Error'); } finally { setIsGeneratingPdf(false); }
+        await generatePdf({
+            elementId: 'insurance-ledger-print',
+            filename: `Insurance_Ledger_${selectedInsCompany}.pdf`,
+            format: 'a4',
+            orientation: 'portrait',
+            onComplete: () => setIsGeneratingPdf(false),
+            onError: () => { alert('خطا در ایجاد PDF'); setIsGeneratingPdf(false); }
+        });
     };
 
     return (

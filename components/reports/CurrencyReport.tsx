@@ -54,19 +54,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         localStorage.setItem(STORAGE_KEY_RATES, JSON.stringify(rates));
     }, [rates]);
 
-    const getWeeksPassed = (year: number) => {
-        const currentShamsi = getCurrentShamsiDate();
-        if (year < currentShamsi.year) return 52;
-        if (year > currentShamsi.year) return 0;
-        let totalDays = 0;
-        for (let m = 1; m < currentShamsi.month; m++) { totalDays += (m <= 6 ? 31 : 30); }
-        totalDays += currentShamsi.day;
-        const weeks = totalDays / 7;
-        return weeks > 0 ? weeks : 1; 
-    };
-
-    const weeksPassed = getWeeksPassed(selectedYear);
-
     const processedGroups = React.useMemo(() => {
         const groups: any[] = [];
         records.forEach(r => {
@@ -171,25 +158,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
         });
     };
 
-    const handleExportExcel = () => {
-        const headers = ["ردیف", "شرح کالا", "شماره سفارش (پرونده)", "شماره ثبت سفارش", "نام شرکت", "دلار آمریکا (معادل)", "مقدار ارز", "نوع ارز", "تاریخ خرید ارز", "ارز خریداری شده (ریال)", "محل ارسال (صرافی)", "کارگزار", "ارز موجود نزد هر بانک", "مقدار تحویل شده", "وضعیت", "مبلغ عودت", "تاریخ عودت"];
-        const rows = [headers.join(",")];
-        let idx = 1;
-        processedGroups.forEach(g => {
-            g.tranches.forEach((t: any) => {
-                rows.push(`${idx},"${g.recordInfo.goodsName}","${g.recordInfo.fileNumber}","${g.recordInfo.registrationNumber || '-'}","${g.recordInfo.company}",${t.usdAmount},${t.originalAmount},"${t.currencyType}","${t.purchaseDate}",${t.rialAmount},"${t.exchangeName}","${t.brokerName}","${g.recordInfo.bank}",${t.deliveredAmount},"${t.isDelivered ? 'تحویل شده' : 'انتظار'}",${t.returnAmount},"${t.returnDate}"`);
-                idx++;
-            });
-        });
-        const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Currency_Report_${selectedYear}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     const formatUSD = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
     return (
@@ -212,7 +180,6 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                         </button>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={handleExportExcel} className="bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 flex items-center gap-1 text-xs"><FileSpreadsheet size={14}/> اکسل</button>
                         <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 flex items-center gap-1 text-xs">{isGeneratingPdf ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14}/>} PDF</button>
                         <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 flex items-center gap-1 text-xs"><Printer size={14}/> چاپ</button>
                     </div>
@@ -246,12 +213,12 @@ const CurrencyReport: React.FC<CurrencyReportProps> = ({ records }) => {
                     style={{
                         backgroundColor: '#ffffff',
                         color: '#000000',
-                        width: '100%', // Flexible for screen
-                        maxWidth: '297mm', // Cap at A4 landscape
+                        width: '297mm', // Fixed A4 landscape
                         minHeight: '210mm',
                         margin: '0 auto',
                         boxSizing: 'border-box',
-                        direction: 'rtl'
+                        direction: 'rtl',
+                        padding: '10mm'
                     }}
                 >
                     

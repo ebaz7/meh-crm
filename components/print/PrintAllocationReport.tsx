@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Printer, Loader2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../constants';
-import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
+import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface PrintAllocationReportProps {
   records: any[];

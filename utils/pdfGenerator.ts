@@ -30,96 +30,111 @@ export const generatePdf = async ({
     }
 
     try {
-        // 1. Wait for fonts
+        // 1. Wait for fonts/images to fully load
         await document.fonts.ready;
+        const images = Array.from(originalElement.querySelectorAll('img'));
+        await Promise.all(images.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+        }));
 
-        // 2. Define dimensions (MM to Pixels helper)
-        // 1mm ~ 3.78px at 96 DPI
+        // 2. Define dimensions (MM to Pixels helper logic internal to logic)
+        // Standard ISO Paper Sizes
         const widthMm = format === 'a4' ? 210 : 148;
         const heightMm = format === 'a4' ? 297 : 210;
         
         // Logical Dimensions based on orientation
         const pdfPageWidthMm = orientation === 'landscape' ? heightMm : widthMm;
-        // Don't fix height for cloning, let it expand
+        const pdfPageHeightMm = orientation === 'landscape' ? widthMm : heightMm;
         
-        // 3. Create Sandbox
+        // 3. Create Sandbox (The "Virtual Printer")
+        // This forces the content to layout exactly as it would on paper
         const sandbox = document.createElement('div');
         sandbox.id = 'pdf-gen-sandbox';
-        sandbox.style.position = 'absolute';
-        sandbox.style.top = '-9999px';
+        sandbox.style.position = 'fixed'; // Fixed to avoid scrollbars affecting it
+        sandbox.style.top = '-10000px';
         sandbox.style.left = '0';
-        // Set width exactly to PDF width to force correct layout wrap
         sandbox.style.width = `${pdfPageWidthMm}mm`; 
-        // Allow height to auto-expand to fit content
-        sandbox.style.height = 'auto'; 
-        sandbox.style.minHeight = `${orientation === 'landscape' ? widthMm : heightMm}mm`;
+        sandbox.style.minHeight = `${pdfPageHeightMm}mm`;
         sandbox.style.backgroundColor = '#ffffff';
         sandbox.style.zIndex = '-1000';
-        sandbox.style.overflow = 'visible'; // CRITICAL: Allow overflow to be captured
         
-        // CRITICAL: Force Direction and Font
+        // CRITICAL: Force Direction and Font for Persian
         sandbox.style.direction = 'rtl';
         sandbox.style.fontFamily = "'Vazirmatn', sans-serif";
         sandbox.style.textAlign = 'right';
         sandbox.style.boxSizing = 'border-box';
-
-        document.body.appendChild(sandbox);
-
-        // 4. Clone Element
+        
+        // 4. Clone Element deeply
         const clonedElement = originalElement.cloneNode(true) as HTMLElement;
         
-        // 5. Sanitize Clone
-        clonedElement.style.position = 'static'; 
+        // 5. Sanitize and Prepare Clone
         clonedElement.style.margin = '0';
+        clonedElement.style.padding = '0';
         clonedElement.style.transform = 'none';
         clonedElement.style.boxShadow = 'none';
         clonedElement.style.width = '100%'; 
         clonedElement.style.maxWidth = '100%';
-        clonedElement.style.height = 'auto'; // Ensure clone expands
-        clonedElement.style.overflow = 'visible'; // Ensure content isn't clipped
+        clonedElement.style.height = 'auto'; 
+        clonedElement.style.overflow = 'visible'; 
         
-        const noPrintElements = clonedElement.querySelectorAll('.no-print');
+        // Remove no-print elements
+        const noPrintElements = clonedElement.querySelectorAll('.no-print, button');
         noPrintElements.forEach(el => el.remove());
 
-        // Fix Inputs
+        // Fix Form Inputs: Convert inputs to text spans or copy values
+        // HTML cloning doesn't copy current value of inputs/textareas/selects
         const originalInputs = originalElement.querySelectorAll('input, select, textarea');
         const clonedInputs = clonedElement.querySelectorAll('input, select, textarea');
+        
         originalInputs.forEach((input, index) => {
             if (clonedInputs[index]) {
+                const clonedInput = clonedInputs[index];
                 if (input.tagName === 'SELECT') {
-                    (clonedInputs[index] as HTMLSelectElement).value = (input as HTMLSelectElement).value;
-                } else if (input.tagName === 'INPUT' && (input as HTMLInputElement).type !== 'file') {
-                    (clonedInputs[index] as HTMLInputElement).value = (input as HTMLInputElement).value;
-                    (clonedInputs[index] as HTMLInputElement).checked = (input as HTMLInputElement).checked;
+                    // Replace select with span for better printing
+                    const selectedOpt = (input as HTMLSelectElement).options[(input as HTMLSelectElement).selectedIndex];
+                    const span = document.createElement('span');
+                    span.textContent = selectedOpt ? selectedOpt.text : '';
+                    span.className = input.className; // Keep styles
+                    span.style.border = 'none';
+                    span.style.padding = '0 5px';
+                    span.style.display = 'inline-block';
+                    if(clonedInput.parentNode) clonedInput.parentNode.replaceChild(span, clonedInput);
                 } else if (input.tagName === 'TEXTAREA') {
-                    (clonedInputs[index] as HTMLTextAreaElement).value = (input as HTMLTextAreaElement).value;
+                    (clonedInput as HTMLTextAreaElement).value = (input as HTMLTextAreaElement).value;
+                    (clonedInput as HTMLTextAreaElement).textContent = (input as HTMLTextAreaElement).value;
+                } else if (input.tagName === 'INPUT') {
+                    const inp = input as HTMLInputElement;
+                    if (inp.type === 'checkbox' || inp.type === 'radio') {
+                        (clonedInput as HTMLInputElement).checked = inp.checked;
+                    } else {
+                        // For text inputs, replace with value to ensure visibility
+                        (clonedInput as HTMLInputElement).setAttribute('value', inp.value);
+                        (clonedInput as HTMLInputElement).value = inp.value;
+                    }
                 }
             }
         });
 
+        document.body.appendChild(sandbox);
         sandbox.appendChild(clonedElement);
 
-        // 6. Capture
+        // 6. Capture using html2canvas
+        // High scale (2 or 3) ensures text is crisp
         const canvas = await html2canvas(sandbox, {
             scale: 2, 
             useCORS: true, 
             allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
-            windowWidth: 1920,
-            // CRITICAL: Capture full scroll height
-            height: sandbox.scrollHeight,
-            windowHeight: sandbox.scrollHeight,
-            onclone: (doc) => {
-                const el = doc.getElementById('pdf-gen-sandbox');
-                if (el) el.style.fontVariantLigatures = 'no-common-ligatures';
-            }
+            windowWidth: sandbox.scrollWidth,
+            windowHeight: sandbox.scrollHeight
         });
 
-        // Cleanup
+        // Cleanup DOM
         document.body.removeChild(sandbox);
 
-        // 7. Convert to PDF
+        // 7. Generate PDF
         // @ts-ignore
         const pdf = new jsPDF({
             orientation: orientation === 'portrait' ? 'p' : 'l',
@@ -131,42 +146,26 @@ export const generatePdf = async ({
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         
-        const imgProps = pdf.getImageProperties(canvas.toDataURL('image/jpeg', 0.90));
+        const imgProps = pdf.getImageProperties(canvas.toDataURL('image/jpeg', 0.95));
         const pdfImgHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-        // If content is longer than one page, create multiple pages or just one long page (user prefers seeing everything)
-        // Standard PDF requires paging. We'll fit width and let height flow to new pages if needed.
-        
+        // Intelligent Paging Logic
         let heightLeft = pdfImgHeight;
         let position = 0;
+        let pageCount = 0;
 
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.90), 'JPEG', 0, position, pdfWidth, pdfImgHeight);
+        // First Page
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, pdfWidth, pdfImgHeight);
         heightLeft -= pdfHeight;
+        pageCount++;
 
+        // Subsequent Pages (if content overflows)
         while (heightLeft > 0) {
-            position = heightLeft - pdfImgHeight; // logic for multi-page split is complex with raw image
-            // Simplification: For now, we will just add a new page and print the rest if it was text, but with image it's hard to split cleanly without cutting text lines.
-            // Better approach for this app: Just resize to fit one page IF it's close, otherwise add page.
-            // Actually, the user asked "don't hide parts". 
-            // If we just addImage, it might stretch off page.
-            
-            // For Safety in this specific app (Single Document Prints usually):
-            // We will just create a PDF page height that matches content if it's super long, 
-            // OR we just use standard A4 and let it shrink to fit if it's slightly larger.
-            // But shrinking makes text small.
-            
-            // Let's stick to standard single page addImage. If it's too long, we add a new page.
+            position = heightLeft - pdfImgHeight; 
             pdf.addPage();
-            // This naive splitting cuts images/text in half.
-            // Given the requirement "don't hide parts", shrinking to fit one page is safer for "Reports" 
-            // UNLESS it's absurdly long.
-            
-            // Let's rely on the user's specific context (forms). Forms usually fit. 
-            // If it's the incident report with long text, it will expand.
-            
-            // Re-render image shifted up
-            pdf.addImage(canvas.toDataURL('image/jpeg', 0.90), 'JPEG', 0, -(pdfHeight * (Math.ceil(pdfImgHeight / pdfHeight) - Math.ceil(heightLeft / pdfHeight))), pdfWidth, pdfImgHeight);
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, pdfWidth, pdfImgHeight);
             heightLeft -= pdfHeight;
+            pageCount++;
         }
         
         const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;

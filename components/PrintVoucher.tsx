@@ -23,6 +23,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [contactSearch, setContactSearch] = useState('');
 
   useEffect(() => {
+      // Force A5 Landscape style for direct printing (Ctrl+P)
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
           style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
@@ -30,7 +31,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   }, [embed]);
 
   const isCompact = order.paymentDetails.length > 2;
-  const printAreaId = `print-voucher-content-${order.id}`;
+  const printAreaId = `print-voucher-${order.id}`;
 
   const Stamp = ({ name, title }: { name: string; title: string }) => (
     <div className={`border-[2px] border-blue-800 text-blue-800 rounded-lg ${isCompact ? 'py-0.5 px-2' : 'py-1 px-3'} rotate-[-5deg] opacity-90 mix-blend-multiply bg-white/80 print:bg-transparent shadow-sm inline-block`}>
@@ -65,6 +66,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setSharing(false); return; }
       try {
+          // Use html2canvas directly for image generation for WA
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -89,14 +91,14 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         className="printable-content bg-white relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            width: '100%', 
-            height: '100%',
+            width: '210mm',  // Fixed A5 Landscape Width (physically roughly width of A4 portrait)
+            height: '148mm', // Fixed A5 Landscape Height
             padding: '8mm', 
             boxSizing: 'border-box',
-            margin: '0 auto' 
+            margin: '0 auto',
+            border: '1px solid #eee' // Helper border for screen
         }}
       >
-        {/* ... (Existing Content Structure) ... */}
         {order.status === OrderStatus.REJECTED && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
@@ -176,9 +178,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       
       {/* Container specifically for on-screen viewing, matches A5 ratio roughly but scales */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          <div style={{ width: '209mm', height: '147mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-            {content}
-          </div>
+          {content}
       </div>
     </div>
   );

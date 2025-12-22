@@ -11,13 +11,12 @@ interface DailyLogProps {
 }
 
 export const PrintSecurityDailyLog: React.FC<DailyLogProps> = ({ date, logs, meta }) => {
-    // Fill empty rows to maintain A4 structure (approx 20 rows fits well)
+    // Fill empty rows to maintain A4 structure (approx 18 rows fits well in landscape A4 inside box)
     const displayLogs = [...logs];
     while (displayLogs.length < 18) {
         displayLogs.push({} as any);
     }
 
-    // Extract Approver Names
     const supervisorName = logs.find(l => l.approverSupervisor)?.approverSupervisor;
     const factoryName = logs.find(l => l.approverFactory)?.approverFactory;
     const ceoName = logs.find(l => l.approverCeo)?.approverCeo;
@@ -199,7 +198,6 @@ export const PrintPersonnelDelay: React.FC<{ delays: PersonnelDelay[], meta?: Da
 };
 
 export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ incident }) => {
-    // Signature component for cleaner reuse
     const SignatureBox = ({ title, name, type }: { title: string, name?: string, type?: 'supervisor' | 'manager' | 'ceo' }) => {
         let borderColor = 'black';
         let textColor = 'black';
@@ -324,26 +322,20 @@ export const PrintIncidentReport: React.FC<{ incident: SecurityIncident }> = ({ 
                     <div style={{ flex: 1, marginRight: '10px', fontSize: '12px' }}>{incident.shiftManagerOpinion}</div>
                 </div>
 
-                {/* Approvals Grid - REVISED FOR 3 STAGES */}
+                {/* Approvals Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '2px solid black', height: '90px' }}>
-                    
-                    {/* Supervisor */}
                     <div style={{ borderLeft: '1px solid black', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div style={{ width: '100%', height: '100%' }}><SignatureBox title="سرپرست انتظامات :" name={incident.approverSupervisor} type="supervisor"/></div>
                     </div>
-
-                    {/* Manager */}
                     <div style={{ borderLeft: '1px solid black', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(240, 253, 244, 0.3)' }}>
                         <div style={{ width: '100%', height: '100%' }}><SignatureBox title="مدیر کارخانه :" name={incident.approverFactory} type="manager"/></div>
                     </div>
-
-                    {/* CEO */}
                     <div style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(250, 245, 255, 0.3)' }}>
                         <div style={{ width: '100%', height: '100%' }}><SignatureBox title="مدیرعامل (نهایی) :" name={incident.approverCeo} type="ceo"/></div>
                     </div>
                 </div>
 
-                {/* HR & Safety Row (Optional/Additional Info) */}
+                {/* HR & Safety Row */}
                 {(incident.hrAction || incident.safetyAction) && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '60px', borderTop: '1px solid black' }}>
                         <div style={{ borderLeft: '1px solid black', padding: '5px 15px' }}>

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRecord } from '../../types';
 import { formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../../constants';
 import { FileSpreadsheet, Printer, FileDown, RefreshCw, Loader2, Settings } from 'lucide-react';
-import { generatePdf } from '../../utils/pdfGenerator'; // Import Utility
+import { generatePdf } from '../../utils/pdfGenerator'; 
 
 interface Props {
     records: TradeRecord[];
@@ -59,16 +59,13 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
 
     const weeksPassed = getWeeksPassed(selectedYear);
 
-    // -- Logic (Copied exactly from previous report, keeping archives included) --
     const summaryByCompany = React.useMemo(() => {
         const summary: Record<string, number> = {};
         let totalAll = 0;
 
         records.forEach(r => {
-            // Note: We deliberately do NOT filter by 'status' or 'archive' here to include EVERYTHING for the year.
             const tranches = r.currencyPurchaseData?.tranches || [];
             
-            // Legacy handling
             if (tranches.length === 0 && (r.currencyPurchaseData?.purchasedAmount || 0) > 0) {
                 const pDate = r.currencyPurchaseData?.purchaseDate;
                 if (!pDate) return;
@@ -89,7 +86,6 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
                 summary[comp] = (summary[comp] || 0) + usdAmount;
                 totalAll += usdAmount;
             } else {
-                // Tranche handling
                 tranches.forEach(t => {
                     const pDate = t.date;
                     if (!pDate) return;
@@ -122,11 +118,10 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
 
     const formatUSD = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-    // -- Export Handlers --
     const handlePrint = () => {
         const style = document.getElementById('page-size-style');
         if (style) style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
-        setTimeout(() => window.print(), 800); // Slight delay to ensure styles render
+        setTimeout(() => window.print(), 800);
     };
 
     const handleDownloadPDF = async () => {
@@ -139,28 +134,6 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
             onComplete: () => setIsGeneratingPdf(false),
             onError: () => { alert('خطا در ایجاد PDF'); setIsGeneratingPdf(false); }
         });
-    };
-
-    const handleExportExcel = () => {
-        const headers = ["نام شرکت", "جمع کل خرید (دلار)", "میانگین هفتگی (دلار)"];
-        const rows = [headers.join(",")];
-        
-        summaryByCompany.details.forEach(item => {
-            // Remove commas for Excel numbers
-            rows.push(`"${item.name}",${Math.round(item.total)},${Math.round(item.weeklyAvg)}`);
-        });
-
-        // Add Total Row
-        rows.push(`"جمع کل",${Math.round(summaryByCompany.totalAll)},${Math.round(weeksPassed > 0 ? summaryByCompany.totalAll / weeksPassed : 0)}`);
-
-        const bom = "\uFEFF"; 
-        const blob = new Blob([bom + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Company_Performance_${selectedYear}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     return (
@@ -181,7 +154,6 @@ const CompanyPerformanceReport: React.FC<Props> = ({ records }) => {
                         </button>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={handleExportExcel} className="bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 flex items-center gap-1 text-xs"><FileSpreadsheet size={14}/> اکسل</button>
                         <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 flex items-center gap-1 text-xs">{isGeneratingPdf ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14}/>} PDF</button>
                         <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 flex items-center gap-1 text-xs"><Printer size={14}/> چاپ</button>
                     </div>

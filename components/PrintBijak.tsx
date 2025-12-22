@@ -5,7 +5,7 @@ import { formatCurrency, formatDate } from '../constants';
 import { X, Printer, Loader2, Share2, Search, Users, Smartphone, FileDown, CheckCircle, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { getUsers } from '../services/authService';
-import { generatePdf } from '../utils/pdfGenerator'; // Import utility
+import { generatePdf } from '../utils/pdfGenerator'; 
 
 interface PrintBijakProps {
   tx: WarehouseTransaction;
@@ -33,7 +33,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       }
   }, [embed]);
 
-  // Use consistent ID. If embed is true (hidden mode), use unique ID.
   const containerId = embed 
     ? `print-bijak-${tx.id}${forceHidePrices ? '-noprice' : '-price'}` 
     : "print-area";
@@ -43,7 +42,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
   }, [forceHidePrices]);
 
   useEffect(() => {
-      // ... (loadContacts logic) ...
       const loadContacts = async () => {
           setContactsLoading(true);
           const saved = settings?.savedContacts || [];
@@ -77,7 +75,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       }, 1000);
   };
 
-  // Replaced with generatePdf
   const handleDownloadPDF = async () => {
       setProcessing(true);
       await generatePdf({
@@ -124,7 +121,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
 
   const filteredContacts = allContacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.number.includes(contactSearch));
 
-  // Helper Stamp Component
   const Stamp = ({ title, name, color = 'blue' }: { title: string, name: string, color?: 'blue' | 'green' | 'gray' }) => {
       const colorClass = color === 'blue' ? 'border-blue-800 text-blue-800' : color === 'green' ? 'border-green-800 text-green-800' : 'border-gray-500 text-gray-500';
       return (
@@ -135,13 +131,12 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
       );
   };
 
-  // The Invoice Content - Use flexible width but stick to A5 dimensions
   const content = (
       <div id={containerId} className={`printable-content bg-white w-full mx-auto p-6 shadow-2xl rounded-sm relative text-gray-900 flex flex-col print:shadow-none`} 
         style={{ 
             direction: 'rtl',
-            width: '147mm',
-            height: '209mm',
+            width: '148mm', // Exact A5 width
+            minHeight: '210mm',
             margin: '0 auto',
             padding: '8mm', 
             boxSizing: 'border-box'
@@ -193,8 +188,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in no-print safe-pb">
         <div className="bg-white p-3 rounded-xl shadow-lg z-50 flex flex-col gap-2 w-full max-w-[148mm] md:w-64 md:fixed md:top-4 md:left-4 mb-4 md:mb-0 relative order-1">
             <div className="flex justify-between items-center border-b pb-2"><span className="font-bold text-sm">پنل عملیات</span><button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500"/></button></div>
-            
-            {/* Rejection/Deletion Alert */}
             {((tx.status as any) === 'DELETED' || tx.status === 'REJECTED') && (
                 <div className="bg-red-50 p-2 rounded-lg border border-red-200 flex items-start gap-2 text-xs text-red-800">
                     <AlertTriangle size={16} className="shrink-0 mt-0.5"/>
@@ -204,8 +197,6 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
                     </div>
                 </div>
             )}
-
-            {/* Approval Buttons */}
             {(onApprove || onReject) && (
                 <div className="flex gap-2 mb-1">
                     {onApprove && (
@@ -220,19 +211,15 @@ const PrintBijak: React.FC<PrintBijakProps> = ({ tx, onClose, settings, embed, f
                     )}
                 </div>
             )}
-
             <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded"><input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} id="hidePrice"/><label htmlFor="hidePrice" className="cursor-pointer">مخفی کردن قیمت‌ها</label></div>
             <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 p-2 rounded text-sm hover:bg-gray-200 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>} دانلود PDF</button>
             <button onClick={handlePrint} disabled={processing} className="bg-blue-600 text-white p-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center gap-2">{processing ? <Loader2 size={16} className="animate-spin"/> : <Printer size={16}/>} چاپ</button>
-            
             <div className="border-t pt-2 mt-1 space-y-2">
                 <button onClick={() => { if(warehouseTarget) generateAndSend(warehouseTarget, true, "📦 *حواله خروج (نسخه انبار)*"); else alert(`شماره گروه انبار برای شرکت ${tx.company} تنظیم نشده است.`); }} disabled={processing} className="w-full bg-orange-100 text-orange-700 p-2 rounded text-xs hover:bg-orange-200 flex items-center justify-center gap-2 border border-orange-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به انبار (بدون فی)'}</button>
                 <button onClick={() => { if(managerTarget) generateAndSend(managerTarget, false, "📑 *حواله خروج (نسخه مدیریت)*"); else alert(`شماره مدیر فروش برای شرکت ${tx.company} تنظیم نشده است.`); }} disabled={processing} className="w-full bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 flex items-center justify-center gap-2 border border-green-200">{processing ? <Loader2 size={14} className="animate-spin"/> : 'ارسال به مدیر (با فی)'}</button>
-                
                 <button onClick={() => setShowContactSelect(true)} className="w-full bg-white border text-gray-700 p-2 rounded text-xs hover:bg-gray-50 flex items-center justify-center gap-2"><Share2 size={14}/> انتخاب مخاطب</button>
             </div>
         </div>
-        {/* ... (Contact Select) ... */}
         {showContactSelect && (
             <div className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col h-[70vh] animate-fade-in">
