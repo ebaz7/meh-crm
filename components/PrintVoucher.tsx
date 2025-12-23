@@ -34,6 +34,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const printAreaId = `print-voucher-content-${order.id}`;
 
   const isRevocationProcess = order.status.includes('REVOCATION');
+  const isRevoked = order.status === OrderStatus.REVOKED;
 
   const Stamp = ({ name, title }: { name: string; title: string }) => (
     <div className={`border-[2px] border-blue-800 text-blue-800 rounded-lg ${isCompact ? 'py-0.5 px-2' : 'py-1 px-3'} rotate-[-5deg] opacity-90 mix-blend-multiply bg-white/80 print:bg-transparent shadow-sm inline-block`}>
@@ -109,11 +110,17 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
         {order.status === OrderStatus.REJECTED && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
-        {order.status === OrderStatus.REVOKED && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-gray-600/30 text-gray-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">VOID</div>
+        
+        {/* WATERMARKS FOR REVOCATION */}
+        {isRevoked && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-gray-400/40 text-gray-400/40 font-black text-8xl rotate-[-25deg] p-6 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">
+                باطل شد
+            </div>
         )}
         {isRevocationProcess && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-4 border-amber-600/30 text-amber-600/30 font-black text-4xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">در حال ابطال</div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-200/50 text-red-200/50 font-black text-6xl rotate-[-25deg] p-6 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">
+                در حال ابطال
+            </div>
         )}
 
         <div className="relative z-10">
@@ -161,33 +168,36 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
              <div className="flex items-center justify-between border-b pb-2 mb-1">
                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                     {isRevocationProcess ? <span className="text-red-600 flex items-center gap-1"><AlertTriangle size={16}/> چرخه ابطال</span> : 'جزئیات و عملیات'}
+                     {isRevocationProcess ? <span className="text-red-600 flex items-center gap-1 animate-pulse"><AlertTriangle size={16}/> چرخه ابطال</span> : 'جزئیات و عملیات'}
                  </h3>
                  <button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
              </div>
              
              {(onApprove || onReject || onEdit || onRevoke) && (<div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100">
+                
+                {/* APPROVE BUTTON: Green for Normal, Red/Orange for Revocation */}
                 {onApprove && 
-                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
+                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
                         {isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} 
                         {isRevocationProcess ? 'تایید ابطال' : 'تایید'}
                     </button>
                 }
                 
-                {/* Hide Revoke button if already in process */}
-                {onRevoke && !isRevocationProcess &&
-                    <button onClick={onRevoke} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
+                {/* REVOKE BUTTON: Only show if not already in revocation */}
+                {onRevoke && !isRevocationProcess && !isRevoked &&
+                    <button onClick={onRevoke} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95 border border-red-200">
                         <RotateCcw size={18} /> درخواست ابطال
                     </button>
                 }
                 
+                {/* REJECT BUTTON */}
                 {onReject && 
-                    <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
+                    <button onClick={onReject} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
                         <XCircle size={18} /> رد
                     </button>
                 }
                 
-                {onEdit && 
+                {onEdit && !isRevocationProcess &&
                     <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center">
                         <Pencil size={18} />
                     </button>
