@@ -145,7 +145,19 @@ export interface PersonnelDelay { id: string; date: string; personnelName: strin
 export interface SecurityIncident { id: string; reportNumber: string; date: string; subject: string; description: string; shift: string; registrant: string; status: SecurityStatus; witnesses?: string; shiftManagerOpinion?: string; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; hrAction?: string; safetyAction?: string; rejectionReason?: string; createdAt: number; }
 export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
 export interface CompanyBank { id: string; bankName: string; accountNumber: string; }
-export interface Company { id: string; name: string; logo?: string; showInWarehouse?: boolean; banks?: CompanyBank[]; letterhead?: string; }
+export interface Company { 
+    id: string; 
+    name: string; 
+    logo?: string; 
+    showInWarehouse?: boolean; 
+    banks?: CompanyBank[]; 
+    letterhead?: string;
+    // New Fields
+    registrationNumber?: string;
+    nationalId?: string;
+    address?: string;
+    phone?: string;
+}
 export interface Contact { id: string; name: string; number: string; isGroup?: boolean; }
 export interface CustomRole { id: string; label: string; }
 export interface SystemSettings { currentTrackingNumber: number; currentExitPermitNumber: number; companyNames: string[]; companies?: Company[]; defaultCompany: string; bankNames: string[]; operatingBankNames?: string[]; commodityGroups: string[]; rolePermissions: Record<string, RolePermissions>; customRoles?: CustomRole[]; savedContacts?: Contact[]; pwaIcon?: string; telegramBotToken?: string; telegramAdminId?: string; smsApiKey?: string; smsSenderNumber?: string; googleCalendarId?: string; whatsappNumber?: string; geminiApiKey?: string; insuranceCompanies?: string[]; warehouseSequences?: Record<string, number>; exitPermitNotificationGroup?: string; companyNotifications?: Record<string, { salesManager?: string; warehouseGroup?: string; }>; defaultWarehouseGroup?: string; defaultSalesManager?: string; dailySecurityMeta?: Record<string, DailySecurityMeta>; }
@@ -165,7 +177,7 @@ export interface WarehouseReceipt { id: string; number: string; part: string; is
 export interface ClearancePayment { id: string; part: string; amount: number; date: string; bank: string; payingBank?: string; }
 export interface ClearanceData { receipts: WarehouseReceipt[]; payments: ClearancePayment[]; }
 export interface GreenLeafCustomsDuty { id: string; cottageNumber: string; part: string; amount: number; paymentMethod: 'Bank' | 'Guarantee'; bank?: string; date?: string; }
-export interface GreenLeafGuarantee { id: string; relatedDutyId: string; guaranteeNumber: string; chequeNumber?: string; chequeBank?: string; chequeDate?: string; chequeAmount?: number; isDelivered?: boolean; cashAmount: number; cashBank?: string; cashDate?: string; part?: string; }
+export interface GreenLeafGuarantee { id: string; relatedDutyId: string; guaranteeNumber: string; guaranteeBank?: string; chequeNumber?: string; chequeBank?: string; chequeDate?: string; chequeAmount?: number; isDelivered?: boolean; cashAmount: number; cashBank?: string; cashDate?: string; part?: string; }
 export interface GreenLeafTax { id: string; part: string; amount: number; bank: string; date: string; }
 export interface GreenLeafRoadToll { id: string; part: string; amount: number; bank: string; date: string; }
 export interface GreenLeafData { duties: GreenLeafCustomsDuty[]; guarantees: GreenLeafGuarantee[]; taxes: GreenLeafTax[]; roadTolls: GreenLeafRoadToll[]; }

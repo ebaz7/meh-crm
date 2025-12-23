@@ -52,6 +52,13 @@ const Settings: React.FC = () => {
   const [newCompanyShowInWarehouse, setNewCompanyShowInWarehouse] = useState(true);
   const [newCompanyBanks, setNewCompanyBanks] = useState<CompanyBank[]>([]);
   const [newCompanyLetterhead, setNewCompanyLetterhead] = useState('');
+  
+  // New Company Fields
+  const [newCompanyRegNum, setNewCompanyRegNum] = useState('');
+  const [newCompanyNatId, setNewCompanyNatId] = useState('');
+  const [newCompanyAddress, setNewCompanyAddress] = useState('');
+  const [newCompanyPhone, setNewCompanyPhone] = useState('');
+
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   
   // Local states for adding banks to a company
@@ -180,7 +187,11 @@ const Settings: React.FC = () => {
                               logo: newCompanyLogo, 
                               showInWarehouse: newCompanyShowInWarehouse,
                               banks: newCompanyBanks,
-                              letterhead: newCompanyLetterhead
+                              letterhead: newCompanyLetterhead,
+                              registrationNumber: newCompanyRegNum,
+                              nationalId: newCompanyNatId,
+                              address: newCompanyAddress,
+                              phone: newCompanyPhone
                             }
                           : c
                   );
@@ -191,7 +202,11 @@ const Settings: React.FC = () => {
                       logo: newCompanyLogo,
                       showInWarehouse: newCompanyShowInWarehouse,
                       banks: newCompanyBanks,
-                      letterhead: newCompanyLetterhead
+                      letterhead: newCompanyLetterhead,
+                      registrationNumber: newCompanyRegNum,
+                      nationalId: newCompanyNatId,
+                      address: newCompanyAddress,
+                      phone: newCompanyPhone
                   }];
               }
               // Clear form
@@ -226,7 +241,11 @@ const Settings: React.FC = () => {
           logo: newCompanyLogo, 
           showInWarehouse: newCompanyShowInWarehouse,
           banks: newCompanyBanks,
-          letterhead: newCompanyLetterhead
+          letterhead: newCompanyLetterhead,
+          registrationNumber: newCompanyRegNum,
+          nationalId: newCompanyNatId,
+          address: newCompanyAddress,
+          phone: newCompanyPhone
       };
 
       if (editingCompanyId) {
@@ -244,6 +263,10 @@ const Settings: React.FC = () => {
       setNewCompanyShowInWarehouse(c.showInWarehouse !== false);
       setNewCompanyBanks(c.banks || []);
       setNewCompanyLetterhead(c.letterhead || '');
+      setNewCompanyRegNum(c.registrationNumber || '');
+      setNewCompanyNatId(c.nationalId || '');
+      setNewCompanyAddress(c.address || '');
+      setNewCompanyPhone(c.phone || '');
       setEditingCompanyId(c.id); 
   };
 
@@ -253,6 +276,10 @@ const Settings: React.FC = () => {
       setNewCompanyShowInWarehouse(true);
       setNewCompanyBanks([]);
       setNewCompanyLetterhead('');
+      setNewCompanyRegNum('');
+      setNewCompanyNatId('');
+      setNewCompanyAddress('');
+      setNewCompanyPhone('');
       setEditingCompanyId(null); 
       setTempBankName('');
       setTempAccountNum('');
@@ -490,6 +517,14 @@ const Settings: React.FC = () => {
                                         <div className={`flex items-center gap-2 bg-white px-2 py-2 rounded border cursor-pointer flex-1 h-[42px] ${newCompanyShowInWarehouse ? 'border-green-200 bg-green-50 text-green-700' : ''}`} onClick={() => setNewCompanyShowInWarehouse(!newCompanyShowInWarehouse)}><input type="checkbox" checked={newCompanyShowInWarehouse} onChange={e => setNewCompanyShowInWarehouse(e.target.checked)} className="w-4 h-4"/><span className="text-xs font-bold select-none">نمایش در انبار</span></div>
                                         <input type="file" ref={companyLogoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload}/>
                                     </div>
+                                </div>
+
+                                {/* Additional Company Fields */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">شماره ثبت</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyRegNum} onChange={e => setNewCompanyRegNum(e.target.value)} /></div>
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">شناسه ملی</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyNatId} onChange={e => setNewCompanyNatId(e.target.value)} /></div>
+                                    <div className="md:col-span-2"><label className="text-xs font-bold block mb-1 text-gray-500">آدرس</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyAddress} onChange={e => setNewCompanyAddress(e.target.value)} /></div>
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">تلفن</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyPhone} onChange={e => setNewCompanyPhone(e.target.value)} /></div>
                                 </div>
 
                                 {/* Letterhead Upload */}

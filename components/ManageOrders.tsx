@@ -245,32 +245,38 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           // Archive contains successfully completed OR finally revoked
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
       } else {
-          // Current contains everything else, INCLUDING active revocation processes and Rejected items
+          // Current contains everything else
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
-      // Allow Admin to see all
+      // Admin sees everything appropriate for the tab
       if (currentUser.role === UserRole.ADMIN) return tabOrders;
 
-      if (!permissions.canViewAll) {
-          // FILTER BY ROLE RESPONSIBILITY (INCLUDING REVOCATION)
-          // 1. Finance sees: Own requests OR Pending Normal OR Pending Revocation
-          if (currentUser.role === UserRole.FINANCIAL) {
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE);
-          }
-          // 2. Manager sees: Own requests OR Approved Finance OR Pending Revocation
-          if (currentUser.role === UserRole.MANAGER) {
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER);
-          }
-          // 3. CEO sees: Own requests OR Approved Manager OR Pending Revocation
-          if (currentUser.role === UserRole.CEO) {
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO);
-          }
+      // --- FORCE VISIBILITY FOR ROLE-SPECIFIC TASKS (Override any other filter) ---
+      // This ensures that if a user has a task pending in their "Cartable", they see it.
+      
+      const roleBasedFilter = (o: PaymentOrder) => {
+          // 1. Always show own requests
+          if (o.requester === currentUser.fullName) return true;
 
-          // Regular users see only their own
-          return tabOrders.filter(o => o.requester === currentUser.fullName);
+          // 2. Financial: See Pending Normal OR Pending Revocation
+          if (currentUser.role === UserRole.FINANCIAL && (o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE)) return true;
+
+          // 3. Manager: See Approved Finance OR Pending Revocation
+          if (currentUser.role === UserRole.MANAGER && (o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER)) return true;
+
+          // 4. CEO: See Approved Manager OR Pending Revocation
+          if (currentUser.role === UserRole.CEO && (o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO)) return true;
+
+          return false;
+      };
+
+      // If user has 'canViewAll', they see everything, otherwise filtered by role/ownership
+      if (permissions.canViewAll) {
+          return tabOrders;
+      } else {
+          return tabOrders.filter(roleBasedFilter);
       }
-      return tabOrders;
   };
 
   const filteredOrders = getOrdersForTab().filter(order => {

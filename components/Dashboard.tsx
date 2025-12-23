@@ -42,26 +42,21 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
 
-  // --- CALC PENDING COUNTS FOR ACTION CARDS (Fixed to include Revocation) ---
+  // --- CALC PENDING COUNTS FOR ACTION CARDS ---
   
+  // 1. Payment Pending Count (Based on user role)
   let pendingPaymentCount = 0;
-  
-  // 1. Finance: Pending Normal OR Pending Revocation
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length;
   }
-  
-  // 2. Manager: Approved Finance (Normal) OR Revocation from Finance
   if (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER).length;
   }
-  
-  // 3. CEO: Approved Manager (Normal) OR Revocation from Manager
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO).length;
   }
 
-  // 4. Exit Pending Count
+  // 2. Exit Pending Count
   let pendingExitCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
       pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
@@ -70,7 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
   }
 
-  // 5. Bijak Pending Count
+  // 3. Bijak Pending Count
   let pendingBijakCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
       pendingBijakCount += warehouseTxs.filter(t => t.type === 'OUT' && t.status === 'PENDING').length;
@@ -86,8 +81,30 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const countMgr = orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
+  // --- Active Cartable Logic Fix ---
+  // Ensure that revocation statuses are included for relevant roles
   const activeCartable = hasPaymentAccess ? orders
-    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED && o.status !== OrderStatus.REVOKED)
+    .filter(o => {
+        // Exclude finalized/rejected for basic filtering
+        if (o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED || o.status === OrderStatus.REJECTED) return false;
+        
+        // If Admin, show all active
+        if (currentUser.role === UserRole.ADMIN) return true;
+
+        // Role-Specific Filters (MUST include Revocation steps)
+        if (currentUser.role === UserRole.FINANCIAL) {
+            return o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE;
+        }
+        if (currentUser.role === UserRole.MANAGER) {
+            return o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER;
+        }
+        if (currentUser.role === UserRole.CEO) {
+            return o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO;
+        }
+
+        // For others, just show recent active items (fallback)
+        return true;
+    })
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10) : [];
 
