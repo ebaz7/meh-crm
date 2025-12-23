@@ -3,7 +3,8 @@ export enum PaymentMethod {
   CASH = 'نقد',
   CHEQUE = 'چک',
   TRANSFER = 'حواله بانکی',
-  POS = 'کارتخوان'
+  POS = 'کارتخوان',
+  SATNA = 'ساتنا'
 }
 
 export enum OrderStatus {
@@ -71,7 +72,11 @@ export interface PaymentDetail {
   chequeNumber?: string;
   chequeDate?: string; 
   bankName?: string;
-  description?: string; 
+  description?: string;
+  // SATNA Fields
+  sheba?: string;
+  recipientBank?: string;
+  paymentId?: string;
 }
 
 export interface PaymentOrder {

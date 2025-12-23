@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
-import { formatCurrency, formatDate, getStatusLabel } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle } from 'lucide-react';
+import { formatCurrency, formatDate, getStatusLabel, deformatNumberString } from '../constants';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -22,16 +22,23 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [sharing, setSharing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
+  
+  // NEW: Toggle between Internal Receipt and Bank Form Fill
+  const [printMode, setPrintMode] = useState<'receipt' | 'bank_form'>('receipt');
+
+  // Find if there is a SATNA line to print on form
+  const satnaLine = order.paymentDetails.find(d => d.method === PaymentMethod.SATNA);
+  const canPrintBankForm = !!satnaLine;
 
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
           style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
       }
-  }, [embed]);
+  }, [embed, printMode]);
 
   const isCompact = order.paymentDetails.length > 2;
-  const printAreaId = `print-voucher-content-${order.id}`;
+  const printAreaId = `print-voucher-${order.id}`;
 
   // Robust checks for Revocation Status
   const isRevocationProcess = [
@@ -59,7 +66,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handleDownloadPDF = async () => {
       setProcessing(true);
-      // New Server-Side Generation
       await generatePdf({
           elementId: printAreaId,
           filename: `Voucher_${order.trackingNumber}.pdf`,
@@ -76,7 +82,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const element = document.getElementById(printAreaId);
       if (!element) { setSharing(false); return; }
       try {
-          // Still using html2canvas for WhatsApp Image (Chat needs image usually)
           // @ts-ignore
           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
           const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -95,20 +100,88 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     c.number.includes(contactSearch)
   ) || [];
 
-  const content = (
+  // --- BANK FORM OVERLAY COMPONENT ---
+  const BankFormOverlay = () => {
+      if (!satnaLine) return null;
+      
+      const company = settings?.companies?.find(c => c.name === order.payingCompany);
+      const sourceBank = company?.banks?.find(b => satnaLine.bankName?.includes(b.bankName));
+      const sourceAccount = sourceBank?.accountNumber || ''; // Find exact account if possible, else empty or manual fill
+      
+      const dateParts = order.date.split('/'); // Assuming YYYY/MM/DD or ISO
+      // Convert ISO to Persian if needed for form, but standard date usually fine or requires Persian Date helper
+      const pDate = new Date(order.date).toLocaleDateString('fa-IR');
+      
+      // Helper to format IBAN with spacing
+      const formatSheba = (s?: string) => s ? s.split('').join('  ') : '';
+
+      return (
+          <div className="printable-content relative w-full h-full bg-white text-black text-sm" style={{ width: '210mm', height: '148mm', margin: '0 auto', overflow: 'hidden' }}>
+              {/* CSS Grid for Layout - Approximating a Standard Form (e.g. Refah/Mellat) */}
+              {/* Note: This is a generic layout. Adjust top/left percentages for specific pre-printed forms */}
+              
+              {/* Visual Guide for Screen (Hidden in Print) */}
+              <div className="absolute inset-0 border-2 border-dashed border-gray-300 pointer-events-none no-print-on-form flex items-center justify-center">
+                  <div className="opacity-10 text-6xl font-bold -rotate-12">محل قرارگیری فرم بانک</div>
+              </div>
+
+              {/* 1. Date (Top Left usually) */}
+              <div className="absolute top-[12%] left-[10%] font-mono font-bold text-lg">{pDate}</div>
+
+              {/* 2. Amount (Numeric) - Top Left/Right */}
+              <div className="absolute top-[25%] left-[8%] font-mono font-bold text-lg dir-ltr">{formatCurrency(satnaLine.amount).replace('ریال','')}</div>
+
+              {/* 3. Source Account (From Company Settings) */}
+              <div className="absolute top-[28%] right-[25%] font-mono font-bold text-lg dir-ltr">{sourceAccount}</div>
+              
+              {/* 4. Source Name (Company) */}
+              <div className="absolute top-[32%] right-[25%] font-bold text-lg">{order.payingCompany}</div>
+
+              {/* 5. Destination Name (Payee) */}
+              <div className="absolute top-[45%] right-[25%] font-bold text-lg">{order.payee}</div>
+
+              {/* 6. Destination Bank */}
+              <div className="absolute top-[45%] left-[10%] font-bold text-md">{satnaLine.recipientBank}</div>
+
+              {/* 7. Destination IBAN (Sheba) */}
+              <div className="absolute top-[55%] left-[15%] right-[15%] text-center font-mono font-bold text-lg tracking-[0.4em] dir-ltr">
+                  {formatSheba(satnaLine.sheba)}
+              </div>
+
+              {/* 8. Amount in Words (User must write manually or we use a library, here simplified) */}
+              {/* <div className="absolute top-[65%] right-[20%] text-sm">...</div> */}
+
+              {/* 9. Reason (Babat) */}
+              <div className="absolute top-[72%] right-[20%] font-bold text-md">{satnaLine.description}</div>
+
+              {/* 10. Payment ID */}
+              {satnaLine.paymentId && (
+                  <div className="absolute top-[78%] left-[20%] font-mono font-bold text-md tracking-widest">{satnaLine.paymentId}</div>
+              )}
+
+              {/* Styles for print hiding */}
+              <style>{`
+                  @media print {
+                      .no-print-on-form { display: none !important; }
+                      /* Ensure only text prints, no backgrounds */
+                      .printable-content { background: transparent !important; box-shadow: none !important; }
+                  }
+              `}</style>
+          </div>
+      );
+  };
+
+  const receiptContent = (
       <div 
         id={printAreaId} 
         className="printable-content bg-white relative text-gray-900 flex flex-col justify-between overflow-hidden" 
         style={{ 
             direction: 'rtl',
-            // A5 Landscape Dimensions (exact)
             width: '210mm', 
             height: '148mm',
-            // Padding inside the fixed container to prevent clipping
             padding: '10mm', 
             boxSizing: 'border-box',
             margin: '0 auto',
-            // Critical for preventing 2nd page
             maxHeight: '148mm',
             overflow: 'hidden'
         }}
@@ -117,7 +190,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-red-600/30 text-red-600/30 font-black text-9xl rotate-[-25deg] p-4 rounded-3xl select-none z-0 pointer-events-none">REJECTED</div>
         )}
         
-        {/* WATERMARKS FOR REVOCATION */}
         {isRevoked && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-8 border-gray-400/40 text-gray-400/40 font-black text-8xl rotate-[-25deg] p-6 rounded-3xl select-none z-0 pointer-events-none whitespace-nowrap">
                 باطل شد
@@ -149,8 +221,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                 <div className={`bg-gray-50/50 border border-gray-300 ${isCompact ? 'p-1.5 min-h-[30px]' : 'p-2 min-h-[45px]'} rounded`}><span className="block text-gray-500 text-[9px] mb-0.5">بابت (شرح پرداخت):</span><p className={`text-gray-800 text-justify font-medium leading-tight ${isCompact ? 'text-[10px]' : 'text-xs'}`}>{order.description}</p></div>
                 <div className="border border-gray-300 rounded overflow-hidden">
                     <table className={`w-full text-right ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
-                        <thead className="bg-gray-100 border-b border-gray-300"><tr><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600 w-6 text-center`}>#</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>نوع پرداخت</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>مبلغ</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>بانک / چک</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>توضیحات</th></tr></thead>
-                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.map((detail, idx) => (<tr key={detail.id}><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>{detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600`}>{detail.description || '-'}</td></tr>))}</tbody>
+                        <thead className="bg-gray-100 border-b border-gray-300"><tr><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600 w-6 text-center`}>#</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>نوع پرداخت</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>مبلغ</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>بانک / چک / شبا</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>توضیحات</th></tr></thead>
+                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.map((detail, idx) => (<tr key={detail.id}><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>{detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : detail.method === PaymentMethod.SATNA ? `شبا: IR-${detail.sheba}` : detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600`}>{detail.description || '-'}</td></tr>))}</tbody>
                     </table>
                 </div>
             </div>
@@ -166,7 +238,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
   );
 
-  if (embed) return content;
+  const contentToRender = printMode === 'bank_form' ? <BankFormOverlay /> : receiptContent;
+
+  if (embed) return contentToRender;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
@@ -179,42 +253,30 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
              </div>
              
+             {/* Approval Actions */}
              {(onApprove || onReject || onEdit || onRevoke) && (<div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100">
-                
-                {/* APPROVE BUTTON: Green for Normal, Red/Orange for Revocation */}
-                {onApprove && 
-                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
-                        {isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} 
-                        {isRevocationProcess ? 'تایید ابطال' : 'تایید'}
-                    </button>
-                }
-                
-                {/* REVOKE BUTTON: Only show if not already in revocation */}
-                {onRevoke && !isRevocationProcess && !isRevoked &&
-                    <button onClick={onRevoke} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95 border border-red-200">
-                        <RotateCcw size={18} /> درخواست ابطال
-                    </button>
-                }
-                
-                {/* REJECT BUTTON */}
-                {onReject && 
-                    <button onClick={onReject} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
-                        <XCircle size={18} /> رد
-                    </button>
-                }
-                
-                {onEdit && !isRevocationProcess &&
-                    <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center">
-                        <Pencil size={18} />
-                    </button>
-                }
+                {onApprove && <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>{isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} {isRevocationProcess ? 'تایید ابطال' : 'تایید'}</button>}
+                {onRevoke && !isRevocationProcess && !isRevoked && <button onClick={onRevoke} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95 border border-red-200"><RotateCcw size={18} /> درخواست ابطال</button>}
+                {onReject && <button onClick={onReject} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95"><XCircle size={18} /> رد</button>}
+                {onEdit && !isRevocationProcess && <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center"><Pencil size={18} /></button>}
              </div>)}
              
-             <div className="grid grid-cols-3 gap-2 relative">
-                 <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} دانلود PDF</button>
+             {/* Print Actions */}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 relative">
+                 <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} PDF</button>
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  
+                 {/* Bank Form Toggle */}
+                 {canPrintBankForm && (
+                     <button 
+                        onClick={() => setPrintMode(printMode === 'receipt' ? 'bank_form' : 'receipt')} 
+                        className={`py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors border ${printMode === 'bank_form' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-300'}`}
+                     >
+                        <FileText size={14}/> {printMode === 'receipt' ? 'چاپ روی فرم بانک' : 'رسید داخلی'}
+                     </button>
+                 )}
+
                  {showContactSelect && (
                      <div className="absolute top-full right-0 md:-right-64 mt-2 w-full min-w-[280px] md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-[300] animate-scale-in flex flex-col overflow-hidden">
                          <div className="p-3 bg-gray-50 border-b flex flex-col gap-2">
@@ -239,10 +301,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
          </div>
       </div>
       
-      {/* Container specifically for on-screen viewing, matches A5 ratio roughly but scales */}
+      {/* Container specifically for on-screen viewing */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
           <div style={{ width: '210mm', height: '148mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-            {content}
+            {contentToRender}
           </div>
       </div>
     </div>
