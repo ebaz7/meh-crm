@@ -67,10 +67,15 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
-          // Refah form is usually A4 Portrait
-          style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
+          if (printMode === 'bank_form' && dynamicTemplate) {
+              const size = dynamicTemplate.pageSize || 'A4';
+              const orient = dynamicTemplate.orientation || 'portrait';
+              style.innerHTML = `@page { size: ${size} ${orient}; margin: 0; }`;
+          } else {
+              style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
+          }
       }
-  }, [embed, printMode]);
+  }, [embed, printMode, dynamicTemplate]);
 
   const isCompact = order.paymentDetails.length > 2;
   const printAreaId = `print-voucher-${order.id}`;
@@ -100,11 +105,12 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   const handleDownloadPDF = async () => {
       setProcessing(true);
+      const isBankForm = printMode === 'bank_form' && !!dynamicTemplate;
       await generatePdf({
           elementId: printAreaId,
           filename: `Voucher_${order.trackingNumber}.pdf`,
-          format: 'A4',
-          orientation: printMode === 'bank_form' ? 'portrait' : 'landscape',
+          format: isBankForm ? (dynamicTemplate.pageSize || 'A4') : 'A4',
+          orientation: isBankForm ? (dynamicTemplate.orientation || 'portrait') : 'landscape',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
       });
@@ -156,7 +162,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'description': return mainLine.description || order.description;
               case 'source_account': return sourceBankConfig?.accountNumber || '';
               case 'source_sheba': return sourceBankConfig?.sheba || '';
-              case 'dest_account': return ''; // Usually implied or needs field
+              case 'dest_account': return ''; 
               case 'dest_sheba': return mainLine.sheba || '';
               case 'dest_bank': return mainLine.recipientBank || '';
               case 'payment_id': return mainLine.paymentId || '';
@@ -168,11 +174,14 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           }
       };
 
+      const w = dynamicTemplate.width || 210;
+      const h = dynamicTemplate.height || 297;
+
       return (
           <div className="printable-content relative w-full h-full text-black font-sans" 
                style={{ 
-                   width: '210mm', 
-                   height: '297mm', 
+                   width: `${w}mm`, 
+                   height: `${h}mm`, 
                    margin: '0 auto', 
                    overflow: 'hidden', 
                    padding: 0,
@@ -394,7 +403,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       
       {/* Container specifically for on-screen viewing */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          <div style={{ width: printMode === 'bank_form' ? '210mm' : '210mm', height: printMode === 'bank_form' ? '297mm' : '148mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          {/* Dynamic sizing for preview container */}
+          <div style={{ 
+              width: (printMode === 'bank_form' && dynamicTemplate) ? `${dynamicTemplate.width || 210}mm` : '210mm', 
+              height: (printMode === 'bank_form' && dynamicTemplate) ? `${dynamicTemplate.height || 297}mm` : '148mm', 
+              backgroundColor: 'white', 
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)' 
+          }}>
             {contentToRender}
           </div>
       </div>

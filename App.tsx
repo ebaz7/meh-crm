@@ -12,13 +12,15 @@ import TradeModule from './components/TradeModule';
 import CreateExitPermit from './components/CreateExitPermit'; 
 import ManageExitPermits from './components/ManageExitPermits'; 
 import WarehouseModule from './components/WarehouseModule';
-import SecurityModule from './components/SecurityModule'; // Added
+import SecurityModule from './components/SecurityModule'; 
+import PrintVoucher from './components/PrintVoucher'; // Import for Background Processing
 import { getOrders, getSettings } from './services/storageService';
-import { getCurrentUser } from './services/authService';
+import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
 import { Loader2 } from 'lucide-react';
 import { sendNotification } from './services/notificationService';
-import { generateUUID, parsePersianDate } from './constants';
+import { generateUUID, parsePersianDate, formatCurrency } from './constants';
+import { apiCall } from './services/apiService';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -28,10 +30,12 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [manageOrdersInitialTab, setManageOrdersInitialTab] = useState<'current' | 'archive'>('current');
-  const [dashboardStatusFilter, setDashboardStatusFilter] = useState<any>(null); // Allow any string filter
-  
-  // New: Filter for Exit Permits when coming from Dashboard
+  const [dashboardStatusFilter, setDashboardStatusFilter] = useState<any>(null); 
   const [exitPermitStatusFilter, setExitPermitStatusFilter] = useState<'pending' | null>(null);
+
+  // Background Job Queue
+  const [backgroundJobs, setBackgroundJobs] = useState<{order: PaymentOrder, type: 'create' | 'approve'}[]>([]);
+  const processingJobRef = useRef(false);
 
   const isFirstLoad = useRef(true);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +45,80 @@ function App() {
   const safePushState = (state: any, title: string, url?: string) => { try { if (url) window.history.pushState(state, title, url); else window.history.pushState(state, title); } catch (e) { try { window.history.pushState(state, title); } catch(e2) {} } };
   const safeReplaceState = (state: any, title: string, url?: string) => { try { if (url) window.history.replaceState(state, title, url); else window.history.replaceState(state, title); } catch (e) { try { window.history.replaceState(state, title); } catch(e2) {} } };
   const setActiveTab = (tab: string, addToHistory = true) => { setActiveTabState(tab); if (addToHistory) safePushState({ tab }, '', `#${tab}`); };
+
+  // --- BACKGROUND JOB LISTENER ---
+  useEffect(() => {
+      const handleJob = (e: CustomEvent) => {
+          console.log("Job Received:", e.detail);
+          setBackgroundJobs(prev => [...prev, e.detail]);
+      };
+      window.addEventListener('QUEUE_WHATSAPP_JOB' as any, handleJob);
+      return () => window.removeEventListener('QUEUE_WHATSAPP_JOB' as any, handleJob);
+  }, []);
+
+  // --- BACKGROUND JOB PROCESSOR ---
+  useEffect(() => {
+      if (backgroundJobs.length > 0 && !processingJobRef.current) {
+          processNextJob();
+      }
+  }, [backgroundJobs]);
+
+  const processNextJob = async () => {
+      processingJobRef.current = true;
+      const job = backgroundJobs[0];
+      const { order, type } = job;
+
+      // 1. Wait for DOM to render hidden component
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const element = document.getElementById(`bg-print-voucher-${order.id}`);
+      if (element) {
+          try {
+              // 2. Generate Image
+              // @ts-ignore
+              const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+              const base64 = canvas.toDataURL('image/png').split(',')[1];
+              
+              const usersList = await getUsers();
+              let targetUser: User | undefined;
+              let caption = '';
+
+              if (type === 'create') {
+                  // Send to Financial Manager
+                  targetUser = usersList.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
+                  caption = `📢 *درخواست پرداخت جدید*\nشماره: ${order.trackingNumber}\nمبلغ: ${formatCurrency(order.totalAmount)}\nدرخواست کننده: ${order.requester}\n\nلطفا بررسی نمایید.`;
+              } else if (type === 'approve') {
+                  // Determine next approver based on new status
+                  if (order.status === OrderStatus.APPROVED_FINANCE) {
+                      targetUser = usersList.find(u => u.role === UserRole.MANAGER && u.phoneNumber);
+                      caption = `✅ *تایید مالی انجام شد*\nشماره: ${order.trackingNumber}\nمنتظر تایید مدیریت.`;
+                  } else if (order.status === OrderStatus.APPROVED_MANAGER) {
+                      targetUser = usersList.find(u => u.role === UserRole.CEO && u.phoneNumber);
+                      caption = `✅ *تایید مدیریت انجام شد*\nشماره: ${order.trackingNumber}\nمنتظر تایید نهایی مدیرعامل.`;
+                  } else if (order.status === OrderStatus.APPROVED_CEO) {
+                      targetUser = usersList.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
+                      caption = `💰 *دستور پرداخت تایید نهایی شد*\nشماره: ${order.trackingNumber}\nلطفا پرداخت نمایید.`;
+                  }
+              }
+
+              if (targetUser && targetUser.phoneNumber) {
+                  await apiCall('/send-whatsapp', 'POST', { 
+                      number: targetUser.phoneNumber, 
+                      message: caption, 
+                      mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${order.trackingNumber}.png` } 
+                  });
+                  console.log(`Background Job Sent to ${targetUser.fullName}`);
+              }
+
+          } catch (e) {
+              console.error("Background Job Failed", e);
+          }
+      }
+
+      // Remove job from queue
+      setBackgroundJobs(prev => prev.slice(1));
+      processingJobRef.current = false;
+  };
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
@@ -131,13 +209,11 @@ function App() {
   const handleViewArchive = () => { setManageOrdersInitialTab('archive'); setDashboardStatusFilter(null); setActiveTab('manage'); };
   const handleDashboardFilter = (status: any) => { setDashboardStatusFilter(status); setManageOrdersInitialTab('current'); setActiveTab('manage'); };
 
-  // New Handlers for Dashboard Action Cards
   const handleGoToPaymentApprovals = () => {
       let filter: any = 'pending_all';
       if (currentUser?.role === UserRole.FINANCIAL) filter = 'cartable_financial';
       else if (currentUser?.role === UserRole.MANAGER) filter = 'cartable_manager';
       else if (currentUser?.role === UserRole.CEO) filter = 'cartable_ceo';
-      
       setDashboardStatusFilter(filter);
       setManageOrdersInitialTab('current');
       setActiveTab('manage');
@@ -148,9 +224,7 @@ function App() {
       setActiveTab('manage-exit');
   };
 
-  // State to track if we should open specific warehouse tab
   const [warehouseInitialTab, setWarehouseInitialTab] = useState<'dashboard' | 'approvals'>('dashboard');
-
   const handleGoToWarehouseApprovals = () => {
       setWarehouseInitialTab('approvals');
       setActiveTab('warehouse');
@@ -160,6 +234,16 @@ function App() {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); if(t!=='warehouse') setWarehouseInitialTab('dashboard'); if(t!=='manage-exit') setExitPermitStatusFilter(null); if(t!=='manage') setDashboardStatusFilter(null); }} currentUser={currentUser} onLogout={handleLogout} notifications={notifications} clearNotifications={() => setNotifications([])}>
+      
+      {/* Hidden Render Area for Background Jobs */}
+      {backgroundJobs.length > 0 && (
+          <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+              <div id={`bg-print-voucher-${backgroundJobs[0].order.id}`}>
+                  <PrintVoucher order={backgroundJobs[0].order} embed settings={settings || undefined} />
+              </div>
+          </div>
+      )}
+
       {loading && orders.length === 0 ? ( <div className="flex h-[50vh] items-center justify-center text-blue-600"><Loader2 size={48} className="animate-spin" /></div> ) : (
         <>
             {activeTab === 'dashboard' && 

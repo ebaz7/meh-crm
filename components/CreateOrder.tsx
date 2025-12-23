@@ -5,8 +5,7 @@ import { saveOrder, getNextTrackingNumber, uploadFile, getSettings, saveSettings
 import { enhanceDescription } from '../services/geminiService';
 import { apiCall } from '../services/apiService';
 import { jalaliToGregorian, getCurrentShamsiDate, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, formatDate } from '../constants';
-import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar, Landmark, CreditCard } from 'lucide-react';
-import PrintVoucher from './PrintVoucher';
+import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar, Landmark, CreditCard, Edit } from 'lucide-react';
 import { getUsers } from '../services/authService';
 
 interface CreateOrderProps {
@@ -26,6 +25,9 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
   const [availableBanks, setAvailableBanks] = useState<string[]>([]); // Strings for dropdown options
   const [paymentLines, setPaymentLines] = useState<PaymentDetail[]>([]);
   
+  // NEW: Editing state for lines
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+
   // Updated NewLine State including SATNA fields
   const [newLine, setNewLine] = useState<{ 
       method: PaymentMethod; 
@@ -57,7 +59,6 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
   
   // Auto Send Logic
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [createdOrderForAutoSend, setCreatedOrderForAutoSend] = useState<PaymentOrder | null>(null);
 
   // Add Bank Modal State
   const [showAddBankModal, setShowAddBankModal] = useState(false);
@@ -157,7 +158,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       if (!amt) return; 
       
       const detail: PaymentDetail = { 
-          id: generateUUID(), 
+          id: editingLineId || generateUUID(), 
           method: newLine.method, 
           amount: amt, 
           chequeNumber: newLine.method === PaymentMethod.CHEQUE ? normalizeInputNumber(newLine.chequeNumber) : undefined, 
@@ -171,11 +172,16 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           paymentId: newLine.method === PaymentMethod.SATNA ? newLine.paymentId : undefined,
       }; 
       
-      setPaymentLines([...paymentLines, detail]); 
-      
-      if(newLine.description && newLine.method !== PaymentMethod.SATNA) {
-          // For regular methods, append desc to main desc. For SATNA, it's 'Babat' specific to line
-          setFormData(p => ({...p, description: p.description ? `${p.description} - ${newLine.description}` : newLine.description}));
+      if (editingLineId) {
+          // Replace existing
+          setPaymentLines(paymentLines.map(p => p.id === editingLineId ? detail : p));
+          setEditingLineId(null);
+      } else {
+          setPaymentLines([...paymentLines, detail]); 
+          // Append description only for new lines
+          if(newLine.description && newLine.method !== PaymentMethod.SATNA) {
+              setFormData(p => ({...p, description: p.description ? `${p.description} - ${newLine.description}` : newLine.description}));
+          }
       }
       
       setNewLine({ 
@@ -191,7 +197,31 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       }); 
   };
 
-  const removePaymentLine = (id: string) => { setPaymentLines(paymentLines.filter(p => p.id !== id)); };
+  const handleEditLine = (line: PaymentDetail) => {
+      // Parse cheque date if exists
+      let cDate = { year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day };
+      if (line.chequeDate) {
+          const parts = line.chequeDate.split('/');
+          if (parts.length === 3) {
+              cDate = { year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) };
+          }
+      }
+
+      setNewLine({
+          method: line.method,
+          amount: formatNumberString(line.amount),
+          chequeNumber: line.chequeNumber || '',
+          bankName: line.bankName || '',
+          description: line.description || '',
+          chequeDate: cDate as any,
+          sheba: line.sheba || '',
+          recipientBank: line.recipientBank || '',
+          paymentId: line.paymentId || ''
+      });
+      setEditingLineId(line.id);
+  };
+
+  const removePaymentLine = (id: string) => { setPaymentLines(paymentLines.filter(p => p.id !== id)); if(editingLineId === id) setEditingLineId(null); };
   const sumPaymentLines = paymentLines.reduce((acc, curr) => acc + curr.amount, 0);
   const handleAnalyzePayment = async () => { setAnalyzing(true); try { const result = await apiCall<any>('/analyze-payment', 'POST', { amount: sumPaymentLines, date: getIsoDate(), company: payingCompany, description: formData.description || 'توضیحات وارد نشده' }); setAnalysisResult(result); } catch (e) { alert("خطا"); } finally { setAnalyzing(false); } };
 
@@ -205,38 +235,15 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
         const newOrder: PaymentOrder = { id: generateUUID(), trackingNumber: Number(trackingNumber), date: getIsoDate(), payee: formData.payee, totalAmount: sumPaymentLines, description: formData.description, status: OrderStatus.PENDING, requester: currentUser.fullName, createdAt: Date.now(), paymentDetails: paymentLines, attachments: attachments, payingCompany: payingCompany };
         await saveOrder(newOrder); 
         
-        setCreatedOrderForAutoSend(newOrder); 
-        
-        setTimeout(async () => {
-            const element = document.getElementById(`print-voucher-${newOrder.id}`);
-            if (element) {
-                try {
-                    const users = await getUsers();
-                    const finUser = users.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
-                    if (finUser) {
-                        // @ts-ignore
-                        const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                        const base64 = canvas.toDataURL('image/png').split(',')[1];
-                        
-                        let caption = `📢 *درخواست پرداخت جدید*\n`;
-                        caption += `شماره: ${newOrder.trackingNumber}\n`;
-                        caption += `مبلغ: ${formatCurrency(newOrder.totalAmount)}\n`;
-                        caption += `درخواست کننده: ${newOrder.requester}\n\n`;
-                        caption += `لطفا بررسی نمایید.`;
+        // --- BACKGROUND PROCESSING (INSTANT UI RESPONSE) ---
+        // Instead of waiting for html2canvas here, dispatch a custom event
+        // The App.tsx will listen to this and handle the "Auto Send" in background
+        const event = new CustomEvent('QUEUE_WHATSAPP_JOB', { 
+            detail: { order: newOrder, type: 'create' } 
+        });
+        window.dispatchEvent(event);
 
-                        await apiCall('/send-whatsapp', 'POST', { 
-                            number: finUser.phoneNumber, 
-                            message: caption, 
-                            mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${newOrder.trackingNumber}.png` } 
-                        });
-                        console.log("Auto sent to Financial Manager");
-                    }
-                } catch (err) {
-                    console.error("Auto send failed", err);
-                }
-            }
-            onSuccess();
-        }, 1000);
+        onSuccess(); // Close form immediately
 
     } catch (error) { 
         alert("خطا در ثبت دستور پرداخت"); 
@@ -249,13 +256,6 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in relative">
-        {/* Hidden Render Area for Auto-Send - Add class hidden-print-export */}
-        {createdOrderForAutoSend && (
-            <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-                <PrintVoucher order={createdOrderForAutoSend} embed settings={settings || undefined} />
-            </div>
-        )}
-
         {/* ADD BANK MODAL */}
         {showAddBankModal && (
             <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
@@ -356,9 +356,31 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                     <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">{newLine.method === PaymentMethod.SATNA ? 'بابت (شرح)' : 'شرح (اختیاری)'}</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })} onKeyDown={handleKeyDown}/></div>
                     
                     {newLine.method === PaymentMethod.CHEQUE && (<div className="md:col-span-12 bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-1 flex items-center gap-4"><label className="text-xs font-bold text-gray-700 flex items-center gap-1 min-w-fit"><Calendar size={14}/> تاریخ سررسید چک:</label><div className="flex gap-2 flex-1"><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>)}
-                    <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center"><Plus size={20} /></button></div>
+                    <div className="md:col-span-1">
+                        <button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className={`w-full text-white p-2 rounded-lg transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center ${editingLineId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}>
+                            {editingLineId ? <Save size={20} /> : <Plus size={20} />}
+                        </button>
+                    </div>
                 </div>
-                <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{line.method === PaymentMethod.SATNA && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div>))}</div>
+                
+                <div className="space-y-2">
+                    {paymentLines.map((line) => (
+                        <div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+                            <div className="flex gap-4 text-sm items-center flex-wrap">
+                                <span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span>
+                                <span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>
+                                {line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}
+                                {line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}
+                                {line.method === PaymentMethod.SATNA && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}
+                                {line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}
+                            </div>
+                            <div className="flex gap-1">
+                                <button type="button" onClick={() => handleEditLine(line)} className="text-amber-500 hover:text-amber-700 hover:bg-amber-50 p-2 rounded-lg transition-colors"><Edit size={18} /></button>
+                                <button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">

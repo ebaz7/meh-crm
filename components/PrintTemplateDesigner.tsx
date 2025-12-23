@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PrintTemplate, PrintField } from '../types';
 import { uploadFile } from '../services/storageService';
-import { Save, Upload, Plus, Move, X, Type, AlignLeft, AlignCenter, AlignRight, Bold, Trash2, Printer } from 'lucide-react';
+import { Save, Upload, Plus, Move, X, Type, AlignLeft, AlignCenter, AlignRight, Bold, Trash2, Printer, LayoutTemplate } from 'lucide-react';
 import { generateUUID } from '../constants';
 
 interface Props {
@@ -35,14 +35,25 @@ const AVAILABLE_FIELDS = [
 
 const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTemplate }) => {
     const [templateName, setTemplateName] = useState(initialTemplate?.name || '');
+    const [pageSize, setPageSize] = useState<'A4' | 'A5'>(initialTemplate?.pageSize || 'A4');
+    const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(initialTemplate?.orientation || 'portrait');
     const [bgImage, setBgImage] = useState(initialTemplate?.backgroundImage || '');
     const [fields, setFields] = useState<PrintField[]>(initialTemplate?.fields || []);
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     
-    // Canvas/Paper setup (A4 Portrait default)
-    const PAPER_WIDTH_MM = 210;
-    const PAPER_HEIGHT_MM = 297;
+    // Dynamic Size Calculation
+    const getPaperDimensions = () => {
+        // Dimensions in mm
+        if (pageSize === 'A4') {
+            return orientation === 'portrait' ? { w: 210, h: 297 } : { w: 297, h: 210 };
+        } else {
+            // A5
+            return orientation === 'portrait' ? { w: 148, h: 210 } : { w: 210, h: 148 };
+        }
+    };
+
+    const paperDims = getPaperDimensions();
     
     // Zoom/Scale for editing
     const [scale, setScale] = useState(1);
@@ -57,14 +68,12 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
         // Fit to screen width on load
         if (containerRef.current) {
             const screenWidth = containerRef.current.clientWidth;
-            // 210mm ~ 793px at 96dpi. Let's assume standard pixel mapping.
-            // 1mm = 3.78px approximately.
             const mmToPx = 3.78;
-            const paperPixelWidth = PAPER_WIDTH_MM * mmToPx;
-            const newScale = Math.min(1, (screenWidth - 40) / paperPixelWidth); // -40 for padding
+            const paperPixelWidth = paperDims.w * mmToPx;
+            const newScale = Math.min(1, (screenWidth - 40) / paperPixelWidth); 
             setScale(newScale);
         }
-    }, []);
+    }, [paperDims.w]);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -73,7 +82,6 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
         const reader = new FileReader();
         reader.onload = async (ev) => {
             const base64 = ev.target?.result as string;
-            // Optimize: Resize image if too large (client side)? For now just use base64
             setBgImage(base64);
             setIsUploading(false);
         };
@@ -85,7 +93,7 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
             id: generateUUID(),
             key,
             label,
-            x: 20, // Default positions
+            x: 20, 
             y: 20 + (fields.length * 10),
             width: 50,
             fontSize: 12,
@@ -116,11 +124,11 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
 
     const handleDragMove = (e: React.MouseEvent) => {
         if (!isDragging || !selectedFieldId) return;
-        const dx = (e.clientX - dragStart.x) / (3.78 * scale); // Convert px delta to mm delta
+        const dx = (e.clientX - dragStart.x) / (3.78 * scale);
         const dy = (e.clientY - dragStart.y) / (3.78 * scale);
         
         updateField(selectedFieldId, {
-            x: Math.round((initialFieldPos.x + dx) * 10) / 10, // Snap to 0.1mm
+            x: Math.round((initialFieldPos.x + dx) * 10) / 10,
             y: Math.round((initialFieldPos.y + dy) * 10) / 10
         });
     };
@@ -134,8 +142,10 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
         const template: PrintTemplate = {
             id: initialTemplate?.id || generateUUID(),
             name: templateName,
-            width: PAPER_WIDTH_MM,
-            height: PAPER_HEIGHT_MM,
+            width: paperDims.w,
+            height: paperDims.h,
+            pageSize: pageSize,
+            orientation: orientation,
             backgroundImage: bgImage,
             fields
         };
@@ -167,8 +177,21 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                 {/* Sidebar Controls */}
                 <div className="w-72 bg-white border-l flex flex-col shadow-lg z-10">
                     
+                    {/* Paper Settings */}
+                    <div className="p-4 border-b bg-gray-50">
+                        <h3 className="font-bold text-xs text-gray-500 mb-3 uppercase flex items-center gap-2"><LayoutTemplate size={14}/> تنظیمات کاغذ</h3>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            <button onClick={() => setPageSize('A4')} className={`text-xs p-1.5 rounded border ${pageSize === 'A4' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white'}`}>A4</button>
+                            <button onClick={() => setPageSize('A5')} className={`text-xs p-1.5 rounded border ${pageSize === 'A5' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white'}`}>A5</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => setOrientation('portrait')} className={`text-xs p-1.5 rounded border ${orientation === 'portrait' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white'}`}>عمودی</button>
+                            <button onClick={() => setOrientation('landscape')} className={`text-xs p-1.5 rounded border ${orientation === 'landscape' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white'}`}>افقی</button>
+                        </div>
+                    </div>
+
                     {/* Add Fields Section */}
-                    <div className="p-4 border-b overflow-y-auto flex-1 max-h-[50%]">
+                    <div className="p-4 border-b overflow-y-auto flex-1 max-h-[40%]">
                         <h3 className="font-bold text-xs text-gray-500 mb-3 uppercase">افزودن فیلد داده</h3>
                         <div className="grid grid-cols-2 gap-2">
                             {AVAILABLE_FIELDS.map(f => (
@@ -223,8 +246,8 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                     <div 
                         className="bg-white shadow-2xl relative transition-transform origin-top"
                         style={{
-                            width: `${PAPER_WIDTH_MM}mm`,
-                            height: `${PAPER_HEIGHT_MM}mm`,
+                            width: `${paperDims.w}mm`,
+                            height: `${paperDims.h}mm`,
                             transform: `scale(${scale})`
                         }}
                     >
@@ -255,7 +278,7 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                                     whiteSpace: 'nowrap',
                                     minWidth: '20px',
                                     height: 'auto',
-                                    direction: 'rtl' // Force RTL for Persian text
+                                    direction: 'rtl'
                                 }}
                             >
                                 {field.key === 'amount_num' ? '123,456,789' : 
