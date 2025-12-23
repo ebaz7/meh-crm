@@ -4,7 +4,7 @@ import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus
 import { editOrder, uploadFile, getSettings, saveSettings } from '../services/storageService';
 import { enhanceDescription } from '../services/geminiService';
 import { jalaliToGregorian, getShamsiDateFromIso, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../constants';
-import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark } from 'lucide-react';
+import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark, ArrowRightLeft } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
@@ -38,6 +38,8 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       sheba: string;
       recipientBank: string;
       paymentId: string;
+      destinationAccount: string;
+      destinationOwner: string;
   }>({ 
       method: PaymentMethod.TRANSFER, 
       amount: '', 
@@ -47,7 +49,9 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       chequeDate: { year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day } as any,
       sheba: '',
       recipientBank: '',
-      paymentId: ''
+      paymentId: '',
+      destinationAccount: '',
+      destinationOwner: ''
   });
 
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -140,20 +144,32 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   const addPaymentLine = () => { 
       const amt = deformatNumberString(newLine.amount); 
       if (!amt || amt <= 0) return; 
+
+      // SATNA / PAYA Validation
+      if (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) {
+          const sheba = normalizeInputNumber(newLine.sheba).replace(/[^0-9]/g, '');
+          if (sheba.length !== 24) {
+              alert('شماره شبا باید دقیقاً ۲۴ رقم باشد.');
+              return;
+          }
+      }
       
       const detail: PaymentDetail = { 
           id: generateUUID(), 
           method: newLine.method, 
           amount: amt, 
           chequeNumber: newLine.method === PaymentMethod.CHEQUE ? normalizeInputNumber(newLine.chequeNumber) : undefined, 
-          bankName: (newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.SATNA) ? newLine.bankName : undefined,
+          bankName: (newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? newLine.bankName : undefined,
           description: newLine.description,
           chequeDate: newLine.method === PaymentMethod.CHEQUE 
             ? `${newLine.chequeDate.y}/${newLine.chequeDate.m}/${newLine.chequeDate.d}`
             : undefined,
-          sheba: newLine.method === PaymentMethod.SATNA ? newLine.sheba : undefined,
-          recipientBank: newLine.method === PaymentMethod.SATNA ? newLine.recipientBank : undefined,
-          paymentId: newLine.method === PaymentMethod.SATNA ? newLine.paymentId : undefined,
+          sheba: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? normalizeInputNumber(newLine.sheba).replace(/[^0-9]/g, '') : undefined,
+          recipientBank: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.recipientBank : undefined,
+          paymentId: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.paymentId : undefined,
+          
+          destinationAccount: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? normalizeInputNumber(newLine.destinationAccount) : undefined,
+          destinationOwner: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationOwner : undefined,
       };
       
       const updatedLines = [...paymentLines, detail];
@@ -162,7 +178,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       const newTotal = updatedLines.reduce((acc, curr) => acc + curr.amount, 0);
       
       let newDescription = formData.description;
-      if (newLine.description && newLine.method !== PaymentMethod.SATNA) {
+      if (newLine.description && newLine.method !== PaymentMethod.SATNA && newLine.method !== PaymentMethod.INTERNAL_TRANSFER) {
           newDescription = newDescription ? `${newDescription} - ${newLine.description}` : newLine.description;
       }
 
@@ -181,7 +197,9 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
           chequeDate: { year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day } as any,
           sheba: '',
           recipientBank: '',
-          paymentId: ''
+          paymentId: '',
+          destinationAccount: '',
+          destinationOwner: ''
       }); 
   };
   
@@ -343,7 +361,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                         <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                         <div className="md:col-span-3 space-y-1"><label className="text-xs text-gray-500">مبلغ (ریال)</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left font-mono font-bold" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>
                         
-                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.SATNA) ? (
+                        {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? (
                             <>
                                 {newLine.method === PaymentMethod.CHEQUE && <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm font-mono" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} /></div>}
                                 <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نام بانک مبدا</label><div className="flex gap-1"><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.bankName} onChange={e => setNewLine({ ...newLine, bankName: e.target.value })}><option value="">-- انتخاب --</option>{availableBanks.map(b => <option key={b} value={b}>{b}</option>)}</select><button type="button" onClick={openAddBankModal} className="bg-blue-100 text-blue-600 rounded-lg px-2 hover:bg-blue-200 border border-blue-200" title="افزودن بانک جدید"><Plus size={16}/></button></div></div>
@@ -351,10 +369,10 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                         ) : <div className="md:col-span-4 hidden md:block"></div>}
 
                         {/* SATNA Specific Fields */}
-                        {newLine.method === PaymentMethod.SATNA && (
+                        {(newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) && (
                             <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3 bg-purple-50 p-2 rounded-lg border border-purple-200 mt-1">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-purple-800">شماره شبا (بدون IR)</label>
+                                    <label className="text-xs font-bold text-purple-800">شماره شبا (۲۴ رقم)</label>
                                     <div className="flex items-center gap-1 dir-ltr">
                                         <span className="font-bold text-gray-500 text-xs">IR -</span>
                                         <input className="w-full border rounded-lg p-2 text-sm font-mono tracking-widest text-center" maxLength={24} value={newLine.sheba} onChange={e => setNewLine({...newLine, sheba: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '')})} placeholder="........................" />
@@ -371,13 +389,27 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                             </div>
                         )}
 
+                        {/* INTERNAL TRANSFER Fields */}
+                        {newLine.method === PaymentMethod.INTERNAL_TRANSFER && (
+                            <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3 bg-indigo-50 p-2 rounded-lg border border-indigo-200 mt-1">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-indigo-800 flex items-center gap-1"><ArrowRightLeft size={14}/> شماره حساب / کارت مقصد</label>
+                                    <input className="w-full border rounded-lg p-2 text-sm font-mono text-center dir-ltr" value={newLine.destinationAccount} onChange={e => setNewLine({...newLine, destinationAccount: normalizeInputNumber(e.target.value)})} placeholder="شماره کارت یا حساب مقصد" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-indigo-800">نام صاحب حساب مقصد</label>
+                                    <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationOwner} onChange={e => setNewLine({...newLine, destinationOwner: e.target.value})} placeholder="نام صاحب حساب..." />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">{newLine.method === PaymentMethod.SATNA ? 'بابت (شرح)' : 'شرح (اختیاری)'}</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })} /></div>
                         
                         {newLine.method === PaymentMethod.CHEQUE && (<div className="md:col-span-12 bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-1 flex items-center gap-4"><label className="text-xs font-bold text-gray-700 flex items-center gap-1 min-w-fit"><Calendar size={14}/> تاریخ سررسید چک:</label><div className="flex gap-2 flex-1"><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>)}
                         <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center"><Plus size={20} /></button></div>
                     </div>
 
-                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{line.method === PaymentMethod.SATNA && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div>))}</div>
+                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{(line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}{line.method === PaymentMethod.INTERNAL_TRANSFER && <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">به: {line.destinationOwner} ({line.destinationAccount})</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div>))}</div>
                 </div>
 
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">

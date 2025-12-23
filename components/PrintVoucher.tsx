@@ -162,7 +162,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'description': return mainLine.description || order.description;
               case 'source_account': return sourceBankConfig?.accountNumber || '';
               case 'source_sheba': return sourceBankConfig?.sheba || '';
-              case 'dest_account': return ''; 
+              case 'dest_account': return mainLine.destinationAccount || ''; 
               case 'dest_sheba': return mainLine.sheba || '';
               case 'dest_bank': return mainLine.recipientBank || '';
               case 'payment_id': return mainLine.paymentId || '';
@@ -298,7 +298,20 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                 <div className="border border-gray-300 rounded overflow-hidden">
                     <table className={`w-full text-right ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
                         <thead className="bg-gray-100 border-b border-gray-300"><tr><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600 w-6 text-center`}>#</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>نوع پرداخت</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>مبلغ</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>بانک / چک / شبا</th><th className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold text-gray-600`}>توضیحات</th></tr></thead>
-                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.map((detail, idx) => (<tr key={detail.id}><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>{detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : detail.method === PaymentMethod.SATNA ? `شبا: IR-${detail.sheba}` : detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}</td><td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600`}>{detail.description || '-'}</td></tr>))}</tbody>
+                        <tbody className="divide-y divide-gray-200">{order.paymentDetails.map((detail, idx) => (
+                            <tr key={detail.id}>
+                                <td className={`${isCompact ? 'p-1' : 'p-1.5'} text-center`}>{idx + 1}</td>
+                                <td className={`${isCompact ? 'p-1' : 'p-1.5'} font-bold`}>{detail.method}</td>
+                                <td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td>
+                                <td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>
+                                    {detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : 
+                                     detail.method === PaymentMethod.SATNA || detail.method === PaymentMethod.PAYA ? `شبا: IR-${detail.sheba}` : 
+                                     detail.method === PaymentMethod.INTERNAL_TRANSFER ? `به حساب: ${detail.destinationAccount} (${detail.destinationOwner})` : 
+                                     detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}
+                                </td>
+                                <td className={`${isCompact ? 'p-1' : 'p-1.5'} text-gray-600`}>{detail.description || '-'}</td>
+                            </tr>
+                        ))}</tbody>
                     </table>
                 </div>
             </div>
