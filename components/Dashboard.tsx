@@ -44,7 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
 
   // --- CALC PENDING COUNTS FOR ACTION CARDS ---
   
-  // 1. Payment Pending Count (Based on user role)
+  // 1. Payment Pending Count (Based on user role) - INCLUDES REVOCATION
   let pendingPaymentCount = 0;
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length;
@@ -85,7 +85,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   // Ensure that revocation statuses are included for relevant roles
   const activeCartable = hasPaymentAccess ? orders
     .filter(o => {
-        // Exclude finalized/rejected for basic filtering
+        // Exclude finalized/rejected for basic filtering (Archives)
         if (o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED || o.status === OrderStatus.REJECTED) return false;
         
         // If Admin, show all active
@@ -102,7 +102,8 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             return o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO;
         }
 
-        // For others, just show recent active items (fallback)
+        // For others, show nothing or just their own if needed (usually handled by manage orders logic)
+        // For Dashboard Summary, let's keep it clean
         return true;
     })
     .sort((a, b) => b.createdAt - a.createdAt)
