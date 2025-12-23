@@ -70,21 +70,22 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     // Final states cannot be approved
     if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
     
-    // --- REVOCATION WORKFLOW APPROVALS ---
-    // Explicitly check for revocation statuses first
+    // --- REVOCATION WORKFLOW APPROVALS (Strict Order) ---
+    // 1. Finance approves "Request Revocation" -> moves to Manager
     if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE) {
         return currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN;
     }
+    // 2. Manager approves "Finance Revocation" -> moves to CEO
     if (order.status === OrderStatus.REVOCATION_PENDING_MANAGER) {
         return currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN;
     }
+    // 3. CEO approves "Manager Revocation" -> moves to REVOKED (Archive)
     if (order.status === OrderStatus.REVOCATION_PENDING_CEO) {
         return currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN;
     }
 
     // --- NORMAL WORKFLOW APPROVALS ---
-    // If it is in revocation status (checked above) but user didn't match, return false
-    // Also, don't show normal approval buttons for revocation states
+    // Prevent normal approval if it's in revocation state
     if (isRevocationStatus(order.status)) return false;
 
     if (order.status === OrderStatus.PENDING && permissions.canApproveFinancial) return true;
@@ -122,7 +123,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const getNextStatus = (current: OrderStatus): OrderStatus => {
-      // --- REVOCATION PATH ---
+      // --- REVOCATION PATH (Strict Chain) ---
       if (current === OrderStatus.REVOCATION_PENDING_FINANCE) return OrderStatus.REVOCATION_PENDING_MANAGER;
       if (current === OrderStatus.REVOCATION_PENDING_MANAGER) return OrderStatus.REVOCATION_PENDING_CEO;
       if (current === OrderStatus.REVOCATION_PENDING_CEO) return OrderStatus.REVOKED;
@@ -140,9 +141,11 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     const isRevocation = isRevocationStatus(currentStatus);
     
     // Custom Message for Revocation
-    const msg = isRevocation 
-        ? `⚠️ هشدار مهم:\nشما در حال تایید "ابطال" این دستور پرداخت هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا از ابطال این سند اطمینان دارید؟` 
-        : `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
+    let msg = `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
+    
+    if (isRevocation) {
+        msg = `⚠️ تایید ابطال:\nشما در حال تایید مرحله‌ای از ابطال هستید.\nوضعیت فعلی: ${getStatusLabel(currentStatus)}\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\n\nآیا اطمینان دارید؟`;
+    }
     
     if (window.confirm(msg)) {
         setIsProcessing(true);
@@ -180,7 +183,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           setIsProcessing(true);
           setProcessingMessage('درحال ارسال درخواست ابطال...');
           try {
-              // Explicitly set the first step of revocation: PENDING_FINANCE
+              // Always start from Finance for Revocation
               await apiCall(`/orders/${id}`, 'PUT', { status: OrderStatus.REVOCATION_PENDING_FINANCE, updatedAt: Date.now() });
               await refreshData();
               setViewOrder(null);
@@ -242,11 +245,23 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           // Archive contains successfully completed OR finally revoked
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
       } else {
-          // Current contains everything else, INCLUDING active revocation processes
+          // Current contains everything else, INCLUDING active revocation processes and Rejected items
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
       if (!permissions.canViewAll) {
+          // Special logic to allow Financial/Manager/CEO to see revocation requests in "Current" even if they didn't create them
+          if (currentUser.role === UserRole.FINANCIAL && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_FINANCE)) {
+             // Financial needs to see items assigned to them
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_FINANCE || o.status === OrderStatus.PENDING);
+          }
+          if (currentUser.role === UserRole.MANAGER && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_MANAGER)) {
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_MANAGER || o.status === OrderStatus.APPROVED_FINANCE);
+          }
+          if (currentUser.role === UserRole.CEO && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_CEO)) {
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_CEO || o.status === OrderStatus.APPROVED_MANAGER);
+          }
+
           return tabOrders.filter(o => o.requester === currentUser.fullName);
       }
       return tabOrders;
@@ -446,7 +461,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             onApprove={canApprove(viewOrder) ? () => handleApprove(viewOrder.id, viewOrder.status) : undefined}
             onReject={canApprove(viewOrder) ? () => handleReject(viewOrder.id) : undefined}
             onEdit={canEdit(viewOrder) ? () => handleEdit(viewOrder) : undefined}
-            // Revoke logic: Only allow if NOT currently revoking/revoked, and user has permission
+            // Revoke logic: Allow requester (or admin) to start revocation even if REJECTED, but not if already finalized
             onRevoke={
                 (!isRevocationStatus(viewOrder.status) && viewOrder.status !== OrderStatus.REVOKED && 
                 (currentUser.role === UserRole.ADMIN || viewOrder.requester === currentUser.fullName)) 
