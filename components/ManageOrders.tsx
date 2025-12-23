@@ -4,7 +4,7 @@ import { PaymentOrder, OrderStatus, User, UserRole, SystemSettings, PaymentMetho
 import { updateOrderStatus, deleteOrder } from '../services/storageService';
 import { getRolePermissions } from '../services/authService';
 import { formatCurrency, formatDate, getStatusLabel, jalaliToGregorian, formatNumberString, deformatNumberString } from '../constants';
-import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator, AlertTriangle, RefreshCcw, Loader2, ShieldAlert } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import EditOrderModal from './EditOrderModal';
 import { apiCall } from '../services/apiService';
@@ -24,6 +24,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const [editingOrder, setEditingOrder] = useState<PaymentOrder | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Loading / Blocking State
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('');
+
   const [showFilters, setShowFilters] = useState(false);
   const [amountRange, setAmountRange] = useState({ min: '', max: '' });
   const [dateRange, setDateRange] = useState({
@@ -42,7 +46,6 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   useEffect(() => {
       if (statusFilter) {
           setCurrentStatusFilter(statusFilter);
-          // Revoked items go to archive, but pending revocation stays in current
           if (statusFilter === OrderStatus.APPROVED_CEO || statusFilter === OrderStatus.REVOKED) {
               setActiveTab('archive');
           } else {
@@ -55,16 +58,15 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const availableCompanies = settings?.companies?.map(c => c.name) || settings?.companyNames || [];
 
   const canApprove = (order: PaymentOrder): boolean => {
-    // Final states cannot be approved
     if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
     
-    // --- REVOCATION WORKFLOW APPROVALS ---
+    // Revocation Workflow
     if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE && (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN)) return true;
     if (order.status === OrderStatus.REVOCATION_PENDING_MANAGER && (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN)) return true;
     if (order.status === OrderStatus.REVOCATION_PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
 
-    // --- NORMAL WORKFLOW APPROVALS ---
-    if (order.status.includes('REVOCATION')) return false; // Safety check: if in revocation but role doesn't match above, return false.
+    // Normal Workflow (Stop if in revocation)
+    if (order.status.includes('REVOCATION')) return false;
 
     if (order.status === OrderStatus.PENDING && permissions.canApproveFinancial) return true;
     if (order.status === OrderStatus.APPROVED_FINANCE && permissions.canApproveManager) return true;
@@ -74,13 +76,8 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const canEdit = (order: PaymentOrder): boolean => {
-      // Admin can edit almost anything except fully revoked/approved usually, but let's allow fixes
       if (currentUser.role === UserRole.ADMIN) return true;
-
-      // Locked states
       if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
-      
-      // If in revocation process, normal users shouldn't edit details
       if (order.status.includes('REVOCATION')) return false;
 
       if (currentUser.role === UserRole.USER) {
@@ -93,7 +90,6 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   const canDelete = (order: PaymentOrder): boolean => {
       if (currentUser.role === UserRole.ADMIN) return true;
-      // Cannot delete if finalized or in revocation process
       if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED || order.status.includes('REVOCATION')) return false;
       
       if (currentUser.role === UserRole.USER) {
@@ -105,12 +101,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const getNextStatus = (current: OrderStatus): OrderStatus => {
-      // --- REVOCATION PATH ---
       if (current === OrderStatus.REVOCATION_PENDING_FINANCE) return OrderStatus.REVOCATION_PENDING_MANAGER;
       if (current === OrderStatus.REVOCATION_PENDING_MANAGER) return OrderStatus.REVOCATION_PENDING_CEO;
       if (current === OrderStatus.REVOCATION_PENDING_CEO) return OrderStatus.REVOKED;
 
-      // --- NORMAL PATH ---
       if (current === OrderStatus.PENDING) return OrderStatus.APPROVED_FINANCE;
       if (current === OrderStatus.APPROVED_FINANCE) return OrderStatus.APPROVED_MANAGER;
       if (current === OrderStatus.APPROVED_MANAGER) return OrderStatus.APPROVED_CEO;
@@ -122,46 +116,67 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     const nextStatus = getNextStatus(currentStatus);
     const isRevocation = currentStatus.includes('REVOCATION');
     
-    // Custom Message for Revocation
-    const msg = isRevocation 
-        ? `⚠️ هشدار مهم:\nشما در حال تایید "ابطال" این دستور پرداخت هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا از ابطال این سند اطمینان دارید؟` 
+    const confirmMsg = isRevocation 
+        ? `⚠️ هشدار: شما در حال تایید "ابطال" این سند هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا ادامه می‌دهید؟` 
         : `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
     
-    if (window.confirm(msg)) {
-        await updateOrderStatus(id, nextStatus, currentUser); 
-        await refreshData(); // Force await to ensure UI updates
-        setViewOrder(null); 
+    if (window.confirm(confirmMsg)) {
+        setIsProcessing(true);
+        setProcessingMessage(isRevocation ? 'درحال تایید ابطال...' : 'درحال تایید...');
+        try {
+            await updateOrderStatus(id, nextStatus, currentUser); 
+            await refreshData(); 
+            setViewOrder(null); 
+        } catch (e) {
+            alert('خطا در انجام عملیات');
+        } finally {
+            setIsProcessing(false);
+        }
     }
   };
 
   const handleReject = async (id: string) => {
       const reason = window.prompt('لطفا دلیل رد درخواست را وارد کنید:');
       if (reason !== null) {
-          await updateOrderStatus(id, OrderStatus.REJECTED, currentUser, reason || 'بدون توضیح');
-          await refreshData();
-          setViewOrder(null); 
+          setIsProcessing(true);
+          setProcessingMessage('درحال رد درخواست...');
+          try {
+              await updateOrderStatus(id, OrderStatus.REJECTED, currentUser, reason || 'بدون توضیح');
+              await refreshData();
+              setViewOrder(null); 
+          } finally {
+              setIsProcessing(false);
+          }
       }
   };
 
-  // Initiate Revocation
   const handleRevoke = async (id: string) => {
-      if (window.confirm('⚠️ آیا درخواست ابطال این دستور پرداخت را دارید؟\nاین درخواست وارد چرخه تایید ابطال (مدیر مالی -> مدیریت -> مدیرعامل) خواهد شد.')) {
+      if (window.confirm('⚠️ آیا درخواست ابطال این دستور پرداخت را دارید؟\nاین درخواست وارد چرخه تایید ابطال خواهد شد.')) {
+          setIsProcessing(true);
+          setProcessingMessage('درحال ارسال درخواست ابطال...');
           try {
-              // We use direct API to set the specific status
               await apiCall(`/orders/${id}`, 'PUT', { status: OrderStatus.REVOCATION_PENDING_FINANCE, updatedAt: Date.now() });
               await refreshData();
               setViewOrder(null);
-              alert('درخواست ابطال ارسال شد و در کارتابل مدیر مالی قرار گرفت.');
+              alert('درخواست ابطال ارسال شد.');
           } catch (e) {
               alert('خطا در عملیات ابطال.');
+          } finally {
+              setIsProcessing(false);
           }
       }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('آیا از حذف این دستور پرداخت اطمینان دارید؟ این عملیات غیرقابل بازگشت است.')) {
-      await deleteOrder(id);
-      refreshData();
+    if (window.confirm('آیا از حذف این دستور پرداخت اطمینان دارید؟')) {
+      setIsProcessing(true);
+      setProcessingMessage('درحال حذف...');
+      try {
+          await deleteOrder(id);
+          await refreshData();
+      } finally {
+          setIsProcessing(false);
+      }
     }
   };
 
@@ -198,10 +213,8 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const getOrdersForTab = () => {
       let tabOrders = orders;
       if (activeTab === 'archive') {
-          // Archive contains successfully completed OR finally revoked
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
       } else {
-          // Current contains everything else, INCLUDING active revocation processes
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
@@ -248,6 +261,21 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   return (
     <>
+      {/* --- BLOCKING LOADER --- */}
+      {isProcessing && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center animate-fade-in cursor-wait">
+              <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 max-w-sm text-center border-4 border-blue-100 transform scale-110">
+                  <div className="relative w-20 h-20">
+                      <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-t-blue-600 rounded-full animate-spin"></div>
+                      <ShieldAlert className="absolute inset-0 m-auto text-blue-600 animate-pulse" size={32}/>
+                  </div>
+                  <h3 className="text-xl font-black text-gray-800">{processingMessage}</h3>
+                  <p className="text-gray-500 text-sm font-medium">لطفاً تا پایان عملیات منتظر بمانید...</p>
+              </div>
+          </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
         <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col gap-4">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
