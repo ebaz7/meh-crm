@@ -28,7 +28,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [manageOrdersInitialTab, setManageOrdersInitialTab] = useState<'current' | 'archive'>('current');
-  const [dashboardStatusFilter, setDashboardStatusFilter] = useState<OrderStatus | 'pending_all' | null>(null);
+  const [dashboardStatusFilter, setDashboardStatusFilter] = useState<any>(null); // Allow any string filter
   
   // New: Filter for Exit Permits when coming from Dashboard
   const [exitPermitStatusFilter, setExitPermitStatusFilter] = useState<'pending' | null>(null);
@@ -129,11 +129,16 @@ function App() {
   const handleOrderCreated = () => { loadData(); setManageOrdersInitialTab('current'); setDashboardStatusFilter(null); setActiveTab('manage'); };
   const handleLogin = (user: User) => { setCurrentUser(user); setActiveTab('dashboard'); };
   const handleViewArchive = () => { setManageOrdersInitialTab('archive'); setDashboardStatusFilter(null); setActiveTab('manage'); };
-  const handleDashboardFilter = (status: OrderStatus | 'pending_all') => { setDashboardStatusFilter(status); setManageOrdersInitialTab('current'); setActiveTab('manage'); };
+  const handleDashboardFilter = (status: any) => { setDashboardStatusFilter(status); setManageOrdersInitialTab('current'); setActiveTab('manage'); };
 
   // New Handlers for Dashboard Action Cards
   const handleGoToPaymentApprovals = () => {
-      setDashboardStatusFilter('pending_all');
+      let filter: any = 'pending_all';
+      if (currentUser?.role === UserRole.FINANCIAL) filter = 'cartable_financial';
+      else if (currentUser?.role === UserRole.MANAGER) filter = 'cartable_manager';
+      else if (currentUser?.role === UserRole.CEO) filter = 'cartable_ceo';
+      
+      setDashboardStatusFilter(filter);
       setManageOrdersInitialTab('current');
       setActiveTab('manage');
   };

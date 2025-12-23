@@ -12,7 +12,7 @@ interface DashboardProps {
   settings?: SystemSettings;
   currentUser: User;
   onViewArchive?: () => void;
-  onFilterByStatus?: (status: OrderStatus | 'pending_all') => void;
+  onFilterByStatus?: (status: any) => void; // Allow string for custom filters
   onGoToPaymentApprovals: () => void;
   onGoToExitApprovals: () => void;
   onGoToBijakApprovals: () => void;
@@ -25,7 +25,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const [showBankReport, setShowBankReport] = useState(false);
   const [bankReportTab, setBankReportTab] = useState<'summary' | 'timeline'>('summary');
   
-  // Data for additional counts
   const [exitPermits, setExitPermits] = useState<ExitPermit[]>([]);
   const [warehouseTxs, setWarehouseTxs] = useState<WarehouseTransaction[]>([]);
 
@@ -38,13 +37,10 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       fetchData();
   }, []);
 
-  // Permission Check
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
 
-  // --- CALC PENDING COUNTS FOR ACTION CARDS ---
-  
-  // 1. Payment Pending Count (Based on user role) - INCLUDES REVOCATION
+  // --- CALC PENDING COUNTS FOR ACTION CARDS (Including Revocation) ---
   let pendingPaymentCount = 0;
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length;
@@ -56,73 +52,62 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO).length;
   }
 
-  // 2. Exit Pending Count
   let pendingExitCount = 0;
-  if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
-      pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
-  }
-  if (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) {
-      pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
-  }
+  if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
+  if (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
 
-  // 3. Bijak Pending Count
   let pendingBijakCount = 0;
-  if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
-      pendingBijakCount += warehouseTxs.filter(t => t.type === 'OUT' && t.status === 'PENDING').length;
-  }
+  if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) pendingBijakCount += warehouseTxs.filter(t => t.type === 'OUT' && t.status === 'PENDING').length;
 
   const showActionSection = pendingPaymentCount > 0 || pendingExitCount > 0 || pendingBijakCount > 0;
 
-  // ... (Existing Charts logic) ...
-  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
-  const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const countPending = orders.filter(o => o.status === OrderStatus.PENDING).length;
-  const countFin = orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
-  const countMgr = orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
-  const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
+  // --- WIDGET LOGIC ---
+  // Use custom filter keys for role-based cartables to include revocation
+  const statusWidgets = [
+    { key: 'cartable_financial', label: 'کارتابل مالی', count: orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', barColor: 'bg-amber-500' },
+    { key: 'cartable_manager', label: 'کارتابل مدیریت', count: orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER).length, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', barColor: 'bg-blue-500' },
+    { key: 'cartable_ceo', label: 'کارتابل مدیرعامل', count: orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO).length, icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100', barColor: 'bg-indigo-500' },
+    { key: OrderStatus.REJECTED, label: 'رد شده', count: orders.filter(o => o.status === OrderStatus.REJECTED).length, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', barColor: 'bg-red-500' },
+    { key: OrderStatus.APPROVED_CEO, label: 'بایگانی', count: orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED).length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100', barColor: 'bg-green-500' }
+  ];
 
-  // --- Active Cartable Logic Fix ---
-  // Ensure that revocation statuses are included for relevant roles
+  const handleWidgetClick = (key: any) => {
+      if (hasPaymentAccess && onFilterByStatus) {
+          onFilterByStatus(key);
+      }
+  };
+  
+  // Custom Action Card Handler to send ROLE BASED filter
+  const handlePaymentCardClick = () => {
+      let filter = 'pending_all';
+      if (currentUser.role === UserRole.FINANCIAL) filter = 'cartable_financial';
+      else if (currentUser.role === UserRole.MANAGER) filter = 'cartable_manager';
+      else if (currentUser.role === UserRole.CEO) filter = 'cartable_ceo';
+      
+      if (onFilterByStatus) onFilterByStatus(filter);
+      // We also need to switch tab, which is done via prop usually, but here we reuse the prop
+      onGoToPaymentApprovals(); 
+  };
+
+  // Active list logic for Dashboard view (Role aware)
   const activeCartable = hasPaymentAccess ? orders
     .filter(o => {
-        // Exclude finalized/rejected for basic filtering (Archives)
         if (o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED || o.status === OrderStatus.REJECTED) return false;
         
-        // If Admin, show all active
-        if (currentUser.role === UserRole.ADMIN) return true;
-
-        // Role-Specific Filters (MUST include Revocation steps)
-        if (currentUser.role === UserRole.FINANCIAL) {
-            return o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE;
-        }
-        if (currentUser.role === UserRole.MANAGER) {
-            return o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER;
-        }
-        if (currentUser.role === UserRole.CEO) {
-            return o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO;
-        }
-
-        // For others, show nothing or just their own if needed (usually handled by manage orders logic)
-        // For Dashboard Summary, let's keep it clean
-        return true;
+        // Show relevant items for specific roles
+        if (currentUser.role === UserRole.FINANCIAL) return o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE;
+        if (currentUser.role === UserRole.MANAGER) return o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER;
+        if (currentUser.role === UserRole.CEO) return o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO;
+        
+        return true; 
     })
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10) : [];
 
-  const handleWidgetClick = (status: OrderStatus | 'pending_all') => {
-      if (hasPaymentAccess && onFilterByStatus) {
-          onFilterByStatus(status);
-      }
-  };
+  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
+  const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
 
-  const statusWidgets = [
-    { key: OrderStatus.PENDING, label: 'کارتابل مالی', count: countPending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', barColor: 'bg-amber-500' },
-    { key: OrderStatus.APPROVED_FINANCE, label: 'کارتابل مدیریت', count: countFin, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', barColor: 'bg-blue-500' },
-    { key: OrderStatus.APPROVED_MANAGER, label: 'کارتابل مدیرعامل', count: countMgr, icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100', barColor: 'bg-indigo-500' },
-    { key: OrderStatus.REJECTED, label: 'رد شده', count: countRejected, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', barColor: 'bg-red-500' },
-    { key: OrderStatus.APPROVED_CEO, label: 'بایگانی', count: completedOrders.length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100', barColor: 'bg-green-500' }
-  ];
-
+  // Charts Data Prep
   const methodDataRaw: Record<string, number> = {};
   orders.forEach(order => { order.paymentDetails.forEach(detail => { methodDataRaw[detail.method] = (methodDataRaw[detail.method] || 0) + detail.amount; }); });
   const methodData = Object.keys(methodDataRaw).map(key => ({ name: key, amount: methodDataRaw[key] }));
@@ -167,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><ListChecks className="text-blue-600"/> کارتابل و وظایف من</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {pendingPaymentCount > 0 && (
-                        <div onClick={onGoToPaymentApprovals} className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200 cursor-pointer transform hover:scale-105 transition-all relative overflow-hidden group">
+                        <div onClick={handlePaymentCardClick} className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200 cursor-pointer transform hover:scale-105 transition-all relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Banknote size={80}/></div>
                             <div className="relative z-10">
                                 <div className="flex justify-between items-start mb-4">
@@ -214,7 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
         {/* Status Widgets (Overview) */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {statusWidgets.map((widget) => (
-                <div key={widget.key} onClick={() => handleWidgetClick(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key as any)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm transition-all relative overflow-hidden group ${hasPaymentAccess ? 'cursor-pointer hover:shadow-md' : 'opacity-80 cursor-default'}`}>
+                <div key={widget.key} onClick={() => handleWidgetClick(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm transition-all relative overflow-hidden group ${hasPaymentAccess ? 'cursor-pointer hover:shadow-md' : 'opacity-80 cursor-default'}`}>
                     <div className={`absolute top-0 right-0 w-1.5 h-full ${widget.barColor}`}></div>
                     <div className="flex justify-between items-start mb-2">
                         <div className={`p-2 rounded-xl ${widget.bg} ${widget.color}`}>

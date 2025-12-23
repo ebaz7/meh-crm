@@ -15,7 +15,7 @@ interface ManageOrdersProps {
   currentUser: User;
   initialTab?: 'current' | 'archive';
   settings?: SystemSettings;
-  statusFilter?: OrderStatus | 'pending_all' | null;
+  statusFilter?: any; // Changed to allow custom strings
 }
 
 const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, currentUser, initialTab = 'current', settings, statusFilter }) => {
@@ -37,7 +37,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   });
   const [companyFilter, setCompanyFilter] = useState('');
   
-  const [currentStatusFilter, setCurrentStatusFilter] = useState<OrderStatus | 'pending_all' | null>(statusFilter || null);
+  const [currentStatusFilter, setCurrentStatusFilter] = useState<any>(statusFilter || null);
 
   useEffect(() => {
       setActiveTab(initialTab);
@@ -248,13 +248,13 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           // Current contains everything else
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
+      
+      // If a specific filter is set, return everything and let filter logic handle it.
+      if (currentStatusFilter) return tabOrders;
 
-      // Admin sees everything appropriate for the tab
+      // Default Role View logic (My Cartable) when no filter is applied
       if (currentUser.role === UserRole.ADMIN) return tabOrders;
 
-      // --- FORCE VISIBILITY FOR ROLE-SPECIFIC TASKS (Override any other filter) ---
-      // This ensures that if a user has a task pending in their "Cartable", they see it.
-      
       const roleBasedFilter = (o: PaymentOrder) => {
           // 1. Always show own requests
           if (o.requester === currentUser.fullName) return true;
@@ -270,20 +270,31 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
           return false;
       };
-
-      // If user has 'canViewAll', they see everything, otherwise filtered by role/ownership
-      if (permissions.canViewAll) {
-          return tabOrders;
-      } else {
-          return tabOrders.filter(roleBasedFilter);
-      }
+      
+      // If user has 'canViewAll', usually they see everything. But if they specifically want "My Cartable" behavior,
+      // it is usually achieved by clicking the Dashboard widgets.
+      // However, if they just land here, 'canViewAll' usually implies seeing pipeline.
+      if (permissions.canViewAll) return tabOrders;
+      return tabOrders.filter(roleBasedFilter);
   };
 
   const filteredOrders = getOrdersForTab().filter(order => {
     if (currentStatusFilter) {
         if (currentStatusFilter === 'pending_all') {
             if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REJECTED || order.status === OrderStatus.REVOKED) return false;
-        } else {
+        } 
+        // ROLE-BASED CARTABLE FILTERS (COMBINED)
+        else if (currentStatusFilter === 'cartable_financial') {
+            if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.REVOCATION_PENDING_FINANCE) return false;
+        }
+        else if (currentStatusFilter === 'cartable_manager') {
+            if (order.status !== OrderStatus.APPROVED_FINANCE && order.status !== OrderStatus.REVOCATION_PENDING_MANAGER) return false;
+        }
+        else if (currentStatusFilter === 'cartable_ceo') {
+            if (order.status !== OrderStatus.APPROVED_MANAGER && order.status !== OrderStatus.REVOCATION_PENDING_CEO) return false;
+        }
+        // STRICT SINGLE STATUS FILTER
+        else {
             if (order.status !== currentStatusFilter) return false;
         }
     }
@@ -314,6 +325,14 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
+  const getFilterLabel = (filter: any) => {
+      if (filter === 'pending_all') return 'همه موارد فعال';
+      if (filter === 'cartable_financial') return 'کارتابل مالی (عادی + ابطال)';
+      if (filter === 'cartable_manager') return 'کارتابل مدیریت (عادی + ابطال)';
+      if (filter === 'cartable_ceo') return 'کارتابل مدیرعامل (عادی + ابطال)';
+      return getStatusLabel(filter);
+  };
+
   return (
     <>
       {/* --- BLOCKING LOADER --- */}
@@ -339,7 +358,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                     <button onClick={() => { setActiveTab('archive'); setCurrentStatusFilter(null); }} className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}><Archive size={18} /> بایگانی نهایی</button>
                 </div>
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
-                    {currentStatusFilter && <div className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs flex items-center justify-between w-full md:w-auto gap-2"><span>فیلتر: {currentStatusFilter === 'pending_all' ? 'همه' : getStatusLabel(currentStatusFilter)}</span><button onClick={() => setCurrentStatusFilter(null)}><X size={14}/></button></div>}
+                    {currentStatusFilter && <div className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs flex items-center justify-between w-full md:w-auto gap-2"><span>فیلتر: {getFilterLabel(currentStatusFilter)}</span><button onClick={() => setCurrentStatusFilter(null)}><X size={14}/></button></div>}
                     <div className="relative w-full md:w-64"><Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input type="text" placeholder="جستجو..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-10 py-2.5 border rounded-xl text-sm outline-none"/></div>
                     <div className="flex gap-2 w-full md:w-auto">
                         <button onClick={() => setShowFilters(!showFilters)} className={`flex-1 md:flex-none p-2.5 rounded-xl border flex items-center justify-center ${showFilters ? 'bg-blue-50 text-blue-600' : 'bg-white'}`}><Filter size={20}/></button>
