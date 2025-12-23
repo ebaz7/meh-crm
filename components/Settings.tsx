@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
-import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User, CustomRole } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container } from 'lucide-react';
+import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User, CustomRole, PrintTemplate } from '../types';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container, Printer, LayoutTemplate } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
 import { getUsers, updateUser } from '../services/authService';
 import { generateUUID } from '../constants';
+import PrintTemplateDesigner from './PrintTemplateDesigner';
 
 // Internal QRCode Component to avoid build dependency issues with 'react-qr-code'
 const QRCode = ({ value, size }: { value: string, size: number }) => { 
@@ -14,7 +15,7 @@ const QRCode = ({ value, size }: { value: string, size: number }) => {
 };
 
 const Settings: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse' | 'commerce'>('system');
+  const [activeCategory, setActiveCategory] = useState<'system' | 'data' | 'integrations' | 'whatsapp' | 'permissions' | 'warehouse' | 'commerce' | 'templates'>('system');
   const [settings, setSettings] = useState<SystemSettings>({ 
       currentTrackingNumber: 1000, 
       currentExitPermitNumber: 1000, 
@@ -25,7 +26,7 @@ const Settings: React.FC = () => {
       operatingBankNames: [], 
       commodityGroups: [], 
       rolePermissions: {}, 
-      customRoles: [], // NEW
+      customRoles: [], 
       savedContacts: [], 
       pwaIcon: '', 
       telegramBotToken: '', 
@@ -40,12 +41,17 @@ const Settings: React.FC = () => {
       defaultWarehouseGroup: '',
       defaultSalesManager: '',
       insuranceCompanies: [],
-      exitPermitNotificationGroup: '' // Init
+      exitPermitNotificationGroup: '',
+      printTemplates: [] // Init
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [restoring, setRestoring] = useState(false);
   
+  // Designer State
+  const [showDesigner, setShowDesigner] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<PrintTemplate | null>(null);
+
   // Company Editing State
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyLogo, setNewCompanyLogo] = useState('');
@@ -66,7 +72,7 @@ const Settings: React.FC = () => {
   const [tempBankName, setTempBankName] = useState('');
   const [tempAccountNum, setTempAccountNum] = useState('');
   const [tempBankSheba, setTempBankSheba] = useState('');
-  const [tempBankLayout, setTempBankLayout] = useState<'DEFAULT' | 'REFAH'>('DEFAULT');
+  const [tempBankLayout, setTempBankLayout] = useState<string>(''); // Changed to hold ID
 
   // Commerce Local States
   const [newInsuranceCompany, setNewInsuranceCompany] = useState('');
@@ -117,6 +123,7 @@ const Settings: React.FC = () => {
           if(!safeData.warehouseSequences) safeData.warehouseSequences = {};
           if(!safeData.companyNotifications) safeData.companyNotifications = {};
           if(!safeData.customRoles) safeData.customRoles = [];
+          if(!safeData.printTemplates) safeData.printTemplates = [];
           setSettings(safeData); 
       } catch (e) { console.error("Failed to load settings"); } 
   };
@@ -292,7 +299,7 @@ const Settings: React.FC = () => {
       setTempBankName('');
       setTempAccountNum('');
       setTempBankSheba('');
-      setTempBankLayout('DEFAULT');
+      setTempBankLayout('');
       setEditingBankId(null);
   };
 
@@ -306,7 +313,7 @@ const Settings: React.FC = () => {
           bankName: tempBankName, 
           accountNumber: tempAccountNum,
           sheba: tempBankSheba,
-          formLayout: tempBankLayout
+          formLayoutId: tempBankLayout
       };
 
       if (editingBankId) {
@@ -321,7 +328,7 @@ const Settings: React.FC = () => {
       setTempBankName(bank.bankName);
       setTempAccountNum(bank.accountNumber);
       setTempBankSheba(bank.sheba || '');
-      setTempBankLayout(bank.formLayout || 'DEFAULT');
+      setTempBankLayout(bank.formLayoutId || '');
       setEditingBankId(bank.id);
   };
 
@@ -379,6 +386,29 @@ const Settings: React.FC = () => {
   const handleRestoreClick = () => { if (confirm('بازگردانی اطلاعات کامل (شامل عکس‌ها)؟ همه اطلاعات فعلی پاک می‌شود.')) fileInputRef.current?.click(); };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setRestoring(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const response = await apiCall<{success: boolean}>('/full-restore', 'POST', { fileData: base64 }); if (response.success) { alert('بازگردانی کامل با موفقیت انجام شد. سیستم رفرش می‌شود.'); window.location.reload(); } } catch (error) { alert('خطا در بازگردانی فایل Zip'); } finally { setRestoring(false); } }; reader.readAsDataURL(file); };
 
+  // PRINT TEMPLATE HANDLERS
+  const handleSaveTemplate = (template: PrintTemplate) => {
+      const existing = settings.printTemplates || [];
+      const updated = editingTemplate 
+          ? existing.map(t => t.id === template.id ? template : t)
+          : [...existing, template];
+      
+      setSettings({ ...settings, printTemplates: updated });
+      setShowDesigner(false);
+      setEditingTemplate(null);
+  };
+
+  const handleEditTemplate = (t: PrintTemplate) => {
+      setEditingTemplate(t);
+      setShowDesigner(true);
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+      if(!confirm('حذف قالب؟')) return;
+      const updated = (settings.printTemplates || []).filter(t => t.id !== id);
+      setSettings({ ...settings, printTemplates: updated });
+  };
+
   const defaultRoles = [ 
       { id: UserRole.USER, label: 'کاربر عادی' }, 
       { id: UserRole.FINANCIAL, label: 'مدیر مالی' }, 
@@ -426,6 +456,10 @@ const Settings: React.FC = () => {
       return [...(settings.savedContacts || []), ...appUsers as Contact[]];
   };
 
+  if (showDesigner) {
+      return <PrintTemplateDesigner onSave={handleSaveTemplate} onCancel={() => setShowDesigner(false)} initialTemplate={editingTemplate} />;
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-20 animate-fade-in">
         
@@ -434,6 +468,7 @@ const Settings: React.FC = () => {
             <nav className="space-y-1">
                 <button onClick={() => setActiveCategory('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'system' ? 'bg-white shadow text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><AppWindow size={18}/> عمومی و سیستم</button>
                 <button onClick={() => setActiveCategory('data')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'data' ? 'bg-white shadow text-indigo-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18}/> اطلاعات پایه</button>
+                <button onClick={() => setActiveCategory('templates')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'templates' ? 'bg-white shadow text-teal-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><LayoutTemplate size={18}/> قالب‌های چاپ</button>
                 <button onClick={() => setActiveCategory('commerce')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'commerce' ? 'bg-white shadow text-rose-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Container size={18}/> تنظیمات بازرگانی</button>
                 <button onClick={() => setActiveCategory('warehouse')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'warehouse' ? 'bg-white shadow text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Warehouse size={18}/> انبار</button>
                 <button onClick={() => setActiveCategory('integrations')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === 'integrations' ? 'bg-white shadow text-purple-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}><Link size={18}/> اتصالات (API)</button>
@@ -476,6 +511,43 @@ const Settings: React.FC = () => {
                                 <button type="button" onClick={handleRestoreClick} disabled={restoring} className="bg-gray-800 text-white px-6 py-3 rounded-xl hover:bg-gray-900 flex items-center gap-2 shadow-lg shadow-gray-300 transition-transform hover:scale-105 disabled:opacity-70 h-[52px]">{restoring ? <Loader2 size={20} className="animate-spin"/> : <UploadCloud size={20} />} بازگردانی فایل Zip</button>
                                 <input type="file" ref={fileInputRef} className="hidden" accept=".zip" onChange={handleFileChange} />
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* NEW: PRINT TEMPLATES MANAGEMENT */}
+                {activeCategory === 'templates' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center border-b pb-2">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><LayoutTemplate size={20}/> مدیریت قالب‌های چاپ (فرم بانکی)</h3>
+                            <button type="button" onClick={() => { setEditingTemplate(null); setShowDesigner(true); }} className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-teal-700 shadow"><Plus size={18}/> طراحی قالب جدید</button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {settings.printTemplates?.map(t => (
+                                <div key={t.id} className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                    <div className="font-bold text-gray-800 mb-2">{t.name}</div>
+                                    <div className="text-xs text-gray-500 mb-4">{t.fields.length} فیلد تعریف شده</div>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={() => handleEditTemplate(t)} className="flex-1 bg-blue-50 text-blue-600 py-1.5 rounded text-xs font-bold hover:bg-blue-100 flex items-center justify-center gap-1"><Pencil size={14}/> ویرایش</button>
+                                        <button type="button" onClick={() => handleDeleteTemplate(t.id)} className="px-3 bg-red-50 text-red-500 py-1.5 rounded text-xs font-bold hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 size={14}/></button>
+                                    </div>
+                                    {/* Preview Thumbnail (Simple) */}
+                                    <div className="absolute top-2 left-2 opacity-10">
+                                        <Printer size={48} />
+                                    </div>
+                                </div>
+                            ))}
+                            {(!settings.printTemplates || settings.printTemplates.length === 0) && (
+                                <div className="col-span-full text-center py-10 text-gray-400 border-2 border-dashed rounded-xl">
+                                    هنوز قالبی تعریف نشده است.
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100">
+                            <h4 className="font-bold mb-2 flex items-center gap-2"><BrainCircuit size={16}/> راهنما:</h4>
+                            <p>با استفاده از "طراحی قالب جدید"، می‌توانید تصویر اسکن شده فرم‌های بانکی (مانند چک، فیش و...) را آپلود کرده و محل قرارگیری متن‌ها را روی آن مشخص کنید. سپس در بخش تعریف شرکت‌ها، می‌توانید برای هر بانک، قالب طراحی شده را انتخاب نمایید.</p>
                         </div>
                     </div>
                 )}
@@ -594,9 +666,13 @@ const Settings: React.FC = () => {
                                         <input className="border rounded p-1.5 text-sm dir-ltr text-left md:col-span-2" placeholder="شماره شبا (اختیاری)" value={tempBankSheba} onChange={e => setTempBankSheba(e.target.value)} />
                                         <div className="md:col-span-2 flex items-center gap-2">
                                             <label className="text-xs font-bold">قالب چاپ:</label>
-                                            <select className="border rounded p-1.5 text-sm flex-1 bg-white" value={tempBankLayout} onChange={e => setTempBankLayout(e.target.value as any)}>
-                                                <option value="DEFAULT">استاندارد (ساده)</option>
-                                                <option value="REFAH">فرم مخصوص بانک رفاه کارگران</option>
+                                            <select className="border rounded p-1.5 text-sm flex-1 bg-white" value={tempBankLayout} onChange={e => setTempBankLayout(e.target.value)}>
+                                                <option value="">استاندارد (ساده)</option>
+                                                <optgroup label="قالب‌های طراحی شده">
+                                                    {settings.printTemplates?.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                </optgroup>
                                             </select>
                                             <button type="button" onClick={addOrUpdateCompanyBank} className="bg-blue-600 text-white p-1.5 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs">
                                                 {editingBankId ? <Pencil size={16}/> : <Plus size={16}/>} {editingBankId ? 'بروزرسانی' : 'افزودن'}
@@ -606,19 +682,22 @@ const Settings: React.FC = () => {
                                     </div>
 
                                     <div className="space-y-1 mt-2">
-                                        {newCompanyBanks.map((bank, idx) => (
-                                            <div key={bank.id || idx} className={`flex justify-between items-center px-2 py-1.5 rounded text-xs border ${editingBankId === bank.id ? 'bg-blue-50 border-blue-300' : 'bg-gray-50'}`}>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold">{bank.bankName}</span>
-                                                    <span className="font-mono text-gray-500">{bank.accountNumber}</span>
-                                                    {bank.formLayout === 'REFAH' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded w-fit">قالب: بانک رفاه</span>}
+                                        {newCompanyBanks.map((bank, idx) => {
+                                            const tplName = bank.formLayoutId ? (settings.printTemplates?.find(t => t.id === bank.formLayoutId)?.name || 'ناشناس') : null;
+                                            return (
+                                                <div key={bank.id || idx} className={`flex justify-between items-center px-2 py-1.5 rounded text-xs border ${editingBankId === bank.id ? 'bg-blue-50 border-blue-300' : 'bg-gray-50'}`}>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold">{bank.bankName}</span>
+                                                        <span className="font-mono text-gray-500">{bank.accountNumber}</span>
+                                                        {tplName && <span className="text-[9px] bg-teal-100 text-teal-700 px-1 rounded w-fit">قالب: {tplName}</span>}
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button type="button" onClick={() => editCompanyBank(bank)} className="text-blue-500 hover:text-blue-700"><Pencil size={14}/></button>
+                                                        <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-1">
-                                                    <button type="button" onClick={() => editCompanyBank(bank)} className="text-blue-500 hover:text-blue-700"><Pencil size={14}/></button>
-                                                    <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         {newCompanyBanks.length === 0 && <div className="text-xs text-gray-400 text-center py-2">هنوز بانکی تعریف نشده است</div>}
                                     </div>
                                 </div>

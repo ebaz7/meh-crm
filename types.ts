@@ -100,6 +100,29 @@ export interface PaymentOrder {
   updatedAt?: number; 
 }
 
+// DYNAMIC PRINT TEMPLATE TYPES
+export interface PrintField {
+    id: string;
+    key: string; // e.g., 'amount', 'date_day', 'sheba'
+    label: string; // For UI
+    x: number; // mm
+    y: number; // mm
+    width?: number; // mm
+    fontSize: number; // px
+    letterSpacing?: number; // px (for Sheba boxes)
+    align?: 'right' | 'center' | 'left';
+    isBold?: boolean;
+}
+
+export interface PrintTemplate {
+    id: string;
+    name: string; // e.g., "Refah Bank Satna"
+    width: number; // mm (210 for A4)
+    height: number; // mm (297 for A4)
+    backgroundImage?: string; // Base64 of the form
+    fields: PrintField[];
+}
+
 export interface ExitPermitItem {
   id: string;
   goodsName: string;
@@ -156,7 +179,7 @@ export interface CompanyBank {
     bankName: string; 
     accountNumber: string; 
     sheba?: string; // Source Sheba
-    formLayout?: 'DEFAULT' | 'REFAH'; // Which form template to use
+    formLayoutId?: string; // ID of the dynamic template
 }
 
 export interface Company { 
@@ -174,7 +197,7 @@ export interface Company {
 }
 export interface Contact { id: string; name: string; number: string; isGroup?: boolean; }
 export interface CustomRole { id: string; label: string; }
-export interface SystemSettings { currentTrackingNumber: number; currentExitPermitNumber: number; companyNames: string[]; companies?: Company[]; defaultCompany: string; bankNames: string[]; operatingBankNames?: string[]; commodityGroups: string[]; rolePermissions: Record<string, RolePermissions>; customRoles?: CustomRole[]; savedContacts?: Contact[]; pwaIcon?: string; telegramBotToken?: string; telegramAdminId?: string; smsApiKey?: string; smsSenderNumber?: string; googleCalendarId?: string; whatsappNumber?: string; geminiApiKey?: string; insuranceCompanies?: string[]; warehouseSequences?: Record<string, number>; exitPermitNotificationGroup?: string; companyNotifications?: Record<string, { salesManager?: string; warehouseGroup?: string; }>; defaultWarehouseGroup?: string; defaultSalesManager?: string; dailySecurityMeta?: Record<string, DailySecurityMeta>; }
+export interface SystemSettings { currentTrackingNumber: number; currentExitPermitNumber: number; companyNames: string[]; companies?: Company[]; defaultCompany: string; bankNames: string[]; operatingBankNames?: string[]; commodityGroups: string[]; rolePermissions: Record<string, RolePermissions>; customRoles?: CustomRole[]; savedContacts?: Contact[]; pwaIcon?: string; telegramBotToken?: string; telegramAdminId?: string; smsApiKey?: string; smsSenderNumber?: string; googleCalendarId?: string; whatsappNumber?: string; geminiApiKey?: string; insuranceCompanies?: string[]; warehouseSequences?: Record<string, number>; exitPermitNotificationGroup?: string; companyNotifications?: Record<string, { salesManager?: string; warehouseGroup?: string; }>; defaultWarehouseGroup?: string; defaultSalesManager?: string; dailySecurityMeta?: Record<string, DailySecurityMeta>; printTemplates?: PrintTemplate[]; }
 export interface DashboardStats { totalPending: number; totalApproved: number; totalAmount: number; }
 export interface ChatMessage { id: string; sender: string; senderUsername: string; recipient?: string; groupId?: string; role: string; message: string; timestamp: number; attachment?: { fileName: string; url: string; }; audioUrl?: string; isEdited?: boolean; replyTo?: { id: string; sender: string; message: string; }; }
 export interface ChatGroup { id: string; name: string; members: string[]; createdBy: string; icon?: string; }

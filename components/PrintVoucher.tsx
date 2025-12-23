@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye } from 'lucide-react';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2 } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -28,6 +28,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   
   // Default: Background OFF (User wants to print on pre-printed paper)
   const [showFormBackground, setShowFormBackground] = useState(false);
+  
+  // Calibration State
+  const [calibration, setCalibration] = useState({ x: 0, y: 0 }); // mm
+  const [showCalibration, setShowCalibration] = useState(false);
 
   // Find SATNA/CHEQUE line
   const satnaLine = order.paymentDetails.find(d => d.method === PaymentMethod.SATNA);
@@ -36,14 +40,34 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   // Determine Form Type based on Bank Settings
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
   const sourceBankConfig = company?.banks?.find(b => mainLine.bankName?.includes(b.bankName));
-  const bankFormType = sourceBankConfig?.formLayout || 'DEFAULT';
+  const bankTemplateId = sourceBankConfig?.formLayoutId;
+  const dynamicTemplate = settings?.printTemplates?.find(t => t.id === bankTemplateId);
 
-  const canPrintBankForm = !!mainLine;
+  const canPrintBankForm = !!dynamicTemplate;
+
+  // Load saved calibration for this specific template from localStorage
+  useEffect(() => {
+      if (dynamicTemplate) {
+          const saved = localStorage.getItem(`print_calib_${dynamicTemplate.id}`);
+          if (saved) {
+              setCalibration(JSON.parse(saved));
+          }
+      }
+  }, [dynamicTemplate]);
+
+  // Save calibration
+  const updateCalibration = (dx: number, dy: number) => {
+      const newCal = { x: calibration.x + dx, y: calibration.y + dy };
+      setCalibration(newCal);
+      if (dynamicTemplate) {
+          localStorage.setItem(`print_calib_${dynamicTemplate.id}`, JSON.stringify(newCal));
+      }
+  };
 
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
-          // Refah form is A4 Portrait (Usually scanned forms are full A4)
+          // Refah form is usually A4 Portrait
           style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
       }
   }, [embed, printMode]);
@@ -110,63 +134,38 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     c.number.includes(contactSearch)
   ) || [];
 
-  // --- REFAH BANK FORM COMPONENT (EXACT OVERLAY) ---
-  const RefahBankFormOverlay = () => {
-      if (!mainLine) return null;
+  // --- DYNAMIC FORM RENDERER ---
+  const DynamicBankFormOverlay = () => {
+      if (!mainLine || !dynamicTemplate) return null;
       
       const pDate = new Date(order.date).toLocaleDateString('fa-IR');
       const dateParts = pDate.split('/'); // [yyyy, mm, dd]
       const amountStr = formatNumberString(mainLine.amount);
       const amountWords = numberToPersianWords(mainLine.amount);
 
-      // Helper for positioning
-      // Note: Values in 'mm' are approximate based on standard A4 Refah form.
-      // Adjust top/left/width to fine-tune alignment with the physical paper.
-      const Field = ({ top, left, width, text, size = "12px", align = "right", bold = true, letterSpacing = "normal" }: any) => (
-          <div style={{
-              position: 'absolute',
-              top: top,
-              left: left, // Left distance from left edge (rtl context depends on parent)
-              width: width,
-              fontSize: size,
-              textAlign: align,
-              fontWeight: bold ? '900' : 'normal',
-              letterSpacing: letterSpacing,
-              whiteSpace: 'nowrap',
-              direction: 'rtl',
-              // Show border only on screen if background is hidden to guide user
-              border: (!showFormBackground) ? '1px dashed rgba(0,0,0,0.1)' : 'none',
-              lineHeight: '1.2'
-          }} className="print:border-none">
-              {text}
-          </div>
-      );
-      
-      // Sheba Splitter
-      const ShebaGrid = ({ top, left, sheba }: { top: string, left: string, sheba?: string }) => {
-          if(!sheba) return null;
-          // Split IBAN (assume 24 digits max + IR)
-          // Refah Form typically has groupings or individual boxes.
-          // Based on image: Looks like individual boxes or small groups. 
-          // We will use a flex container with fixed width children.
-          const cleanSheba = sheba.replace(/[^0-9]/g, '');
-          const digits = cleanSheba.split('').slice(0, 24); // Limit to 24
-          
-          return (
-              <div style={{ position: 'absolute', top, left, display: 'flex', gap: '3.6mm', direction: 'ltr' }}>
-                  {digits.map((d, i) => (
-                      <div key={i} style={{ 
-                          width: '4mm', 
-                          textAlign: 'center', 
-                          fontWeight: 'bold', 
-                          fontSize: '14px',
-                          fontFamily: 'monospace'
-                      }}>
-                          {d}
-                      </div>
-                  ))}
-              </div>
-          );
+      // Data Mapping Logic
+      const getValue = (key: string) => {
+          switch(key) {
+              case 'date_year': return dateParts[0];
+              case 'date_month': return dateParts[1];
+              case 'date_day': return dateParts[2];
+              case 'date_full': return pDate;
+              case 'amount_num': return amountStr;
+              case 'amount_word': return amountWords;
+              case 'payee': return order.payee;
+              case 'description': return mainLine.description || order.description;
+              case 'source_account': return sourceBankConfig?.accountNumber || '';
+              case 'source_sheba': return sourceBankConfig?.sheba || '';
+              case 'dest_account': return ''; // Usually implied or needs field
+              case 'dest_sheba': return mainLine.sheba || '';
+              case 'dest_bank': return mainLine.recipientBank || '';
+              case 'payment_id': return mainLine.paymentId || '';
+              case 'cheque_no': return mainLine.chequeNumber || '';
+              case 'company_name': return order.payingCompany;
+              case 'company_id': return company?.nationalId || '';
+              case 'company_reg': return company?.registrationNumber || '';
+              default: return '';
+          }
       };
 
       return (
@@ -180,85 +179,60 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                    position: 'relative'
                }}>
               
-              {/* --- BACKGROUND SIMULATION (Only visible if showFormBackground is true) --- */}
-              {showFormBackground && (
-                  <div className="absolute inset-0 pointer-events-none opacity-20 z-0">
-                      {/* Using CSS grid to simulate the form lines since we don't have the image */}
-                      <div className="w-full h-[15%] border-b-2 border-black flex items-center justify-center"><h1 className="text-4xl font-bold text-gray-400">محل هدر بانک رفاه</h1></div>
-                      <div className="w-full h-[15%] border-b-2 border-black flex">
-                          <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">مشخصات</div>
-                          <div className="flex-1 p-2">محل اطلاعات شرکت (نام، شناسه، ثبت...)</div>
-                      </div>
-                      <div className="w-full h-[10%] border-b-2 border-black p-2">محل درخواست و مبلغ</div>
-                      <div className="w-full h-[20%] border-b-2 border-black flex">
-                           <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">حساب مبدا</div>
-                           <div className="flex-1 p-2">اطلاعات حساب مبدا (شماره، شبا)</div>
-                      </div>
-                      <div className="w-full h-[25%] border-b-2 border-black flex">
-                           <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">حساب مقصد</div>
-                           <div className="flex-1 p-2">اطلاعات حساب مقصد (گیرنده، شبا، شناسه)</div>
-                      </div>
-                      <div className="w-full h-[15%] p-2">امضاها</div>
-                  </div>
+              {/* --- BACKGROUND SIMULATION --- */}
+              {showFormBackground && dynamicTemplate.backgroundImage && (
+                  <img 
+                    src={dynamicTemplate.backgroundImage} 
+                    className="absolute inset-0 w-full h-full object-contain opacity-50 z-0 pointer-events-none"
+                    style={{ transform: `translate(${calibration.x}mm, ${calibration.y}mm)` }} 
+                  />
               )}
 
-              {/* --- DATA LAYER (Exact Positioning) --- */}
-              {/* Coordinates are approximated for A4 Portrait based on the provided image structure */}
-              
-              {/* 1. Header Date/No */}
-              <Field top="38mm" left="25mm" width="30mm" text={dateParts[0]} align="center" /> {/* Year */}
-              <Field top="38mm" left="58mm" width="10mm" text={dateParts[1]} align="center" /> {/* Month */}
-              <Field top="38mm" left="72mm" width="10mm" text={dateParts[2]} align="center" /> {/* Day */}
-              {/* Number is usually handled by bank, but we can put tracking num if needed */}
-              {/* <Field top="45mm" left="35mm" width="40mm" text={order.trackingNumber} align="center" /> */}
+              {/* --- DATA LAYER --- */}
+              {dynamicTemplate.fields.map(field => {
+                  const val = getValue(field.key);
+                  
+                  // Special handling for Sheba (Letter Spacing)
+                  if (field.key.includes('sheba') && (field.letterSpacing || 0) > 0) {
+                      const cleanSheba = val.replace(/[^0-9]/g, '');
+                      return (
+                          <div key={field.id} style={{
+                              position: 'absolute',
+                              top: `${field.y + calibration.y}mm`,
+                              left: `${field.x + calibration.x}mm`,
+                              width: field.width ? `${field.width}mm` : 'auto',
+                              fontSize: `${field.fontSize}px`,
+                              fontWeight: field.isBold ? 'bold' : 'normal',
+                              letterSpacing: `${field.letterSpacing}px`,
+                              fontFamily: 'monospace',
+                              direction: 'ltr',
+                              textAlign: 'left',
+                              whiteSpace: 'nowrap'
+                          }}>
+                              {cleanSheba}
+                          </div>
+                      );
+                  }
 
-              {/* Checkboxes (Paya/Satna/Pol) - Usually top right ~20-30mm down */}
-              {/* Assuming Satna is middle checkbox */}
-              {mainLine.method === PaymentMethod.SATNA && <div style={{ position: 'absolute', top: '44mm', right: '18mm', fontSize: '20px' }}>✖</div>}
-              {mainLine.method === PaymentMethod.TRANSFER && <div style={{ position: 'absolute', top: '35mm', right: '18mm', fontSize: '20px' }}>✖</div>} 
-
-              {/* 2. Corporate Info (Right Side usually) */}
-              <Field top="75mm" left="50mm" width="90mm" text={order.payingCompany} size="13px" /> {/* Company Name */}
-              <Field top="75mm" left="10mm" width="40mm" text={company?.registrationNumber || ''} align="center" /> {/* Reg No */}
-              <Field top="85mm" left="80mm" width="60mm" text={company?.nationalId || ''} align="center" /> {/* National ID */}
-              <Field top="85mm" left="10mm" width="40mm" text={company?.phone || ''} align="center" /> {/* Phone */}
-              <Field top="94mm" left="10mm" width="160mm" text={company?.address || ''} size="11px" /> {/* Address */}
-
-              {/* 3. Request Body */}
-              <Field top="112mm" left="85mm" width="50mm" text={amountStr} align="center" size="14px" letterSpacing="1px" /> {/* Amount Numeric */}
-              <Field top="112mm" left="40mm" width="25mm" text={pDate} align="center" /> {/* Date again in body */}
-              <Field top="122mm" left="50mm" width="120mm" text={amountWords} align="right" size="11px" /> {/* Amount Words */}
-
-              {/* 4. Source Account */}
-              <Field top="138mm" left="120mm" width="40mm" text="مرکزی / --" align="center" /> {/* Branch Name/Code */}
-              <Field top="138mm" left="40mm" width="60mm" text={sourceBankConfig?.accountNumber || ''} align="center" size="14px" /> {/* Source Account Num */}
-              {/* Source Check Serial if Check */}
-              {/* Source Sheba */}
-              <ShebaGrid top="152mm" left="28mm" sheba={sourceBankConfig?.sheba} />
-
-              {/* 5. Destination Account */}
-              <Field top="168mm" left="50mm" width="100mm" text={order.payee} size="13px" /> {/* Payee Name */}
-              <Field top="168mm" left="10mm" width="35mm" text={mainLine.recipientBank} align="center" /> {/* Dest Bank */}
-              
-              {/* Account Num Dest (Sometimes distinct field, sometimes implied by Sheba. Form image shows separate field) */}
-              <Field top="168mm" left="10mm" width="50mm" text="" align="center" /> {/* Account Num if available */}
-
-              <Field top="178mm" left="10mm" width="160mm" text={mainLine.description} size="11px" /> {/* Reason/Babat */}
-              
-              {/* Destination Sheba */}
-              <ShebaGrid top="192mm" left="28mm" sheba={mainLine.sheba} />
-
-              {/* Payment ID (Shenase) */}
-              {mainLine.paymentId && (
-                  <div style={{ position: 'absolute', top: '205mm', left: '28mm', display: 'flex', gap: '3.6mm', direction: 'ltr' }}>
-                      {mainLine.paymentId.split('').map((d, i) => (
-                          <div key={i} style={{ width: '4mm', textAlign: 'center', fontWeight: 'bold', fontSize: '14px' }}>{d}</div>
-                      ))}
-                  </div>
-              )}
-
-              {/* 6. Signatures (Bottom) - Optional: Add placeholders if needed */}
-              <Field top="230mm" left="140mm" width="40mm" text="امضا صاحب حساب" align="center" size="10px" />
+                  return (
+                    <div key={field.id} style={{
+                        position: 'absolute',
+                        top: `${field.y + calibration.y}mm`,
+                        left: `${field.x + calibration.x}mm`,
+                        width: field.width ? `${field.width}mm` : 'auto',
+                        fontSize: `${field.fontSize}px`,
+                        fontWeight: field.isBold ? 'bold' : 'normal',
+                        textAlign: field.align || 'right',
+                        whiteSpace: 'nowrap',
+                        direction: 'rtl',
+                        // Show border only on screen if background is hidden to guide user
+                        border: (!showFormBackground) ? '1px dashed rgba(0,0,0,0.05)' : 'none',
+                        lineHeight: '1.2'
+                    }} className="print:border-none">
+                        {val}
+                    </div>
+                  );
+              })}
           </div>
       );
   };
@@ -331,7 +305,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
   );
 
-  const contentToRender = (printMode === 'bank_form' && bankFormType === 'REFAH') ? <RefahBankFormOverlay /> : receiptContent;
+  const contentToRender = (printMode === 'bank_form' && canPrintBankForm) ? <DynamicBankFormOverlay /> : receiptContent;
 
   if (embed) return contentToRender;
 
@@ -361,23 +335,36 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  <button onClick={() => setShowContactSelect(!showContactSelect)} disabled={sharing} className={`bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm ${showContactSelect ? 'ring-2 ring-green-300' : ''}`}>{sharing ? <Loader2 size={14} className="animate-spin"/> : <Share2 size={14} />} واتساپ</button>
                  
                  {/* Bank Form Toggle */}
-                 {canPrintBankForm && bankFormType !== 'DEFAULT' && (
+                 {canPrintBankForm && (
                      <button 
                         onClick={() => setPrintMode(printMode === 'receipt' ? 'bank_form' : 'receipt')} 
-                        className={`py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors border ${printMode === 'bank_form' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-300'}`}
+                        className={`py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors border ${printMode === 'bank_form' ? 'bg-teal-100 text-teal-700 border-teal-200' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-300'}`}
                      >
-                        <LayoutTemplate size={14}/> {printMode === 'receipt' ? 'فرم بانک' : 'رسید داخلی'}
+                        <LayoutTemplate size={14}/> {printMode === 'receipt' ? `قالب: ${dynamicTemplate?.name}` : 'رسید داخلی'}
                      </button>
                  )}
 
                  {/* Extra option for Bank Form */}
                  {printMode === 'bank_form' && (
-                     <div className="col-span-2 md:col-span-4 flex justify-center mt-2">
-                         <label className="flex items-center gap-2 text-xs cursor-pointer select-none bg-yellow-50 p-2 rounded border border-yellow-200">
+                     <div className="col-span-2 md:col-span-4 flex flex-col gap-2 mt-2 bg-gray-50 p-2 rounded border">
+                         <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                              <input type="checkbox" checked={showFormBackground} onChange={e => setShowFormBackground(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>
-                             {showFormBackground ? <Eye size={14}/> : <EyeOff size={14}/>} 
-                             <span>چاپ راهنما (برای تست)</span>
+                             چاپ زمینه (عکس فرم خام)
                          </label>
+                         
+                         <div className="flex items-center justify-between">
+                            <button onClick={() => setShowCalibration(!showCalibration)} className="text-xs flex items-center gap-1 text-blue-600 font-bold"><Settings2 size={12}/> کالیبراسیون چاپ</button>
+                            {showCalibration && <div className="text-[10px] text-gray-500">X: {calibration.x} | Y: {calibration.y}</div>}
+                         </div>
+                         
+                         {showCalibration && (
+                             <div className="grid grid-cols-4 gap-1">
+                                 <button onClick={() => updateCalibration(0, -1)} className="bg-white border rounded p-1 hover:bg-gray-100">⬆️</button>
+                                 <button onClick={() => updateCalibration(0, 1)} className="bg-white border rounded p-1 hover:bg-gray-100">⬇️</button>
+                                 <button onClick={() => updateCalibration(-1, 0)} className="bg-white border rounded p-1 hover:bg-gray-100">⬅️</button>
+                                 <button onClick={() => updateCalibration(1, 0)} className="bg-white border rounded p-1 hover:bg-gray-100">➡️</button>
+                             </div>
+                         )}
                      </div>
                  )}
 
