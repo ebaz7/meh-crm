@@ -57,12 +57,20 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const permissions = getRolePermissions(currentUser.role, settings || null);
   const availableCompanies = settings?.companies?.map(c => c.name) || settings?.companyNames || [];
 
+  // Helper to check if order is in revocation flow
+  const isRevocationStatus = (status: OrderStatus) => {
+      return [
+          OrderStatus.REVOCATION_PENDING_FINANCE,
+          OrderStatus.REVOCATION_PENDING_MANAGER,
+          OrderStatus.REVOCATION_PENDING_CEO
+      ].includes(status);
+  };
+
   const canApprove = (order: PaymentOrder): boolean => {
     // Final states cannot be approved
     if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
     
     // --- REVOCATION WORKFLOW APPROVALS ---
-    // If it is in revocation, ONLY check revocation roles
     if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE) {
         return currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN;
     }
@@ -76,7 +84,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     // --- NORMAL WORKFLOW APPROVALS ---
     // If we are here, it means it is NOT in revocation workflow (or status didn't match above)
     // Safety: don't show normal approve if it's somehow in a revocation state but user doesn't match
-    if (order.status.includes('REVOCATION')) return false;
+    if (isRevocationStatus(order.status)) return false;
 
     if (order.status === OrderStatus.PENDING && permissions.canApproveFinancial) return true;
     if (order.status === OrderStatus.APPROVED_FINANCE && permissions.canApproveManager) return true;
@@ -90,7 +98,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
       if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
       
       // Cannot edit if in revocation process
-      if (order.status.includes('REVOCATION')) return false;
+      if (isRevocationStatus(order.status)) return false;
 
       if (currentUser.role === UserRole.USER) {
           return permissions.canEditOwn && order.requester === currentUser.fullName && (order.status === OrderStatus.PENDING || order.status === OrderStatus.REJECTED);
@@ -102,7 +110,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   const canDelete = (order: PaymentOrder): boolean => {
       if (currentUser.role === UserRole.ADMIN) return true;
-      if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED || order.status.includes('REVOCATION')) return false;
+      if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED || isRevocationStatus(order.status)) return false;
       
       if (currentUser.role === UserRole.USER) {
           return permissions.canDeleteOwn && order.requester === currentUser.fullName && (order.status === OrderStatus.PENDING || order.status === OrderStatus.REJECTED);
@@ -128,7 +136,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   const handleApprove = async (id: string, currentStatus: OrderStatus) => {
     const nextStatus = getNextStatus(currentStatus);
-    const isRevocation = currentStatus.includes('REVOCATION');
+    const isRevocation = isRevocationStatus(currentStatus);
     
     // Custom Message for Revocation
     const msg = isRevocation 
@@ -378,7 +386,9 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
               ) : (
                   filteredOrders.map((order) => {
                       // Highlighting logic for Revocation Workflow
-                      const isRevocation = order.status.includes('REVOCATION');
+                      // Using direct enum values to ensure it works correctly
+                      const isRevocation = isRevocationStatus(order.status);
+                      
                       const rowClass = isRevocation ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500 transition-colors" : "hover:bg-gray-50/80 transition-colors";
 
                       return (
@@ -437,7 +447,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             onEdit={canEdit(viewOrder) ? () => handleEdit(viewOrder) : undefined}
             // Revoke logic: Only allow if NOT currently revoking/revoked, and user has permission
             onRevoke={
-                (!viewOrder.status.includes('REVOCATION') && viewOrder.status !== OrderStatus.REVOKED && 
+                (!isRevocationStatus(viewOrder.status) && viewOrder.status !== OrderStatus.REVOKED && 
                 (currentUser.role === UserRole.ADMIN || viewOrder.requester === currentUser.fullName)) 
                 ? () => handleRevoke(viewOrder.id) 
                 : undefined

@@ -33,7 +33,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const isCompact = order.paymentDetails.length > 2;
   const printAreaId = `print-voucher-content-${order.id}`;
 
-  const isRevocationProcess = order.status.includes('REVOCATION');
+  // Robust checks for Revocation Status
+  const isRevocationProcess = [
+      OrderStatus.REVOCATION_PENDING_FINANCE,
+      OrderStatus.REVOCATION_PENDING_MANAGER,
+      OrderStatus.REVOCATION_PENDING_CEO
+  ].includes(order.status);
+  
   const isRevoked = order.status === OrderStatus.REVOKED;
 
   const Stamp = ({ name, title }: { name: string; title: string }) => (
