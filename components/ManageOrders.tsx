@@ -71,6 +71,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
     
     // --- REVOCATION WORKFLOW APPROVALS ---
+    // Explicitly check for revocation statuses first
     if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE) {
         return currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN;
     }
@@ -82,8 +83,8 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     }
 
     // --- NORMAL WORKFLOW APPROVALS ---
-    // If we are here, it means it is NOT in revocation workflow (or status didn't match above)
-    // Safety: don't show normal approve if it's somehow in a revocation state but user doesn't match
+    // If it is in revocation status (checked above) but user didn't match, return false
+    // Also, don't show normal approval buttons for revocation states
     if (isRevocationStatus(order.status)) return false;
 
     if (order.status === OrderStatus.PENDING && permissions.canApproveFinancial) return true;
@@ -179,7 +180,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           setIsProcessing(true);
           setProcessingMessage('درحال ارسال درخواست ابطال...');
           try {
-              // Explicitly set the first step of revocation
+              // Explicitly set the first step of revocation: PENDING_FINANCE
               await apiCall(`/orders/${id}`, 'PUT', { status: OrderStatus.REVOCATION_PENDING_FINANCE, updatedAt: Date.now() });
               await refreshData();
               setViewOrder(null);
