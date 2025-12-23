@@ -4,7 +4,7 @@ import { PaymentOrder, OrderStatus, User, UserRole, SystemSettings, PaymentMetho
 import { updateOrderStatus, deleteOrder } from '../services/storageService';
 import { getRolePermissions } from '../services/authService';
 import { formatCurrency, formatDate, getStatusLabel, jalaliToGregorian, formatNumberString, deformatNumberString } from '../constants';
-import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator } from 'lucide-react';
+import { Eye, Trash2, Search, Filter, FileSpreadsheet, Paperclip, ListChecks, Archive, X, Building2, Calculator, AlertTriangle } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import EditOrderModal from './EditOrderModal';
 import { apiCall } from '../services/apiService';
@@ -31,7 +31,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
       to: { year: 1405, month: 12, day: 29 },
       enabled: false
   });
-  const [companyFilter, setCompanyFilter] = useState(''); // NEW: Company Filter
+  const [companyFilter, setCompanyFilter] = useState('');
   
   const [currentStatusFilter, setCurrentStatusFilter] = useState<OrderStatus | 'pending_all' | null>(statusFilter || null);
 
@@ -71,6 +71,9 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   const canEdit = (order: PaymentOrder): boolean => {
       if ((order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) && currentUser.role !== UserRole.ADMIN) return false;
+      // Cannot edit during revocation process unless Admin
+      if (order.status.includes('REVOCATION') && currentUser.role !== UserRole.ADMIN) return false;
+
       if (currentUser.role === UserRole.ADMIN) return true;
       if (currentUser.role === UserRole.USER) {
           return permissions.canEditOwn && order.requester === currentUser.fullName && (order.status === OrderStatus.PENDING || order.status === OrderStatus.REJECTED);
@@ -82,7 +85,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
 
   const canDelete = (order: PaymentOrder): boolean => {
       if (currentUser.role === UserRole.ADMIN) return true;
-      if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
+      if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED || order.status.includes('REVOCATION')) return false;
       if (currentUser.role === UserRole.USER) {
           return permissions.canDeleteOwn && order.requester === currentUser.fullName && (order.status === OrderStatus.PENDING || order.status === OrderStatus.REJECTED);
       }
@@ -108,7 +111,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const handleApprove = async (id: string, currentStatus: OrderStatus) => {
     const nextStatus = getNextStatus(currentStatus);
     const isRevocation = currentStatus.includes('REVOCATION');
-    const msg = isRevocation ? `آیا تایید مرحله ابطال "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟` : `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
+    
+    const msg = isRevocation 
+        ? `⚠️ توجه: شما در حال تایید ابطال دستور پرداخت هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا اطمینان دارید؟` 
+        : `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
     
     if (window.confirm(msg)) {
         await updateOrderStatus(id, nextStatus, currentUser); 
@@ -120,23 +126,16 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const handleReject = async (id: string) => {
       const reason = window.prompt('لطفا دلیل رد درخواست را وارد کنید:');
       if (reason !== null) {
-          // If we reject a revocation request, does it go back to normal? 
-          // For simplicity, let's say it goes to "REJECTED" generic status or stays in current status.
-          // Current logic sets to REJECTED.
           await updateOrderStatus(id, OrderStatus.REJECTED, currentUser, reason || 'بدون توضیح');
           refreshData();
           setViewOrder(null); 
       }
   };
 
-  // NEW: Handle Revoke (Start Revocation Workflow)
+  // Initiate Revocation
   const handleRevoke = async (id: string) => {
-      if (window.confirm('آیا درخواست ابطال این دستور پرداخت را دارید؟ این درخواست وارد چرخه تایید ابطال خواهد شد.')) {
-          // Set to first stage of revocation
+      if (window.confirm('⚠️ آیا درخواست ابطال این دستور پرداخت را دارید؟\nاین درخواست وارد چرخه تایید ابطال (مدیر مالی -> مدیریت -> مدیرعامل) خواهد شد.')) {
           try {
-              // We use updateOrderStatus or manual api call. updateOrderStatus handles approver fields which we might not want to overwrite immediately with the "requester" of revocation.
-              // But updateOrderStatus sets the 'approver' based on the role.
-              // Let's use direct API call to just change status to REVOCATION_PENDING_FINANCE
               await apiCall(`/orders/${id}`, 'PUT', { status: OrderStatus.REVOCATION_PENDING_FINANCE, updatedAt: Date.now() });
               refreshData();
               setViewOrder(null);
@@ -187,9 +186,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const getOrdersForTab = () => {
       let tabOrders = orders;
       if (activeTab === 'archive') {
+          // Archive contains successfully completed OR finally revoked
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
       } else {
-          // Current tab shows everything else (Pending, Approved steps, Rejected, Revocation steps)
+          // Current contains everything else, INCLUDING active revocation processes
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
@@ -208,7 +208,6 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
         }
     }
     
-    // NEW: Company Filter
     if (companyFilter && order.payingCompany !== companyFilter) return false;
 
     const term = searchTerm.toLowerCase();
@@ -318,8 +317,13 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
               {filteredOrders.length === 0 ? (
                   <tr><td colSpan={8} className="text-center py-8 text-gray-400">موردی یافت نشد</td></tr>
               ) : (
-                  filteredOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-gray-50/80 transition-colors">
+                  filteredOrders.map((order) => {
+                      // Highlighting logic for Revocation Workflow
+                      const isRevocation = order.status.includes('REVOCATION');
+                      const rowClass = isRevocation ? "bg-red-50 hover:bg-red-100 transition-colors" : "hover:bg-gray-50/80 transition-colors";
+
+                      return (
+                      <tr key={order.id} className={rowClass}>
                         <td className="px-6 py-4 font-mono text-gray-500">#{order.trackingNumber}</td>
                         <td className="px-6 py-4 text-gray-700">{formatDate(order.date)}</td>
                         <td className="px-6 py-4 font-medium text-gray-900 max-w-[200px]"><div className="truncate font-bold">{order.payee}</div><div className="text-xs text-gray-500 truncate mt-1">{order.description}</div><div className="flex gap-1 mt-1">{order.attachments?.map((a,i) => <a key={i} href={a.data} target="_blank" className="text-blue-500 text-[10px] bg-blue-50 px-1 rounded flex items-center"><Paperclip size={10}/></a>)}</div></td>
@@ -335,11 +339,14 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                         <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
                                 order.status === OrderStatus.APPROVED_CEO ? 'bg-green-50 text-green-700 border-green-200' : 
-                                order.status === OrderStatus.REVOKED ? 'bg-gray-50 text-gray-700 border-gray-200' :
+                                order.status === OrderStatus.REVOKED ? 'bg-gray-100 text-gray-700 border-gray-300' :
                                 order.status === OrderStatus.REJECTED ? 'bg-red-50 text-red-700 border-red-200' : 
-                                order.status.includes('REVOCATION') ? 'bg-red-50 text-red-700 border-red-200 animate-pulse' :
+                                isRevocation ? 'bg-orange-50 text-orange-800 border-orange-200 animate-pulse' :
                                 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            }`}>{getStatusLabel(order.status)}</span>
+                            }`}>
+                                {isRevocation && <AlertTriangle size={12} className="ml-1"/>}
+                                {getStatusLabel(order.status)}
+                            </span>
                             {order.status === OrderStatus.REJECTED && order.rejectionReason && (
                                 <div className="text-[10px] text-red-500 mt-1 max-w-[140px] truncate" title={order.rejectionReason}>دلیل: {order.rejectionReason}</div>
                             )}
@@ -354,7 +361,7 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
                              {canDelete(order) && <button onClick={() => handleDelete(order.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="حذف"><Trash2 size={16}/></button>}
                         </div></td>
                       </tr>
-                  ))
+                  )})
               )}
             </tbody>
           </table>
@@ -369,7 +376,13 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
             onApprove={canApprove(viewOrder) ? () => handleApprove(viewOrder.id, viewOrder.status) : undefined}
             onReject={canApprove(viewOrder) ? () => handleReject(viewOrder.id) : undefined}
             onEdit={canEdit(viewOrder) ? () => handleEdit(viewOrder) : undefined}
-            onRevoke={(viewOrder.status !== OrderStatus.REVOKED && (currentUser.role === UserRole.ADMIN || viewOrder.requester === currentUser.fullName)) ? () => handleRevoke(viewOrder.id) : undefined}
+            // Logic: Users can only Revoke if it's NOT already revoked/in-process.
+            onRevoke={
+                (!viewOrder.status.includes('REVOCATION') && viewOrder.status !== OrderStatus.REVOKED && 
+                (currentUser.role === UserRole.ADMIN || viewOrder.requester === currentUser.fullName)) 
+                ? () => handleRevoke(viewOrder.id) 
+                : undefined
+            }
           />
       )}
       

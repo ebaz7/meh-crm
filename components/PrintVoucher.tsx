@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate, getStatusLabel } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw } from 'lucide-react';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -159,29 +159,41 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
       <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-[210] no-print w-full md:w-auto mb-4 md:mb-0 order-1">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
-             <div className="flex items-center justify-between border-b pb-2 mb-1"><h3 className="font-bold text-gray-800 text-base">جزئیات و عملیات {isRevocationProcess && <span className="text-red-500 text-xs">(چرخه ابطال)</span>}</h3><button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button></div>
+             <div className="flex items-center justify-between border-b pb-2 mb-1">
+                 <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                     {isRevocationProcess ? <span className="text-red-600 flex items-center gap-1"><AlertTriangle size={16}/> چرخه ابطال</span> : 'جزئیات و عملیات'}
+                 </h3>
+                 <button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+             </div>
+             
              {(onApprove || onReject || onEdit || onRevoke) && (<div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100">
                 {onApprove && 
-                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
-                        {isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} {isRevocationProcess ? 'تایید ابطال' : 'تایید'}
+                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
+                        {isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} 
+                        {isRevocationProcess ? 'تایید ابطال' : 'تایید'}
                     </button>
                 }
-                {onRevoke && 
+                
+                {/* Hide Revoke button if already in process */}
+                {onRevoke && !isRevocationProcess &&
                     <button onClick={onRevoke} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
                         <RotateCcw size={18} /> درخواست ابطال
                     </button>
                 }
+                
                 {onReject && 
                     <button onClick={onReject} className="flex-1 bg-red-50 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95">
                         <XCircle size={18} /> رد
                     </button>
                 }
+                
                 {onEdit && 
                     <button onClick={onEdit} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-2 rounded-lg flex items-center justify-center">
                         <Pencil size={18} />
                     </button>
                 }
              </div>)}
+             
              <div className="grid grid-cols-3 gap-2 relative">
                  <button onClick={handleDownloadPDF} disabled={processing} className="bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors">{processing ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} دانلود PDF</button>
                  <button onClick={handlePrint} disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-colors shadow-sm">{processing ? <Loader2 size={14} className="animate-spin"/> : <Printer size={14} />} چاپ</button>
