@@ -64,6 +64,8 @@ const Settings: React.FC = () => {
   // Local states for adding banks to a company
   const [tempBankName, setTempBankName] = useState('');
   const [tempAccountNum, setTempAccountNum] = useState('');
+  const [tempBankSheba, setTempBankSheba] = useState('');
+  const [tempBankLayout, setTempBankLayout] = useState<'DEFAULT' | 'REFAH'>('DEFAULT');
 
   // Commerce Local States
   const [newInsuranceCompany, setNewInsuranceCompany] = useState('');
@@ -283,6 +285,8 @@ const Settings: React.FC = () => {
       setEditingCompanyId(null); 
       setTempBankName('');
       setTempAccountNum('');
+      setTempBankSheba('');
+      setTempBankLayout('DEFAULT');
   };
 
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
@@ -290,10 +294,18 @@ const Settings: React.FC = () => {
   // Company Bank Management
   const addCompanyBank = () => {
       if (!tempBankName) return;
-      const newBank: CompanyBank = { id: generateUUID(), bankName: tempBankName, accountNumber: tempAccountNum };
+      const newBank: CompanyBank = { 
+          id: generateUUID(), 
+          bankName: tempBankName, 
+          accountNumber: tempAccountNum,
+          sheba: tempBankSheba,
+          formLayout: tempBankLayout
+      };
       setNewCompanyBanks([...newCompanyBanks, newBank]);
       setTempBankName('');
       setTempAccountNum('');
+      setTempBankSheba('');
+      setTempBankLayout('DEFAULT');
   };
   const removeCompanyBank = (id: string) => {
       setNewCompanyBanks(newCompanyBanks.filter(b => b.id !== id));
@@ -556,15 +568,29 @@ const Settings: React.FC = () => {
                                 {/* Bank Management for this Company */}
                                 <div className="bg-white border rounded-xl p-3 mb-4">
                                     <label className="text-xs font-bold block mb-2 text-blue-600 flex items-center gap-1"><Landmark size={14}/> تعریف بانک‌های این شرکت</label>
-                                    <div className="flex gap-2 mb-2 items-end">
-                                        <input className="flex-1 border rounded p-1.5 text-sm" placeholder="نام بانک" value={tempBankName} onChange={e => setTempBankName(e.target.value)} />
-                                        <input className="flex-1 border rounded p-1.5 text-sm dir-ltr text-left" placeholder="شماره حساب/کارت" value={tempAccountNum} onChange={e => setTempAccountNum(e.target.value)} />
-                                        <button type="button" onClick={addCompanyBank} className="bg-blue-50 text-blue-600 p-1.5 rounded border border-blue-100 hover:bg-blue-100"><Plus size={18}/></button>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 items-end">
+                                        <input className="border rounded p-1.5 text-sm" placeholder="نام بانک (مثال: بانک رفاه)" value={tempBankName} onChange={e => setTempBankName(e.target.value)} />
+                                        <input className="border rounded p-1.5 text-sm dir-ltr text-left" placeholder="شماره حساب" value={tempAccountNum} onChange={e => setTempAccountNum(e.target.value)} />
+                                        <input className="border rounded p-1.5 text-sm dir-ltr text-left md:col-span-2" placeholder="شماره شبا (اختیاری)" value={tempBankSheba} onChange={e => setTempBankSheba(e.target.value)} />
+                                        <div className="md:col-span-2 flex items-center gap-2">
+                                            <label className="text-xs font-bold">قالب چاپ:</label>
+                                            <select className="border rounded p-1.5 text-sm flex-1 bg-white" value={tempBankLayout} onChange={e => setTempBankLayout(e.target.value as any)}>
+                                                <option value="DEFAULT">استاندارد (ساده)</option>
+                                                <option value="REFAH">فرم مخصوص بانک رفاه کارگران</option>
+                                            </select>
+                                            <button type="button" onClick={addCompanyBank} className="bg-blue-600 text-white p-1.5 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs"><Plus size={16}/> افزودن</button>
+                                        </div>
                                     </div>
-                                    <div className="space-y-1">
+
+                                    <div className="space-y-1 mt-2">
                                         {newCompanyBanks.map((bank, idx) => (
-                                            <div key={bank.id || idx} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-xs border">
-                                                <span>{bank.bankName} - <span className="font-mono">{bank.accountNumber}</span></span>
+                                            <div key={bank.id || idx} className="flex justify-between items-center bg-gray-50 px-2 py-1.5 rounded text-xs border">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold">{bank.bankName}</span>
+                                                    <span className="font-mono text-gray-500">{bank.accountNumber}</span>
+                                                    {bank.formLayout === 'REFAH' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded w-fit">قالب: بانک رفاه</span>}
+                                                </div>
                                                 <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
                                             </div>
                                         ))}

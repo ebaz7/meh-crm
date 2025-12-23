@@ -149,7 +149,16 @@ export interface SecurityLog { id: string; rowNumber: number; date: string; shif
 export interface PersonnelDelay { id: string; date: string; personnelName: string; unit: string; arrivalTime: string; delayAmount: string; repeatCount?: string; instruction?: string; registrant: string; status: SecurityStatus; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; rejectionReason?: string; createdAt: number; }
 export interface SecurityIncident { id: string; reportNumber: string; date: string; subject: string; description: string; shift: string; registrant: string; status: SecurityStatus; witnesses?: string; shiftManagerOpinion?: string; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; hrAction?: string; safetyAction?: string; rejectionReason?: string; createdAt: number; }
 export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
-export interface CompanyBank { id: string; bankName: string; accountNumber: string; }
+
+// Updated CompanyBank to include form layout
+export interface CompanyBank { 
+    id: string; 
+    bankName: string; 
+    accountNumber: string; 
+    sheba?: string; // Source Sheba
+    formLayout?: 'DEFAULT' | 'REFAH'; // Which form template to use
+}
+
 export interface Company { 
     id: string; 
     name: string; 
@@ -157,7 +166,7 @@ export interface Company {
     showInWarehouse?: boolean; 
     banks?: CompanyBank[]; 
     letterhead?: string;
-    // New Fields
+    // Legal Info for Bank Forms
     registrationNumber?: string;
     nationalId?: string;
     address?: string;
