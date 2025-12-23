@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
-import { formatCurrency, formatDate, getStatusLabel, deformatNumberString } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate } from 'lucide-react';
+import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString } from '../constants';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -13,7 +13,7 @@ interface PrintVoucherProps {
   onApprove?: () => void;
   onReject?: () => void;
   onEdit?: () => void;
-  onRevoke?: () => void; // Initiate revocation
+  onRevoke?: () => void; 
   embed?: boolean; 
 }
 
@@ -25,12 +25,13 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   
   // Toggle between Internal Receipt and Bank Form Fill
   const [printMode, setPrintMode] = useState<'receipt' | 'bank_form'>('receipt');
-  const [showFormBackground, setShowFormBackground] = useState(true);
+  
+  // Default: Background OFF (User wants to print on pre-printed paper)
+  const [showFormBackground, setShowFormBackground] = useState(false);
 
   // Find SATNA/CHEQUE line
   const satnaLine = order.paymentDetails.find(d => d.method === PaymentMethod.SATNA);
-  const chequeLine = order.paymentDetails.find(d => d.method === PaymentMethod.CHEQUE);
-  const mainLine = satnaLine || chequeLine || order.paymentDetails[0];
+  const mainLine = satnaLine || order.paymentDetails[0];
 
   // Determine Form Type based on Bank Settings
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
@@ -42,8 +43,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   useEffect(() => {
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
-          // Refah form is typically A4 Landscape or A5 Landscape. Let's default A4 Landscape for safety.
-          style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
+          // Refah form is A4 Portrait (Usually scanned forms are full A4)
+          style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
       }
   }, [embed, printMode]);
 
@@ -79,7 +80,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           elementId: printAreaId,
           filename: `Voucher_${order.trackingNumber}.pdf`,
           format: 'A4',
-          orientation: 'landscape',
+          orientation: printMode === 'bank_form' ? 'portrait' : 'landscape',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
       });
@@ -109,147 +110,155 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     c.number.includes(contactSearch)
   ) || [];
 
-  // --- REFAH BANK FORM COMPONENT ---
+  // --- REFAH BANK FORM COMPONENT (EXACT OVERLAY) ---
   const RefahBankFormOverlay = () => {
       if (!mainLine) return null;
       
-      const sourceAccount = sourceBankConfig?.accountNumber || ''; 
       const pDate = new Date(order.date).toLocaleDateString('fa-IR');
-      const amountStr = formatCurrency(mainLine.amount).replace('ریال','').trim();
+      const dateParts = pDate.split('/'); // [yyyy, mm, dd]
+      const amountStr = formatNumberString(mainLine.amount);
+      const amountWords = numberToPersianWords(mainLine.amount);
+
+      // Helper for positioning
+      // Note: Values in 'mm' are approximate based on standard A4 Refah form.
+      // Adjust top/left/width to fine-tune alignment with the physical paper.
+      const Field = ({ top, left, width, text, size = "12px", align = "right", bold = true, letterSpacing = "normal" }: any) => (
+          <div style={{
+              position: 'absolute',
+              top: top,
+              left: left, // Left distance from left edge (rtl context depends on parent)
+              width: width,
+              fontSize: size,
+              textAlign: align,
+              fontWeight: bold ? '900' : 'normal',
+              letterSpacing: letterSpacing,
+              whiteSpace: 'nowrap',
+              direction: 'rtl',
+              // Show border only on screen if background is hidden to guide user
+              border: (!showFormBackground) ? '1px dashed rgba(0,0,0,0.1)' : 'none',
+              lineHeight: '1.2'
+          }} className="print:border-none">
+              {text}
+          </div>
+      );
       
-      // Formatting helper for Sheba boxes
-      const renderShebaBoxes = (sheba?: string) => {
-          if (!sheba) return null;
-          const chars = sheba.replace(/[^0-9]/g, '').split('');
-          // Limit to standard length (usually 24 for Iran)
-          const displayChars = chars.slice(0, 24); 
+      // Sheba Splitter
+      const ShebaGrid = ({ top, left, sheba }: { top: string, left: string, sheba?: string }) => {
+          if(!sheba) return null;
+          // Split IBAN (assume 24 digits max + IR)
+          // Refah Form typically has groupings or individual boxes.
+          // Based on image: Looks like individual boxes or small groups. 
+          // We will use a flex container with fixed width children.
+          const cleanSheba = sheba.replace(/[^0-9]/g, '');
+          const digits = cleanSheba.split('').slice(0, 24); // Limit to 24
+          
           return (
-              <div className="flex gap-1 justify-center w-full">
-                  {displayChars.map((char, i) => (
-                      <div key={i} className="w-5 h-6 border border-black flex items-center justify-center text-sm font-bold bg-white/50">{char}</div>
+              <div style={{ position: 'absolute', top, left, display: 'flex', gap: '3.6mm', direction: 'ltr' }}>
+                  {digits.map((d, i) => (
+                      <div key={i} style={{ 
+                          width: '4mm', 
+                          textAlign: 'center', 
+                          fontWeight: 'bold', 
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                      }}>
+                          {d}
+                      </div>
                   ))}
-                  <span className="font-bold ml-2">IR</span>
               </div>
           );
       };
 
-      const borderClass = showFormBackground ? "border-black" : "border-transparent";
-      const bgClass = showFormBackground ? "bg-white" : "bg-transparent";
-
       return (
-          <div className={`printable-content relative w-full h-full text-black text-xs font-sans ${bgClass}`} style={{ width: '297mm', height: '210mm', margin: '0 auto', overflow: 'hidden', padding: '10mm' }}>
+          <div className="printable-content relative w-full h-full text-black font-sans" 
+               style={{ 
+                   width: '210mm', 
+                   height: '297mm', 
+                   margin: '0 auto', 
+                   overflow: 'hidden', 
+                   padding: 0,
+                   position: 'relative'
+               }}>
               
-              {/* Header */}
-              <div className="flex justify-between items-start mb-4 h-24">
-                  {/* Left: Checkboxes */}
-                  <div className={`w-32 border-2 ${borderClass} p-2 rounded flex flex-col gap-1`}>
-                      <div className="flex justify-between items-center"><span className="font-bold">پایا</span><div className={`w-4 h-4 border border-black ${mainLine.method === PaymentMethod.TRANSFER ? 'bg-black' : ''}`}></div></div>
-                      <div className="flex justify-between items-center"><span className="font-bold">ساتنا</span><div className={`w-4 h-4 border border-black ${mainLine.method === PaymentMethod.SATNA ? 'bg-black' : ''}`}></div></div>
-                      <div className="flex justify-between items-center"><span className="font-bold">پل</span><div className={`w-4 h-4 border border-black`}></div></div>
-                  </div>
-                  
-                  {/* Center: Title & Logo Placeholders */}
-                  <div className="flex flex-col items-center">
-                      <div className="text-xl font-black text-blue-900 mb-1">بانک رفاه کارگران</div>
-                      <div className="text-sm font-bold">REFAH KARGARAN BANK</div>
-                      <div className="mt-2 bg-blue-900 text-white px-6 py-1 rounded-full font-bold">فرم دستور پرداخت الکترونیکی بین بانکی</div>
-                  </div>
-
-                  {/* Right: Date/No */}
-                  <div className="text-right space-y-2 font-bold w-48">
-                      <div className="flex justify-between"><span>تاریخ:</span><span className="font-mono">{pDate}</span></div>
-                      <div className="flex justify-between"><span>شماره:</span><span className="font-mono">{order.trackingNumber}</span></div>
-                      <div className="flex justify-between"><span>شعبه:</span><span>..............</span></div>
-                  </div>
-              </div>
-
-              {/* Section 1: Customer Info (Legal Person) */}
-              <div className={`border-2 ${borderClass} mb-4 relative`}>
-                  <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gray-200 border-l-2 ${borderClass} flex items-center justify-center text-center font-bold`}>
-                      <span className="-rotate-90 whitespace-nowrap text-[10px]">مشخصات صاحب حساب</span>
-                  </div>
-                  <div className="pr-10 p-2 grid grid-cols-2 gap-y-4 gap-x-8">
-                      <div className="flex items-center gap-2"><span className="font-bold w-20">نام شرکت:</span><div className="flex-1 border-b border-dotted border-gray-400 font-bold text-lg">{order.payingCompany}</div></div>
-                      <div className="flex items-center gap-2"><span className="font-bold w-20">شناسه ملی:</span><div className="flex-1 border-b border-dotted border-gray-400 font-mono text-center">{company?.nationalId}</div></div>
-                      <div className="flex items-center gap-2"><span className="font-bold w-20">شماره ثبت:</span><div className="flex-1 border-b border-dotted border-gray-400 font-mono text-center">{company?.registrationNumber}</div></div>
-                      <div className="flex items-center gap-2"><span className="font-bold w-20">تلفن:</span><div className="flex-1 border-b border-dotted border-gray-400 font-mono text-center">{company?.phone}</div></div>
-                      <div className="col-span-2 flex items-center gap-2"><span className="font-bold w-20">نشانی:</span><div className="flex-1 border-b border-dotted border-gray-400">{company?.address}</div></div>
-                  </div>
-              </div>
-
-              {/* Section 2: Request */}
-              <div className="mb-6 p-2 space-y-4 font-bold">
-                  <div className="flex items-center gap-2">
-                      <span>به این وسیله از بانک درخواست می‌نماییم در تاریخ</span>
-                      <span className="border-b border-dotted border-black w-24 text-center">{pDate}</span>
-                      <span>مبلغ (به عدد):</span>
-                      <span className="border-2 border-black bg-gray-100 px-4 py-1 font-mono text-lg">{amountStr}</span>
-                      <span>ریال</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <span>مبلغ (به حروف):</span>
-                      <span className="flex-1 border-b border-dotted border-black px-2">........................................................................................................ ریال</span>
-                      <span>از حساب مبدا به شرح زیر برداشت و به حساب مقصد انتقال دهید.</span>
-                  </div>
-              </div>
-
-              {/* Section 3: Source Account */}
-              <div className={`border-2 ${borderClass} mb-4 relative bg-gray-50/50`}>
-                  <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gray-200 border-l-2 ${borderClass} flex items-center justify-center text-center font-bold`}>
-                      <span className="-rotate-90 whitespace-nowrap text-[10px]">حساب مبدا</span>
-                  </div>
-                  <div className="pr-10 p-2 space-y-4">
-                      <div className="flex gap-4">
-                          <div className="flex items-center gap-2 flex-1"><span className="font-bold">شماره حساب مبدا:</span><div className="font-mono text-lg font-bold border-b border-black px-2">{sourceAccount}</div></div>
-                          {chequeLine && <div className="flex items-center gap-2 flex-1"><span className="font-bold">سریال چک:</span><div className="font-mono border-b border-black px-2">{chequeLine.chequeNumber}</div></div>}
+              {/* --- BACKGROUND SIMULATION (Only visible if showFormBackground is true) --- */}
+              {showFormBackground && (
+                  <div className="absolute inset-0 pointer-events-none opacity-20 z-0">
+                      {/* Using CSS grid to simulate the form lines since we don't have the image */}
+                      <div className="w-full h-[15%] border-b-2 border-black flex items-center justify-center"><h1 className="text-4xl font-bold text-gray-400">محل هدر بانک رفاه</h1></div>
+                      <div className="w-full h-[15%] border-b-2 border-black flex">
+                          <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">مشخصات</div>
+                          <div className="flex-1 p-2">محل اطلاعات شرکت (نام، شناسه، ثبت...)</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                          <span className="font-bold w-20">شماره شبا:</span>
-                          <div className="flex-1">{renderShebaBoxes(sourceBankConfig?.sheba)}</div>
+                      <div className="w-full h-[10%] border-b-2 border-black p-2">محل درخواست و مبلغ</div>
+                      <div className="w-full h-[20%] border-b-2 border-black flex">
+                           <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">حساب مبدا</div>
+                           <div className="flex-1 p-2">اطلاعات حساب مبدا (شماره، شبا)</div>
                       </div>
-                  </div>
-              </div>
-
-              {/* Section 4: Destination Account */}
-              <div className={`border-2 ${borderClass} mb-6 relative`}>
-                  <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gray-200 border-l-2 ${borderClass} flex items-center justify-center text-center font-bold`}>
-                      <span className="-rotate-90 whitespace-nowrap text-[10px]">حساب مقصد</span>
-                  </div>
-                  <div className="pr-10 p-2 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="flex items-center gap-2"><span className="font-bold">نام و نام خانوادگی (ذینفع):</span><div className="font-bold text-lg border-b border-black flex-1">{order.payee}</div></div>
-                          <div className="flex items-center gap-2"><span className="font-bold">بانک مقصد:</span><div className="font-bold border-b border-black flex-1">{mainLine.recipientBank}</div></div>
+                      <div className="w-full h-[25%] border-b-2 border-black flex">
+                           <div className="w-[10%] border-l-2 border-black bg-gray-100 flex items-center justify-center rotate-90">حساب مقصد</div>
+                           <div className="flex-1 p-2">اطلاعات حساب مقصد (گیرنده، شبا، شناسه)</div>
                       </div>
-                      <div className="flex items-center gap-2"><span className="font-bold">بابت:</span><div className="border-b border-black flex-1">{mainLine.description}</div></div>
-                      <div className="flex items-center gap-2">
-                          <span className="font-bold w-20">شماره شبا (الزامی):</span>
-                          <div className="flex-1">{renderShebaBoxes(mainLine.sheba)}</div>
-                      </div>
-                      {mainLine.paymentId && (
-                          <div className="flex items-center gap-2">
-                              <span className="font-bold w-20">شناسه پرداخت:</span>
-                              <div className="flex-1 flex justify-start gap-1">
-                                  {mainLine.paymentId.split('').map((c, i) => <div key={i} className="w-5 h-6 border border-black flex items-center justify-center font-bold">{c}</div>)}
-                              </div>
-                          </div>
-                      )}
+                      <div className="w-full h-[15%] p-2">امضاها</div>
                   </div>
-              </div>
+              )}
 
-              {/* Footer: Signatures */}
-              <div className={`border-2 ${borderClass} p-4 flex justify-between h-40`}>
-                  <div className="w-1/3 text-center border-l-2 border-gray-300">
-                      <div className="font-bold mb-8">مهر و امضای مشتری (صاحب حساب)</div>
-                      <div className="h-20"></div>
-                  </div>
-                  <div className="w-1/3 text-center border-l-2 border-gray-300">
-                      <div className="font-bold mb-8">مهر و امضا مسئول شعبه</div>
-                  </div>
-                  <div className="w-1/3 text-center">
-                      <div className="font-bold mb-8">مهر و امضا متصدی</div>
-                  </div>
-              </div>
+              {/* --- DATA LAYER (Exact Positioning) --- */}
+              {/* Coordinates are approximated for A4 Portrait based on the provided image structure */}
+              
+              {/* 1. Header Date/No */}
+              <Field top="38mm" left="25mm" width="30mm" text={dateParts[0]} align="center" /> {/* Year */}
+              <Field top="38mm" left="58mm" width="10mm" text={dateParts[1]} align="center" /> {/* Month */}
+              <Field top="38mm" left="72mm" width="10mm" text={dateParts[2]} align="center" /> {/* Day */}
+              {/* Number is usually handled by bank, but we can put tracking num if needed */}
+              {/* <Field top="45mm" left="35mm" width="40mm" text={order.trackingNumber} align="center" /> */}
 
+              {/* Checkboxes (Paya/Satna/Pol) - Usually top right ~20-30mm down */}
+              {/* Assuming Satna is middle checkbox */}
+              {mainLine.method === PaymentMethod.SATNA && <div style={{ position: 'absolute', top: '44mm', right: '18mm', fontSize: '20px' }}>✖</div>}
+              {mainLine.method === PaymentMethod.TRANSFER && <div style={{ position: 'absolute', top: '35mm', right: '18mm', fontSize: '20px' }}>✖</div>} 
+
+              {/* 2. Corporate Info (Right Side usually) */}
+              <Field top="75mm" left="50mm" width="90mm" text={order.payingCompany} size="13px" /> {/* Company Name */}
+              <Field top="75mm" left="10mm" width="40mm" text={company?.registrationNumber || ''} align="center" /> {/* Reg No */}
+              <Field top="85mm" left="80mm" width="60mm" text={company?.nationalId || ''} align="center" /> {/* National ID */}
+              <Field top="85mm" left="10mm" width="40mm" text={company?.phone || ''} align="center" /> {/* Phone */}
+              <Field top="94mm" left="10mm" width="160mm" text={company?.address || ''} size="11px" /> {/* Address */}
+
+              {/* 3. Request Body */}
+              <Field top="112mm" left="85mm" width="50mm" text={amountStr} align="center" size="14px" letterSpacing="1px" /> {/* Amount Numeric */}
+              <Field top="112mm" left="40mm" width="25mm" text={pDate} align="center" /> {/* Date again in body */}
+              <Field top="122mm" left="50mm" width="120mm" text={amountWords} align="right" size="11px" /> {/* Amount Words */}
+
+              {/* 4. Source Account */}
+              <Field top="138mm" left="120mm" width="40mm" text="مرکزی / --" align="center" /> {/* Branch Name/Code */}
+              <Field top="138mm" left="40mm" width="60mm" text={sourceBankConfig?.accountNumber || ''} align="center" size="14px" /> {/* Source Account Num */}
+              {/* Source Check Serial if Check */}
+              {/* Source Sheba */}
+              <ShebaGrid top="152mm" left="28mm" sheba={sourceBankConfig?.sheba} />
+
+              {/* 5. Destination Account */}
+              <Field top="168mm" left="50mm" width="100mm" text={order.payee} size="13px" /> {/* Payee Name */}
+              <Field top="168mm" left="10mm" width="35mm" text={mainLine.recipientBank} align="center" /> {/* Dest Bank */}
+              
+              {/* Account Num Dest (Sometimes distinct field, sometimes implied by Sheba. Form image shows separate field) */}
+              <Field top="168mm" left="10mm" width="50mm" text="" align="center" /> {/* Account Num if available */}
+
+              <Field top="178mm" left="10mm" width="160mm" text={mainLine.description} size="11px" /> {/* Reason/Babat */}
+              
+              {/* Destination Sheba */}
+              <ShebaGrid top="192mm" left="28mm" sheba={mainLine.sheba} />
+
+              {/* Payment ID (Shenase) */}
+              {mainLine.paymentId && (
+                  <div style={{ position: 'absolute', top: '205mm', left: '28mm', display: 'flex', gap: '3.6mm', direction: 'ltr' }}>
+                      {mainLine.paymentId.split('').map((d, i) => (
+                          <div key={i} style={{ width: '4mm', textAlign: 'center', fontWeight: 'bold', fontSize: '14px' }}>{d}</div>
+                      ))}
+                  </div>
+              )}
+
+              {/* 6. Signatures (Bottom) - Optional: Add placeholders if needed */}
+              <Field top="230mm" left="140mm" width="40mm" text="امضا صاحب حساب" align="center" size="10px" />
           </div>
       );
   };
@@ -364,9 +373,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  {/* Extra option for Bank Form */}
                  {printMode === 'bank_form' && (
                      <div className="col-span-2 md:col-span-4 flex justify-center mt-2">
-                         <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                         <label className="flex items-center gap-2 text-xs cursor-pointer select-none bg-yellow-50 p-2 rounded border border-yellow-200">
                              <input type="checkbox" checked={showFormBackground} onChange={e => setShowFormBackground(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>
-                             چاپ خطوط و زمینه فرم (برای کاغذ سفید)
+                             {showFormBackground ? <Eye size={14}/> : <EyeOff size={14}/>} 
+                             <span>چاپ راهنما (برای تست)</span>
                          </label>
                      </div>
                  )}
@@ -397,7 +407,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       
       {/* Container specifically for on-screen viewing */}
       <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
-          <div style={{ width: printMode === 'bank_form' ? '297mm' : '210mm', height: printMode === 'bank_form' ? '210mm' : '148mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <div style={{ width: printMode === 'bank_form' ? '210mm' : '210mm', height: printMode === 'bank_form' ? '297mm' : '148mm', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             {contentToRender}
           </div>
       </div>
