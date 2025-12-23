@@ -177,7 +177,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                 
                 {/* APPROVE BUTTON: Green for Normal, Red/Orange for Revocation */}
                 {onApprove && 
-                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
+                    <button onClick={onApprove} className={`flex-1 ${isRevocationProcess ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-lg flex items-center justify-center gap-1.5 font-bold shadow-sm transition-transform active:scale-95`}>
                         {isRevocationProcess ? <XCircle size={18}/> : <CheckCircle size={18} />} 
                         {isRevocationProcess ? 'تایید ابطال' : 'تایید'}
                     </button>

@@ -58,14 +58,24 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const availableCompanies = settings?.companies?.map(c => c.name) || settings?.companyNames || [];
 
   const canApprove = (order: PaymentOrder): boolean => {
+    // Final states cannot be approved
     if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
     
-    // Revocation Workflow
-    if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE && (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN)) return true;
-    if (order.status === OrderStatus.REVOCATION_PENDING_MANAGER && (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN)) return true;
-    if (order.status === OrderStatus.REVOCATION_PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
+    // --- REVOCATION WORKFLOW APPROVALS ---
+    // If it is in revocation, ONLY check revocation roles
+    if (order.status === OrderStatus.REVOCATION_PENDING_FINANCE) {
+        return currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN;
+    }
+    if (order.status === OrderStatus.REVOCATION_PENDING_MANAGER) {
+        return currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN;
+    }
+    if (order.status === OrderStatus.REVOCATION_PENDING_CEO) {
+        return currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN;
+    }
 
-    // Normal Workflow (Stop if in revocation)
+    // --- NORMAL WORKFLOW APPROVALS ---
+    // If we are here, it means it is NOT in revocation workflow (or status didn't match above)
+    // Safety: don't show normal approve if it's somehow in a revocation state but user doesn't match
     if (order.status.includes('REVOCATION')) return false;
 
     if (order.status === OrderStatus.PENDING && permissions.canApproveFinancial) return true;
@@ -78,6 +88,8 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const canEdit = (order: PaymentOrder): boolean => {
       if (currentUser.role === UserRole.ADMIN) return true;
       if (order.status === OrderStatus.APPROVED_CEO || order.status === OrderStatus.REVOKED) return false;
+      
+      // Cannot edit if in revocation process
       if (order.status.includes('REVOCATION')) return false;
 
       if (currentUser.role === UserRole.USER) {
@@ -101,10 +113,12 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   };
 
   const getNextStatus = (current: OrderStatus): OrderStatus => {
+      // --- REVOCATION PATH ---
       if (current === OrderStatus.REVOCATION_PENDING_FINANCE) return OrderStatus.REVOCATION_PENDING_MANAGER;
       if (current === OrderStatus.REVOCATION_PENDING_MANAGER) return OrderStatus.REVOCATION_PENDING_CEO;
       if (current === OrderStatus.REVOCATION_PENDING_CEO) return OrderStatus.REVOKED;
 
+      // --- NORMAL PATH ---
       if (current === OrderStatus.PENDING) return OrderStatus.APPROVED_FINANCE;
       if (current === OrderStatus.APPROVED_FINANCE) return OrderStatus.APPROVED_MANAGER;
       if (current === OrderStatus.APPROVED_MANAGER) return OrderStatus.APPROVED_CEO;
@@ -116,11 +130,12 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
     const nextStatus = getNextStatus(currentStatus);
     const isRevocation = currentStatus.includes('REVOCATION');
     
-    const confirmMsg = isRevocation 
-        ? `⚠️ هشدار: شما در حال تایید "ابطال" این سند هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا ادامه می‌دهید؟` 
+    // Custom Message for Revocation
+    const msg = isRevocation 
+        ? `⚠️ هشدار مهم:\nشما در حال تایید "ابطال" این دستور پرداخت هستید.\nوضعیت بعدی: ${getStatusLabel(nextStatus)}\nآیا از ابطال این سند اطمینان دارید؟` 
         : `آیا تایید مرحله "${getStatusLabel(nextStatus)}" را انجام می‌دهید؟`;
     
-    if (window.confirm(confirmMsg)) {
+    if (window.confirm(msg)) {
         setIsProcessing(true);
         setProcessingMessage(isRevocation ? 'درحال تایید ابطال...' : 'درحال تایید...');
         try {
@@ -150,15 +165,17 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
       }
   };
 
+  // Initiate Revocation
   const handleRevoke = async (id: string) => {
-      if (window.confirm('⚠️ آیا درخواست ابطال این دستور پرداخت را دارید؟\nاین درخواست وارد چرخه تایید ابطال خواهد شد.')) {
+      if (window.confirm('⚠️ آیا درخواست ابطال این دستور پرداخت را دارید؟\nاین درخواست وارد چرخه تایید ابطال (مدیر مالی -> مدیریت -> مدیرعامل) خواهد شد.')) {
           setIsProcessing(true);
           setProcessingMessage('درحال ارسال درخواست ابطال...');
           try {
+              // Explicitly set the first step of revocation
               await apiCall(`/orders/${id}`, 'PUT', { status: OrderStatus.REVOCATION_PENDING_FINANCE, updatedAt: Date.now() });
               await refreshData();
               setViewOrder(null);
-              alert('درخواست ابطال ارسال شد.');
+              alert('درخواست ابطال ارسال شد و در کارتابل مدیر مالی قرار گرفت.');
           } catch (e) {
               alert('خطا در عملیات ابطال.');
           } finally {
@@ -213,8 +230,10 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
   const getOrdersForTab = () => {
       let tabOrders = orders;
       if (activeTab === 'archive') {
+          // Archive contains successfully completed OR finally revoked
           tabOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
       } else {
+          // Current contains everything else, INCLUDING active revocation processes
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
