@@ -60,8 +60,9 @@ const Settings: React.FC = () => {
   const [newCompanyPhone, setNewCompanyPhone] = useState('');
 
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null); // For editing specific bank inside company
   
-  // Local states for adding banks to a company
+  // Local states for adding/editing banks
   const [tempBankName, setTempBankName] = useState('');
   const [tempAccountNum, setTempAccountNum] = useState('');
   const [tempBankSheba, setTempBankSheba] = useState('');
@@ -283,32 +284,50 @@ const Settings: React.FC = () => {
       setNewCompanyAddress('');
       setNewCompanyPhone('');
       setEditingCompanyId(null); 
+      
+      resetBankForm();
+  };
+
+  const resetBankForm = () => {
       setTempBankName('');
       setTempAccountNum('');
       setTempBankSheba('');
       setTempBankLayout('DEFAULT');
+      setEditingBankId(null);
   };
 
   const handleRemoveCompany = (id: string) => { if(confirm("حذف؟")) { const updated = (settings.companies || []).filter(c => c.id !== id); setSettings({ ...settings, companies: updated, companyNames: updated.map(c => c.name) }); } };
   
   // Company Bank Management
-  const addCompanyBank = () => {
+  const addOrUpdateCompanyBank = () => {
       if (!tempBankName) return;
-      const newBank: CompanyBank = { 
-          id: generateUUID(), 
+      const bankData: CompanyBank = { 
+          id: editingBankId || generateUUID(), 
           bankName: tempBankName, 
           accountNumber: tempAccountNum,
           sheba: tempBankSheba,
           formLayout: tempBankLayout
       };
-      setNewCompanyBanks([...newCompanyBanks, newBank]);
-      setTempBankName('');
-      setTempAccountNum('');
-      setTempBankSheba('');
-      setTempBankLayout('DEFAULT');
+
+      if (editingBankId) {
+          setNewCompanyBanks(newCompanyBanks.map(b => b.id === editingBankId ? bankData : b));
+      } else {
+          setNewCompanyBanks([...newCompanyBanks, bankData]);
+      }
+      resetBankForm();
   };
+
+  const editCompanyBank = (bank: CompanyBank) => {
+      setTempBankName(bank.bankName);
+      setTempAccountNum(bank.accountNumber);
+      setTempBankSheba(bank.sheba || '');
+      setTempBankLayout(bank.formLayout || 'DEFAULT');
+      setEditingBankId(bank.id);
+  };
+
   const removeCompanyBank = (id: string) => {
       setNewCompanyBanks(newCompanyBanks.filter(b => b.id !== id));
+      if (editingBankId === id) resetBankForm();
   };
 
   // Operating Banks
@@ -579,19 +598,25 @@ const Settings: React.FC = () => {
                                                 <option value="DEFAULT">استاندارد (ساده)</option>
                                                 <option value="REFAH">فرم مخصوص بانک رفاه کارگران</option>
                                             </select>
-                                            <button type="button" onClick={addCompanyBank} className="bg-blue-600 text-white p-1.5 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs"><Plus size={16}/> افزودن</button>
+                                            <button type="button" onClick={addOrUpdateCompanyBank} className="bg-blue-600 text-white p-1.5 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs">
+                                                {editingBankId ? <Pencil size={16}/> : <Plus size={16}/>} {editingBankId ? 'بروزرسانی' : 'افزودن'}
+                                            </button>
+                                            {editingBankId && <button type="button" onClick={resetBankForm} className="bg-gray-200 text-gray-700 p-1.5 rounded-lg hover:bg-gray-300 text-xs font-bold">انصراف</button>}
                                         </div>
                                     </div>
 
                                     <div className="space-y-1 mt-2">
                                         {newCompanyBanks.map((bank, idx) => (
-                                            <div key={bank.id || idx} className="flex justify-between items-center bg-gray-50 px-2 py-1.5 rounded text-xs border">
+                                            <div key={bank.id || idx} className={`flex justify-between items-center px-2 py-1.5 rounded text-xs border ${editingBankId === bank.id ? 'bg-blue-50 border-blue-300' : 'bg-gray-50'}`}>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold">{bank.bankName}</span>
                                                     <span className="font-mono text-gray-500">{bank.accountNumber}</span>
                                                     {bank.formLayout === 'REFAH' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded w-fit">قالب: بانک رفاه</span>}
                                                 </div>
-                                                <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
+                                                <div className="flex gap-1">
+                                                    <button type="button" onClick={() => editCompanyBank(bank)} className="text-blue-500 hover:text-blue-700"><Pencil size={14}/></button>
+                                                    <button type="button" onClick={() => removeCompanyBank(bank.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
+                                                </div>
                                             </div>
                                         ))}
                                         {newCompanyBanks.length === 0 && <div className="text-xs text-gray-400 text-center py-2">هنوز بانکی تعریف نشده است</div>}
