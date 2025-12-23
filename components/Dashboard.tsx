@@ -42,21 +42,26 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
 
-  // --- CALC PENDING COUNTS FOR ACTION CARDS ---
+  // --- CALC PENDING COUNTS FOR ACTION CARDS (Fixed to include Revocation) ---
   
-  // 1. Payment Pending Count (Based on user role)
   let pendingPaymentCount = 0;
+  
+  // 1. Finance: Pending Normal OR Pending Revocation
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length;
   }
+  
+  // 2. Manager: Approved Finance (Normal) OR Revocation from Finance
   if (currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER).length;
   }
+  
+  // 3. CEO: Approved Manager (Normal) OR Revocation from Manager
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
-      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER).length;
+      pendingPaymentCount += orders.filter(o => o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO).length;
   }
 
-  // 2. Exit Pending Count
+  // 4. Exit Pending Count
   let pendingExitCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
       pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
@@ -65,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
   }
 
-  // 3. Bijak Pending Count
+  // 5. Bijak Pending Count
   let pendingBijakCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) {
       pendingBijakCount += warehouseTxs.filter(t => t.type === 'OUT' && t.status === 'PENDING').length;
@@ -74,7 +79,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const showActionSection = pendingPaymentCount > 0 || pendingExitCount > 0 || pendingBijakCount > 0;
 
   // ... (Existing Charts logic) ...
-  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO);
+  const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
   const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
   const countPending = orders.filter(o => o.status === OrderStatus.PENDING).length;
   const countFin = orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE).length;
@@ -82,7 +87,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const countRejected = orders.filter(o => o.status === OrderStatus.REJECTED).length;
 
   const activeCartable = hasPaymentAccess ? orders
-    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED)
+    .filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REJECTED && o.status !== OrderStatus.REVOKED)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10) : [];
 
@@ -152,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                                     <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">{pendingPaymentCount} مورد</span>
                                 </div>
                                 <h3 className="text-2xl font-bold mb-1">تایید دستور پرداخت</h3>
-                                <p className="text-blue-100 text-sm opacity-90">درخواست‌های منتظر تایید شما</p>
+                                <p className="text-blue-100 text-sm opacity-90">درخواست‌های عادی و ابطال</p>
                             </div>
                         </div>
                     )}
@@ -240,7 +245,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             </div>
         </div>
 
-        {/* Active Cartable List (Payments Only for brevity, or mixed?) - Kept as Payments for now */}
+        {/* Active Cartable List */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20} className="text-orange-500"/> آخرین فعالیت‌ها (پرداخت)</h3>
@@ -263,7 +268,11 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                         activeCartable.map(order => (
                             <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                                        order.status === OrderStatus.REJECTED ? 'bg-red-100 text-red-600' : 
+                                        order.status.includes('ابطال') ? 'bg-orange-100 text-orange-600' :
+                                        'bg-blue-100 text-blue-600'
+                                    }`}>
                                         {order.trackingNumber % 100}
                                     </div>
                                     <div>
@@ -277,7 +286,11 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                                 </div>
                                 <div className="text-right">
                                     <div className="font-bold text-gray-900 font-mono text-sm">{formatCurrency(order.totalAmount)}</div>
-                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                                    <div className={`text-[10px] mt-1 px-2 py-0.5 rounded inline-block ${
+                                        order.status.includes('ابطال') ? 'bg-red-50 text-red-600 font-bold border border-red-200' : 
+                                        order.status === OrderStatus.PENDING ? 'bg-amber-100 text-amber-700' : 
+                                        'bg-blue-50 text-blue-600'
+                                    }`}>
                                         {order.status}
                                     </div>
                                 </div>

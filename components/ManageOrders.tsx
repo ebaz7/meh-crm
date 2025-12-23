@@ -249,19 +249,25 @@ const ManageOrders: React.FC<ManageOrdersProps> = ({ orders, refreshData, curren
           tabOrders = orders.filter(o => o.status !== OrderStatus.APPROVED_CEO && o.status !== OrderStatus.REVOKED);
       }
 
+      // Allow Admin to see all
+      if (currentUser.role === UserRole.ADMIN) return tabOrders;
+
       if (!permissions.canViewAll) {
-          // Special logic to allow Financial/Manager/CEO to see revocation requests in "Current" even if they didn't create them
-          if (currentUser.role === UserRole.FINANCIAL && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_FINANCE)) {
-             // Financial needs to see items assigned to them
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_FINANCE || o.status === OrderStatus.PENDING);
+          // FILTER BY ROLE RESPONSIBILITY (INCLUDING REVOCATION)
+          // 1. Finance sees: Own requests OR Pending Normal OR Pending Revocation
+          if (currentUser.role === UserRole.FINANCIAL) {
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE);
           }
-          if (currentUser.role === UserRole.MANAGER && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_MANAGER)) {
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_MANAGER || o.status === OrderStatus.APPROVED_FINANCE);
+          // 2. Manager sees: Own requests OR Approved Finance OR Pending Revocation
+          if (currentUser.role === UserRole.MANAGER) {
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER);
           }
-          if (currentUser.role === UserRole.CEO && tabOrders.some(o => o.status === OrderStatus.REVOCATION_PENDING_CEO)) {
-             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.REVOCATION_PENDING_CEO || o.status === OrderStatus.APPROVED_MANAGER);
+          // 3. CEO sees: Own requests OR Approved Manager OR Pending Revocation
+          if (currentUser.role === UserRole.CEO) {
+             return tabOrders.filter(o => o.requester === currentUser.fullName || o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO);
           }
 
+          // Regular users see only their own
           return tabOrders.filter(o => o.requester === currentUser.fullName);
       }
       return tabOrders;
