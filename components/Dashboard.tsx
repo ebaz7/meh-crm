@@ -40,15 +40,13 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false, canCreatePaymentOrder: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
   
-  // Logic to hide charts for normal users (users who cannot create payment orders)
-  // We keep it visible for Admins, CEOs, and Managers regardless of permissions settings just in case
   const showCharts = permissions.canCreatePaymentOrder || 
                      currentUser.role === UserRole.ADMIN || 
                      currentUser.role === UserRole.CEO || 
                      currentUser.role === UserRole.MANAGER || 
                      currentUser.role === UserRole.FINANCIAL;
 
-  // --- CALC PENDING COUNTS FOR ACTION CARDS (Including Revocation) ---
+  // --- CALC PENDING COUNTS FOR ACTION CARDS ---
   let pendingPaymentCount = 0;
   if (currentUser.role === UserRole.FINANCIAL || currentUser.role === UserRole.ADMIN) {
       pendingPaymentCount += orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length;
@@ -63,7 +61,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   let pendingExitCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
   if (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
-  // Warehouse Supervisor pending count
+  // Warehouse Supervisor pending count (ADDED THIS BLOCK)
   if (currentUser.role === UserRole.WAREHOUSE_KEEPER || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_WAREHOUSE).length;
 
   let pendingBijakCount = 0;
