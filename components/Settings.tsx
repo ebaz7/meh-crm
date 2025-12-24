@@ -109,7 +109,7 @@ const Settings: React.FC = () => {
   // App Users to merge into contacts list and manage access
   const [appUsers, setAppUsers] = useState<(Contact | User)[]>([]); // Mixed list or handle separately
   
-  // Collapsed state for permission groups (Default False for cleaner view)
+  // Collapsed state for permission groups
   const [expandedPermGroups, setExpandedPermGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => { 
