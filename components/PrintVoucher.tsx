@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
-import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2 } from 'lucide-react';
+import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString, getShamsiDateFromIso } from '../constants';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -33,13 +33,17 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const [calibration, setCalibration] = useState({ x: 0, y: 0 }); // mm
   const [showCalibration, setShowCalibration] = useState(false);
 
-  // Find SATNA/CHEQUE line
-  const satnaLine = order.paymentDetails.find(d => d.method === PaymentMethod.SATNA);
-  const mainLine = satnaLine || order.paymentDetails[0];
+  // Line Selection for Multi-Payment Orders
+  const [currentLineIndex, setCurrentLineIndex] = useState(0);
 
-  // Determine Form Type based on Bank Settings
+  // Determine which line to show
+  // In 'receipt' mode, we show the whole order. In 'bank_form' mode, we focus on one line.
+  const paymentLines = order.paymentDetails;
+  const currentLine = paymentLines[currentLineIndex];
+
+  // Determine Form Type based on Bank Settings for the CURRENT line
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
-  const sourceBankConfig = company?.banks?.find(b => mainLine.bankName?.includes(b.bankName));
+  const sourceBankConfig = company?.banks?.find(b => currentLine.bankName?.includes(b.bankName));
   const bankTemplateId = sourceBankConfig?.formLayoutId;
   const dynamicTemplate = settings?.printTemplates?.find(t => t.id === bankTemplateId);
 
@@ -51,6 +55,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           const saved = localStorage.getItem(`print_calib_${dynamicTemplate.id}`);
           if (saved) {
               setCalibration(JSON.parse(saved));
+          } else {
+              setCalibration({ x: 0, y: 0 });
           }
       }
   }, [dynamicTemplate]);
@@ -142,31 +148,36 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   // --- DYNAMIC FORM RENDERER ---
   const DynamicBankFormOverlay = () => {
-      if (!mainLine || !dynamicTemplate) return null;
+      if (!currentLine || !dynamicTemplate) return null;
       
-      const pDate = new Date(order.date).toLocaleDateString('fa-IR');
-      const dateParts = pDate.split('/'); // [yyyy, mm, dd]
-      const amountStr = formatNumberString(mainLine.amount);
-      const amountWords = numberToPersianWords(mainLine.amount);
+      // Reliable Date Parsing
+      const shamsi = getShamsiDateFromIso(order.date);
+      const yStr = shamsi.year.toString();
+      const mStr = shamsi.month.toString().padStart(2, '0');
+      const dStr = shamsi.day.toString().padStart(2, '0');
+      const dateFull = `${yStr}/${mStr}/${dStr}`;
+
+      const amountStr = formatNumberString(currentLine.amount);
+      const amountWords = numberToPersianWords(currentLine.amount);
 
       // Data Mapping Logic
       const getValue = (key: string) => {
           switch(key) {
-              case 'date_year': return dateParts[0];
-              case 'date_month': return dateParts[1];
-              case 'date_day': return dateParts[2];
-              case 'date_full': return pDate;
+              case 'date_year': return yStr;
+              case 'date_month': return mStr;
+              case 'date_day': return dStr;
+              case 'date_full': return dateFull;
               case 'amount_num': return amountStr;
               case 'amount_word': return amountWords;
               case 'payee': return order.payee;
-              case 'description': return mainLine.description || order.description;
+              case 'description': return currentLine.description || order.description;
               case 'source_account': return sourceBankConfig?.accountNumber || '';
               case 'source_sheba': return sourceBankConfig?.sheba || '';
-              case 'dest_account': return mainLine.destinationAccount || ''; 
-              case 'dest_sheba': return mainLine.sheba || '';
-              case 'dest_bank': return mainLine.recipientBank || '';
-              case 'payment_id': return mainLine.paymentId || '';
-              case 'cheque_no': return mainLine.chequeNumber || '';
+              case 'dest_account': return currentLine.destinationAccount || ''; 
+              case 'dest_sheba': return currentLine.sheba || '';
+              case 'dest_bank': return currentLine.recipientBank || '';
+              case 'payment_id': return currentLine.paymentId || '';
+              case 'cheque_no': return currentLine.chequeNumber || '';
               case 'company_name': return order.payingCompany;
               case 'company_id': return company?.nationalId || '';
               case 'company_reg': return company?.registrationNumber || '';
@@ -385,6 +396,29 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                  {/* Extra option for Bank Form */}
                  {printMode === 'bank_form' && (
                      <div className="col-span-2 md:col-span-4 flex flex-col gap-2 mt-2 bg-gray-50 p-2 rounded border">
+                         {/* Multi-Line Navigation */}
+                         {paymentLines.length > 1 && (
+                             <div className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 mb-2">
+                                 <button 
+                                    onClick={() => setCurrentLineIndex(prev => Math.max(0, prev - 1))}
+                                    disabled={currentLineIndex === 0}
+                                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30"
+                                 >
+                                     <ChevronRight size={16}/>
+                                 </button>
+                                 <span className="text-xs font-bold text-gray-700">
+                                     ردیف {currentLineIndex + 1} از {paymentLines.length} - {currentLine.method} ({formatCurrency(currentLine.amount)})
+                                 </span>
+                                 <button 
+                                    onClick={() => setCurrentLineIndex(prev => Math.min(paymentLines.length - 1, prev + 1))}
+                                    disabled={currentLineIndex === paymentLines.length - 1}
+                                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30"
+                                 >
+                                     <ChevronLeft size={16}/>
+                                 </button>
+                             </div>
+                         )}
+
                          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                              <input type="checkbox" checked={showFormBackground} onChange={e => setShowFormBackground(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>
                              چاپ زمینه (عکس فرم خام)
