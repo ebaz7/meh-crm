@@ -87,8 +87,13 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return false;
   };
 
-  const generateFullCaption = (permit: ExitPermit, header: string) => {
+  const generateFullCaption = (permit: ExitPermit, header: string, emphasizeTime: boolean = false) => {
       let c = `${header}\n`;
+      
+      if (emphasizeTime && permit.exitTime) {
+          c += `\n🕒 *ساعت خروج: ${permit.exitTime}* 🕒\n\n`;
+      }
+
       c += `🔢 شماره مجوز: ${permit.permitNumber}\n`;
       c += `📅 تاریخ: ${formatDate(permit.date)}\n`;
       c += `📦 کالا: ${permit.goodsName}\n`;
@@ -101,7 +106,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       const addr = permit.destinations && permit.destinations.length > 0 ? permit.destinations[0].address : permit.destinationAddress;
       if (addr) c += `📍 مقصد: ${addr}\n`;
       
-      if (permit.exitTime) c += `🕒 ساعت خروج: ${permit.exitTime}\n`;
+      if (!emphasizeTime && permit.exitTime) c += `🕒 ساعت خروج: ${permit.exitTime}\n`;
       
       return c;
   };
@@ -203,7 +208,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       }
                       // CASE D: Security Approved (Final Exit) -> Archive
                       else if (nextStatus === ExitPermitStatus.EXITED) {
-                          const caption = generateFullCaption(updatedPermitMock, "✅ *خروج نهایی بار از کارخانه ثبت شد*");
+                          // EMPHASIZE EXIT TIME
+                          const caption = generateFullCaption(updatedPermitMock, "✅ *خروج نهایی بار از کارخانه ثبت شد*", true);
                           
                           // Send to Requester
                           const target = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
@@ -258,7 +264,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
               const base64 = canvas.toDataURL('image/png').split(',')[1];
               
-              const caption = generateFullCaption(permit, "✅ *خروج نهایی بار از کارخانه ثبت شد* (ارسال مجدد)");
+              // EMPHASIZE EXIT TIME
+              const caption = generateFullCaption(permit, "✅ *خروج نهایی بار از کارخانه ثبت شد* (ارسال مجدد)", true);
               
               await apiCall('/send-whatsapp', 'POST', { 
                   number: settings.exitPermitNotificationGroup, 
