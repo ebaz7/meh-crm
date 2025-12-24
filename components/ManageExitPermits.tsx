@@ -4,7 +4,7 @@ import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '..
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
-import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw, ArchiveRestore } from 'lucide-react';
+import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import EditExitPermitModal from './EditExitPermitModal';
 import { apiCall } from '../services/apiService'; 
@@ -54,13 +54,17 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
           permissions.canApproveExitFactory
       )) return true;
       
-      // Stage 3: Warehouse Supervisor Approval
+      // Stage 3: Warehouse Supervisor Approval (CRITICAL FIX)
       if (p.status === ExitPermitStatus.PENDING_WAREHOUSE) {
+          // If user is designated Warehouse Keeper
           if (currentUser.role === UserRole.WAREHOUSE_KEEPER) return true;
-          if (currentUser.role === UserRole.ADMIN) return true;
-          if (currentUser.role === UserRole.CEO) return true;
+          // If user is Admin or CEO
+          if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
+          // If user has specific exit approval permission
           if (permissions.canApproveExitWarehouse) return true;
+          // FALLBACK: If user has general warehouse management permission (e.g. custom role 'Anbardar')
           if (permissions.canManageWarehouse) return true;
+          
           return false;
       }
       
@@ -69,8 +73,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
           currentUser.role === UserRole.SECURITY_GUARD || 
           currentUser.role === UserRole.SECURITY_HEAD || 
           currentUser.role === UserRole.ADMIN ||
-          permissions.canViewSecurity ||
-          permissions.canApproveExitSecurity // NEW PERMISSION CHECK
+          permissions.canViewSecurity 
       )) return true;
       
       return false;
@@ -229,23 +232,6 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       }
   };
 
-  // --- FORCE ARCHIVE (For Legacy Permits) ---
-  const handleForceArchive = async (id: string) => {
-      if (!confirm('⚠️ آیا اطمینان دارید؟ این عملیات مجوز را مستقیماً به بایگانی می‌برد (مناسب برای مجوزهای قدیمی).')) return;
-      
-      const time = prompt('لطفا ساعت خروج را وارد کنید:', new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'}));
-      if (!time) return;
-
-      try {
-          // Force status update to EXITED
-          await updateExitPermitStatus(id, ExitPermitStatus.EXITED, currentUser, { exitTime: time });
-          loadData();
-          alert('مجوز با موفقیت بایگانی شد.');
-      } catch (e) {
-          alert('خطا در بایگانی دستی');
-      }
-  };
-
   const handleReject = async (id: string) => {
       const reason = prompt('دلیل رد درخواست:');
       if (reason) {
@@ -329,27 +315,14 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                         <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 animate-pulse"><Loader2 size={14} className="animate-spin"/> صبر کنید...</div>
                                     ) : (
                                         <>
-                                            {/* Security Time Entry Logic */}
-                                            {p.status === ExitPermitStatus.PENDING_SECURITY && (
-                                                currentUser.role === UserRole.SECURITY_GUARD || 
-                                                currentUser.role === UserRole.SECURITY_HEAD || 
-                                                currentUser.role === UserRole.ADMIN ||
-                                                permissions.canApproveExitSecurity // Check custom permission
-                                            ) && (
+                                            {p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN) && (
                                                 <div className="flex items-center gap-2 bg-amber-50 p-1 rounded-lg border border-amber-200">
                                                     <input className="w-16 border rounded p-1 text-[10px] text-center font-mono" placeholder="ساعت" value={showExitTimeInput === p.id ? exitTimeValue : ''} onFocus={() => { setShowExitTimeInput(p.id); setExitTimeValue(new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'})); }} onChange={e => setExitTimeValue(e.target.value)}/>
                                                     <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-amber-600 text-white p-1 rounded hover:bg-amber-700" title="ثبت خروج"><CheckCircle size={14}/></button>
                                                 </div>
                                             )}
-                                            
-                                            {/* Normal Approval Button */}
                                             {p.status !== ExitPermitStatus.PENDING_SECURITY && canApprove(p) && (
                                                 <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله بعدی"><CheckCircle size={16}/></button>
-                                            )}
-
-                                            {/* ADMIN FORCE ARCHIVE (LEGACY FIX) */}
-                                            {currentUser.role === UserRole.ADMIN && p.status !== ExitPermitStatus.EXITED && (
-                                                <button onClick={() => handleForceArchive(p.id)} className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 border border-gray-300" title="بایگانی دستی (مجوزهای قدیمی)"><ArchiveRestore size={16}/></button>
                                             )}
                                         </>
                                     )}
