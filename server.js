@@ -1,4 +1,5 @@
 
+import 'dotenv/config'; // Load environment variables
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
@@ -29,7 +30,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Priority: Argument passed -> .env file -> Default 3000
 const PORT = process.env.PORT || 3000;
+
 const DB_FILE = path.join(__dirname, 'database.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const AI_UPLOADS_DIR = path.join(__dirname, 'uploads', 'ai');

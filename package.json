@@ -1,4 +1,3 @@
-
 {
   "name": "payment-order-system",
   "private": true,
@@ -9,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "fix-browser": "npx puppeteer browsers install chrome"
+    "fix-browser": "npx puppeteer browsers install chrome",
+    "install-service": "node install-service.js",
+    "uninstall-service": "node uninstall-service.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -28,7 +29,9 @@
     "adm-zip": "^0.5.10",
     "node-cron": "^3.0.3",
     "jspdf": "^2.5.1",
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "node-windows": "^1.0.0-beta.8",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",
