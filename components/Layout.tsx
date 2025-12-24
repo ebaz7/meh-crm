@@ -66,7 +66,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
 
   const checkVersion = async () => {
     try {
-      const response = await apiCall<{version: string}>('/version');
+      // Add timestamp to bypass browser/proxy caching
+      const response = await apiCall<{version: string}>(`/version?t=${Date.now()}`);
       if (response && response.version) {
         if (serverVersion === null) {
           // First load

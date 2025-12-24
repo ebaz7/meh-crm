@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '../types';
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
-import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck } from 'lucide-react';
+import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import EditExitPermitModal from './EditExitPermitModal';
 import { apiCall } from '../services/apiService'; 
@@ -29,6 +28,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
   
+  // Calculate permissions with fallbacks to ensure buttons show even if settings lag
   const permissions = getRolePermissions(currentUser.role, settings || null);
 
   useEffect(() => { loadData(); }, []);
@@ -46,20 +46,26 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (permissions.canApproveExitFactory || currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
       
       // Stage 3: Warehouse Supervisor Approval
-      // FIX: Check permission explicitly. Custom roles MUST rely on 'canApproveExitWarehouse'.
-      // If settings are not yet loaded, this might be false temporarily, but React will re-render when settings arrive.
-      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (
-          permissions.canApproveExitWarehouse || 
-          currentUser.role === UserRole.WAREHOUSE_KEEPER || 
-          currentUser.role === UserRole.ADMIN
-      )) return true;
+      // CRITICAL FIX: Ensure this returns true if ANY condition is met (Permission OR Role)
+      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE) {
+          // 1. Explicit Permission from Settings
+          if (permissions.canApproveExitWarehouse) return true;
+          // 2. Standard Role Check
+          if (currentUser.role === UserRole.WAREHOUSE_KEEPER) return true;
+          // 3. Admin/CEO Override
+          if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
+          // 4. Factory Manager Override (Often covers warehouse)
+          if (currentUser.role === UserRole.FACTORY_MANAGER) return true;
+          
+          return false;
+      }
       
       // Stage 4: Security Approval
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (
           currentUser.role === UserRole.SECURITY_GUARD || 
           currentUser.role === UserRole.SECURITY_HEAD || 
           currentUser.role === UserRole.ADMIN ||
-          permissions.canViewSecurity // Allow custom security roles to see approvals too if they have view access? No, stick to standard or specific permission if exists.
+          permissions.canViewSecurity 
       )) return true;
       
       return false;
@@ -97,8 +103,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       let extra: any = {};
 
       if (currentStatus === ExitPermitStatus.PENDING_CEO) nextStatus = ExitPermitStatus.PENDING_FACTORY;
-      else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_WAREHOUSE; // NEW STEP
-      else if (currentStatus === ExitPermitStatus.PENDING_WAREHOUSE) nextStatus = ExitPermitStatus.PENDING_SECURITY; // NEW STEP
+      else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_WAREHOUSE; 
+      else if (currentStatus === ExitPermitStatus.PENDING_WAREHOUSE) nextStatus = ExitPermitStatus.PENDING_SECURITY; 
       else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
           if (!exitTimeValue) { alert("لطفا ابتدا ساعت خروج را وارد کنید."); return; }
           nextStatus = ExitPermitStatus.EXITED;
@@ -257,13 +263,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
         )}
         <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Truck size={24} className="text-orange-600"/> کارتابل خروج بار</h2>
-            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+            <div className="flex justify-between items-center gap-2">
                 <div className="flex bg-gray-100 p-1 rounded-lg">
                     <button onClick={() => setActiveTab('current')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'current' ? 'bg-white shadow text-orange-600' : 'text-gray-500'}`}>جاری</button>
                     <button onClick={() => setActiveTab('archive')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}>بایگانی</button>
                 </div>
-                <div className="relative w-full md:w-64"><Search className="absolute right-3 top-2.5 text-gray-400" size={18}/><input className="w-full pl-4 pr-10 py-2 border rounded-xl text-sm" placeholder="جستجو..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
+                <button onClick={() => loadData()} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors" title="بروزرسانی">
+                    <RefreshCw size={18} />
+                </button>
             </div>
+            <div className="relative w-full md:w-64"><Search className="absolute right-3 top-2.5 text-gray-400" size={18}/><input className="w-full pl-4 pr-10 py-2 border rounded-xl text-sm" placeholder="جستجو..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
         </div>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">

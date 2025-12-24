@@ -77,8 +77,13 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canCreateExitPermit: isStandardRole && (userRole === UserRole.SALES_MANAGER || userRole === UserRole.ADMIN || userRole === UserRole.CEO),
         canApproveExitCeo: isStandardRole && (userRole === UserRole.CEO || userRole === UserRole.ADMIN),
         canApproveExitFactory: isStandardRole && (userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN),
-        // FIX: Added WAREHOUSE_KEEPER to default approvals for warehouse stage
-        canApproveExitWarehouse: isStandardRole && (userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.ADMIN),
+        // FIX: Broaden Warehouse approval default to include CEO and Factory Manager as overrides
+        canApproveExitWarehouse: isStandardRole && (
+            userRole === UserRole.WAREHOUSE_KEEPER || 
+            userRole === UserRole.ADMIN || 
+            userRole === UserRole.CEO || 
+            userRole === UserRole.FACTORY_MANAGER
+        ),
         
         canViewExitArchive: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.WAREHOUSE_KEEPER),
         canEditExitArchive: isStandardRole && (userRole === UserRole.ADMIN),
