@@ -4,9 +4,11 @@ export enum PaymentMethod {
   CHEQUE = 'چک',
   TRANSFER = 'حواله بانکی',
   POS = 'کارتخوان',
+  SHEBA = 'شبا (پایا / ساتنا)', // Merged Option
+  INTERNAL_TRANSFER = 'حواله داخلی',
+  // Deprecated but kept for backward compatibility if needed in logic
   SATNA = 'ساتنا',
-  PAYA = 'پایا',
-  INTERNAL_TRANSFER = 'حواله داخلی'
+  PAYA = 'پایا'
 }
 
 export enum OrderStatus {
@@ -75,13 +77,14 @@ export interface PaymentDetail {
   chequeDate?: string; 
   bankName?: string;
   description?: string;
-  // SATNA & Paya Fields
+  // SATNA & Paya Fields (Now under SHEBA)
   sheba?: string;
   recipientBank?: string;
   paymentId?: string;
   // Internal Transfer Fields
   destinationAccount?: string; // Card or Account Number
   destinationOwner?: string;
+  destinationBranch?: string; // New: Branch Name/Code
 }
 
 export interface PaymentOrder {
@@ -202,6 +205,9 @@ export interface Company {
     nationalId?: string;
     address?: string;
     phone?: string;
+    postalCode?: string; // New
+    fax?: string; // New
+    economicCode?: string; // New
 }
 export interface Contact { id: string; name: string; number: string; isGroup?: boolean; }
 export interface CustomRole { id: string; label: string; }

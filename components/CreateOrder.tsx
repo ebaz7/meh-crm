@@ -43,6 +43,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       paymentId: string;
       destinationAccount: string;
       destinationOwner: string;
+      destinationBranch: string; // New field
   }>({ 
       method: PaymentMethod.TRANSFER, 
       amount: '', 
@@ -54,7 +55,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       recipientBank: '',
       paymentId: '',
       destinationAccount: '',
-      destinationOwner: ''
+      destinationOwner: '',
+      destinationBranch: ''
   });
   const [attachments, setAttachments] = useState<{ fileName: string, data: string }[]>([]);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -164,7 +166,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       if (!amt) return; 
 
       // SATNA / PAYA Validation
-      if (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) {
+      if (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) {
           const sheba = normalizeInputNumber(newLine.sheba).replace(/[^0-9]/g, '');
           if (sheba.length !== 24) {
               alert('شماره شبا باید دقیقاً ۲۴ رقم باشد.');
@@ -177,18 +179,19 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           method: newLine.method, 
           amount: amt, 
           chequeNumber: newLine.method === PaymentMethod.CHEQUE ? normalizeInputNumber(newLine.chequeNumber) : undefined, 
-          bankName: (newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? newLine.bankName : undefined, 
+          bankName: (newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? newLine.bankName : undefined, 
           description: newLine.description, 
           chequeDate: newLine.method === PaymentMethod.CHEQUE ? `${newLine.chequeDate.y}/${newLine.chequeDate.m}/${newLine.chequeDate.d}` : undefined,
           
           // SATNA Fields
-          sheba: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? normalizeInputNumber(newLine.sheba).replace(/[^0-9]/g, '') : undefined,
-          recipientBank: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.recipientBank : undefined,
-          paymentId: (newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.paymentId : undefined,
+          sheba: (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? normalizeInputNumber(newLine.sheba).replace(/[^0-9]/g, '') : undefined,
+          recipientBank: (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.recipientBank : undefined,
+          paymentId: (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.paymentId : undefined,
           
           // Internal Transfer Fields
           destinationAccount: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? normalizeInputNumber(newLine.destinationAccount) : undefined,
           destinationOwner: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationOwner : undefined,
+          destinationBranch: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationBranch : undefined,
       }; 
       
       if (editingLineId) {
@@ -198,7 +201,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
       } else {
           setPaymentLines([...paymentLines, detail]); 
           // Append description only for new lines
-          if(newLine.description && newLine.method !== PaymentMethod.SATNA && newLine.method !== PaymentMethod.INTERNAL_TRANSFER) {
+          if(newLine.description && newLine.method !== PaymentMethod.SHEBA && newLine.method !== PaymentMethod.SATNA && newLine.method !== PaymentMethod.INTERNAL_TRANSFER) {
               setFormData(p => ({...p, description: p.description ? `${p.description} - ${newLine.description}` : newLine.description}));
           }
       }
@@ -214,7 +217,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           recipientBank: '',
           paymentId: '',
           destinationAccount: '',
-          destinationOwner: ''
+          destinationOwner: '',
+          destinationBranch: ''
       }); 
   };
 
@@ -239,7 +243,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           recipientBank: line.recipientBank || '',
           paymentId: line.paymentId || '',
           destinationAccount: line.destinationAccount || '',
-          destinationOwner: line.destinationOwner || ''
+          destinationOwner: line.destinationOwner || '',
+          destinationBranch: line.destinationBranch || ''
       });
       setEditingLineId(line.id);
   };
@@ -356,11 +361,21 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">نوع</label><select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>{Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                    <div className="md:col-span-2 space-y-1">
+                        <label className="text-xs text-gray-500">نوع</label>
+                        <select className="w-full border rounded-lg p-2 text-sm bg-white" value={newLine.method} onChange={e => setNewLine({ ...newLine, method: e.target.value as PaymentMethod })}>
+                            <option value={PaymentMethod.TRANSFER}>{PaymentMethod.TRANSFER}</option>
+                            <option value={PaymentMethod.CHEQUE}>{PaymentMethod.CHEQUE}</option>
+                            <option value={PaymentMethod.SHEBA}>{PaymentMethod.SHEBA}</option> {/* MERGED */}
+                            <option value={PaymentMethod.INTERNAL_TRANSFER}>{PaymentMethod.INTERNAL_TRANSFER}</option>
+                            <option value={PaymentMethod.CASH}>{PaymentMethod.CASH}</option>
+                            <option value={PaymentMethod.POS}>{PaymentMethod.POS}</option>
+                        </select>
+                    </div>
                     <div className="md:col-span-3 space-y-1"><label className="text-xs text-gray-500">مبلغ (ریال)</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm dir-ltr text-left font-mono font-bold" placeholder="0" value={formatNumberString(newLine.amount)} onChange={e => setNewLine({ ...newLine, amount: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} onKeyDown={handleKeyDown}/></div>
                     
                     {/* Dynamic Fields based on Type */}
-                    {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? (
+                    {(newLine.method === PaymentMethod.CHEQUE || newLine.method === PaymentMethod.TRANSFER || newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.INTERNAL_TRANSFER) ? (
                         <>
                             {newLine.method === PaymentMethod.CHEQUE && <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">شماره چک</label><input type="text" inputMode="numeric" className="w-full border rounded-lg p-2 text-sm font-mono" value={newLine.chequeNumber} onChange={e => setNewLine({ ...newLine, chequeNumber: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '') })} onKeyDown={handleKeyDown}/></div>}
                             
@@ -371,8 +386,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                         </>
                     ) : <div className="md:col-span-4 hidden md:block"></div>}
 
-                    {/* SATNA Specific Fields */}
-                    {(newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) && (
+                    {/* SHEBA Specific Fields (Satna/Paya) */}
+                    {(newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) && (
                         <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3 bg-purple-50 p-2 rounded-lg border border-purple-200 mt-1">
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-purple-800">شماره شبا (۲۴ رقم)</label>
@@ -392,16 +407,20 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                         </div>
                     )}
 
-                    {/* INTERNAL TRANSFER Fields */}
+                    {/* INTERNAL TRANSFER Fields - UPDATED */}
                     {newLine.method === PaymentMethod.INTERNAL_TRANSFER && (
-                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3 bg-indigo-50 p-2 rounded-lg border border-indigo-200 mt-1">
+                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-50 p-2 rounded-lg border border-indigo-200 mt-1">
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-indigo-800 flex items-center gap-1"><ArrowRightLeft size={14}/> شماره حساب / کارت مقصد</label>
+                                <label className="text-xs font-bold text-indigo-800 flex items-center gap-1"><ArrowRightLeft size={14}/> شماره حساب مقصد</label>
                                 <input className="w-full border rounded-lg p-2 text-sm font-mono text-center dir-ltr" value={newLine.destinationAccount} onChange={e => setNewLine({...newLine, destinationAccount: normalizeInputNumber(e.target.value)})} placeholder="شماره کارت یا حساب مقصد" />
                             </div>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-indigo-800">نام صاحب حساب مقصد</label>
                                 <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationOwner} onChange={e => setNewLine({...newLine, destinationOwner: e.target.value})} placeholder="نام صاحب حساب..." />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-indigo-800">شعبه مقصد</label>
+                                <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationBranch} onChange={e => setNewLine({...newLine, destinationBranch: e.target.value})} placeholder="نام یا کد شعبه..." />
                             </div>
                         </div>
                     )}
@@ -424,8 +443,12 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                                 <span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>
                                 {line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}
                                 {line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}
-                                {(line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}
-                                {line.method === PaymentMethod.INTERNAL_TRANSFER && <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">به: {line.destinationOwner} ({line.destinationAccount})</span>}
+                                {(line.method === PaymentMethod.SHEBA || line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}
+                                {line.method === PaymentMethod.INTERNAL_TRANSFER && (
+                                    <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">
+                                        به: {line.destinationOwner} ({line.destinationAccount}) {line.destinationBranch ? `- ${line.destinationBranch}` : ''}
+                                    </span>
+                                )}
                                 {line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}
                             </div>
                             <div className="flex gap-1">

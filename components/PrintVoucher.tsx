@@ -214,9 +214,15 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'dest_bank': return currentLine.recipientBank || '';
               case 'payment_id': return currentLine.paymentId || '';
               case 'cheque_no': return currentLine.chequeNumber || '';
+              // Company Info
               case 'company_name': return order.payingCompany;
               case 'company_id': return company?.nationalId || '';
               case 'company_reg': return company?.registrationNumber || '';
+              case 'company_address': return company?.address || '';
+              case 'company_postal': return company?.postalCode || '';
+              case 'company_tel': return company?.phone || '';
+              case 'company_fax': return company?.fax || '';
+              case 'company_eco_code': return company?.economicCode || '';
               default: return '';
           }
       };
@@ -368,7 +374,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                                 <td className={`${isCompact ? 'p-1' : 'p-1.5'} font-mono`}>{formatCurrency(detail.amount)}</td>
                                 <td className={`${isCompact ? 'p-1' : 'p-1.5'} truncate`}>
                                     {detail.method === PaymentMethod.CHEQUE ? `چک: ${detail.chequeNumber}` : 
-                                     detail.method === PaymentMethod.SATNA || detail.method === PaymentMethod.PAYA ? `شبا: IR-${detail.sheba}` : 
+                                     detail.method === PaymentMethod.SHEBA || detail.method === PaymentMethod.SATNA || detail.method === PaymentMethod.PAYA ? `شبا: IR-${detail.sheba}` : 
                                      detail.method === PaymentMethod.INTERNAL_TRANSFER ? `به حساب: ${detail.destinationAccount} (${detail.destinationOwner})` : 
                                      detail.method === PaymentMethod.TRANSFER ? `بانک: ${detail.bankName}` : '-'}
                                 </td>

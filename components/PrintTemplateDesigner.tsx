@@ -32,6 +32,11 @@ const AVAILABLE_FIELDS = [
     { key: 'company_name', label: 'نام شرکت' },
     { key: 'company_id', label: 'شناسه ملی شرکت' },
     { key: 'company_reg', label: 'شماره ثبت شرکت' },
+    { key: 'company_address', label: 'آدرس شرکت' }, // New
+    { key: 'company_postal', label: 'کد پستی شرکت' }, // New
+    { key: 'company_tel', label: 'تلفن شرکت' }, // New
+    { key: 'company_fax', label: 'فکس شرکت' }, // New
+    { key: 'company_eco_code', label: 'کد اقتصادی شرکت' }, // New
 ];
 
 const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTemplate }) => {

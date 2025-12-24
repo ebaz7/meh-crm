@@ -64,6 +64,9 @@ const Settings: React.FC = () => {
   const [newCompanyNatId, setNewCompanyNatId] = useState('');
   const [newCompanyAddress, setNewCompanyAddress] = useState('');
   const [newCompanyPhone, setNewCompanyPhone] = useState('');
+  const [newCompanyFax, setNewCompanyFax] = useState(''); // NEW
+  const [newCompanyPostalCode, setNewCompanyPostalCode] = useState(''); // NEW
+  const [newCompanyEcoCode, setNewCompanyEcoCode] = useState(''); // NEW
 
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingBankId, setEditingBankId] = useState<string | null>(null); // For editing specific bank inside company
@@ -201,7 +204,10 @@ const Settings: React.FC = () => {
                               registrationNumber: newCompanyRegNum,
                               nationalId: newCompanyNatId,
                               address: newCompanyAddress,
-                              phone: newCompanyPhone
+                              phone: newCompanyPhone,
+                              fax: newCompanyFax,
+                              postalCode: newCompanyPostalCode,
+                              economicCode: newCompanyEcoCode
                             }
                           : c
                   );
@@ -216,7 +222,10 @@ const Settings: React.FC = () => {
                       registrationNumber: newCompanyRegNum,
                       nationalId: newCompanyNatId,
                       address: newCompanyAddress,
-                      phone: newCompanyPhone
+                      phone: newCompanyPhone,
+                      fax: newCompanyFax,
+                      postalCode: newCompanyPostalCode,
+                      economicCode: newCompanyEcoCode
                   }];
               }
               // Clear form
@@ -255,7 +264,10 @@ const Settings: React.FC = () => {
           registrationNumber: newCompanyRegNum,
           nationalId: newCompanyNatId,
           address: newCompanyAddress,
-          phone: newCompanyPhone
+          phone: newCompanyPhone,
+          fax: newCompanyFax,
+          postalCode: newCompanyPostalCode,
+          economicCode: newCompanyEcoCode
       };
 
       if (editingCompanyId) {
@@ -277,6 +289,9 @@ const Settings: React.FC = () => {
       setNewCompanyNatId(c.nationalId || '');
       setNewCompanyAddress(c.address || '');
       setNewCompanyPhone(c.phone || '');
+      setNewCompanyFax(c.fax || '');
+      setNewCompanyPostalCode(c.postalCode || '');
+      setNewCompanyEcoCode(c.economicCode || '');
       setEditingCompanyId(c.id); 
   };
 
@@ -290,6 +305,9 @@ const Settings: React.FC = () => {
       setNewCompanyNatId('');
       setNewCompanyAddress('');
       setNewCompanyPhone('');
+      setNewCompanyFax('');
+      setNewCompanyPostalCode('');
+      setNewCompanyEcoCode('');
       setEditingCompanyId(null); 
       
       resetBankForm();
@@ -623,11 +641,14 @@ const Settings: React.FC = () => {
                                 </div>
 
                                 {/* Additional Company Fields */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                     <div><label className="text-xs font-bold block mb-1 text-gray-500">شماره ثبت</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyRegNum} onChange={e => setNewCompanyRegNum(e.target.value)} /></div>
                                     <div><label className="text-xs font-bold block mb-1 text-gray-500">شناسه ملی</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyNatId} onChange={e => setNewCompanyNatId(e.target.value)} /></div>
-                                    <div className="md:col-span-2"><label className="text-xs font-bold block mb-1 text-gray-500">آدرس</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyAddress} onChange={e => setNewCompanyAddress(e.target.value)} /></div>
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">کد اقتصادی</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyEcoCode} onChange={e => setNewCompanyEcoCode(e.target.value)} /></div>
+                                    <div className="md:col-span-3"><label className="text-xs font-bold block mb-1 text-gray-500">آدرس</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyAddress} onChange={e => setNewCompanyAddress(e.target.value)} /></div>
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">کد پستی</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyPostalCode} onChange={e => setNewCompanyPostalCode(e.target.value)} /></div>
                                     <div><label className="text-xs font-bold block mb-1 text-gray-500">تلفن</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyPhone} onChange={e => setNewCompanyPhone(e.target.value)} /></div>
+                                    <div><label className="text-xs font-bold block mb-1 text-gray-500">فکس</label><input className="w-full border rounded-lg p-2 text-sm" value={newCompanyFax} onChange={e => setNewCompanyFax(e.target.value)} /></div>
                                 </div>
 
                                 {/* Letterhead Upload */}
