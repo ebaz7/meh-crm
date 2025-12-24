@@ -46,59 +46,68 @@ export const hasPermission = (user: User | null, permissionType: string): boolea
 };
 
 export const getRolePermissions = (userRole: string, settings: SystemSettings | null, userObject?: User): RolePermissions => {
+    // Check if it's a standard/default role
+    const isStandardRole = Object.values(UserRole).includes(userRole as UserRole);
+
     const defaults: RolePermissions = {
-        canViewAll: userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD,
+        canViewAll: isStandardRole && (userRole !== UserRole.USER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD),
         
-        // Creation Permission
-        canCreatePaymentOrder: userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD, 
+        // Creation Permission: False for custom roles by default
+        canCreatePaymentOrder: isStandardRole && (userRole !== UserRole.FACTORY_MANAGER && userRole !== UserRole.WAREHOUSE_KEEPER && userRole !== UserRole.SALES_MANAGER && userRole !== UserRole.SECURITY_GUARD && userRole !== UserRole.SECURITY_HEAD), 
         
         // Default View Permissions for Payments
-        canViewPaymentOrders: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.FINANCIAL,
+        canViewPaymentOrders: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.FINANCIAL),
         
         // Exit Permits
-        canViewExitPermits: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.SECURITY_HEAD,
+        canViewExitPermits: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.SECURITY_HEAD),
 
-        canApproveFinancial: userRole === UserRole.FINANCIAL || userRole === UserRole.ADMIN,
-        canApproveManager: userRole === UserRole.MANAGER || userRole === UserRole.ADMIN,
-        canApproveCeo: userRole === UserRole.CEO || userRole === UserRole.ADMIN,
+        canApproveFinancial: isStandardRole && (userRole === UserRole.FINANCIAL || userRole === UserRole.ADMIN),
+        canApproveManager: isStandardRole && (userRole === UserRole.MANAGER || userRole === UserRole.ADMIN),
+        canApproveCeo: isStandardRole && (userRole === UserRole.CEO || userRole === UserRole.ADMIN),
         
         canEditOwn: true,
-        canEditAll: userRole === UserRole.ADMIN || userRole === UserRole.CEO,
+        canEditAll: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO),
         canDeleteOwn: true,
-        canDeleteAll: userRole === UserRole.ADMIN,
+        canDeleteAll: isStandardRole && (userRole === UserRole.ADMIN),
         
-        canManageTrade: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER,
+        canManageTrade: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER),
         
-        canManageSettings: userRole === UserRole.ADMIN,
+        canManageSettings: isStandardRole && (userRole === UserRole.ADMIN),
         
-        canCreateExitPermit: userRole === UserRole.SALES_MANAGER || userRole === UserRole.ADMIN || userRole === UserRole.CEO,
-        canApproveExitCeo: userRole === UserRole.CEO || userRole === UserRole.ADMIN,
-        canApproveExitFactory: userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN,
-        canApproveExitWarehouse: userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.ADMIN, // Default check
+        canCreateExitPermit: isStandardRole && (userRole === UserRole.SALES_MANAGER || userRole === UserRole.ADMIN || userRole === UserRole.CEO),
+        canApproveExitCeo: isStandardRole && (userRole === UserRole.CEO || userRole === UserRole.ADMIN),
+        canApproveExitFactory: isStandardRole && (userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN),
+        canApproveExitWarehouse: isStandardRole && (userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.ADMIN),
         
-        canViewExitArchive: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD,
-        canEditExitArchive: userRole === UserRole.ADMIN,
+        canViewExitArchive: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD),
+        canEditExitArchive: isStandardRole && (userRole === UserRole.ADMIN),
 
         // Warehouse Permissions
-        canManageWarehouse: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER, 
+        canManageWarehouse: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER), 
         
-        canViewWarehouseReports: userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER,
+        canViewWarehouseReports: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER),
         
         // Bijak Approval
-        canApproveBijak: userRole === UserRole.ADMIN || userRole === UserRole.CEO,
+        canApproveBijak: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO),
 
         // Security Defaults
-        canViewSecurity: userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.SECURITY_GUARD,
-        canCreateSecurityLog: userRole === UserRole.SECURITY_GUARD || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN,
-        canApproveSecuritySupervisor: userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN
+        canViewSecurity: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.SECURITY_GUARD),
+        canCreateSecurityLog: isStandardRole && (userRole === UserRole.SECURITY_GUARD || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN),
+        canApproveSecuritySupervisor: isStandardRole && (userRole === UserRole.SECURITY_HEAD || userRole === UserRole.ADMIN)
     };
 
-    if (!settings || !settings.rolePermissions || !settings.rolePermissions[userRole]) {
-        if (userObject && userObject.canManageTrade) return { ...defaults, canManageTrade: true };
-        return defaults;
+    // If role has explicit settings, override defaults
+    if (settings && settings.rolePermissions && settings.rolePermissions[userRole]) {
+        // Merge defaults with custom settings (custom takes precedence)
+        // For custom roles (not standard), defaults are mostly false, so settings enable them.
+        const merged = { ...defaults, ...settings.rolePermissions[userRole] };
+        
+        if (userObject && userObject.canManageTrade) merged.canManageTrade = true;
+        return merged;
     }
     
-    const permissions = { ...defaults, ...settings.rolePermissions[userRole] };
-    if (userObject && userObject.canManageTrade) permissions.canManageTrade = true;
-    return permissions;
+    // If no settings exist for this role, return defaults. 
+    // For custom roles, defaults are minimal (mostly false/null) except canEditOwn.
+    if (userObject && userObject.canManageTrade) defaults.canManageTrade = true;
+    return defaults;
 };

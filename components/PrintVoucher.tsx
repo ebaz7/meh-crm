@@ -47,17 +47,28 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
   const sourceBankConfig = company?.banks?.find(b => currentLine.bankName?.includes(b.bankName));
   
-  // Logic to pick correct template based on method
+  // Logic to pick correct template based on method and DUAL PRINT mode
   let effectiveTemplateId = sourceBankConfig?.formLayoutId;
   const isInternalTransfer = currentLine.method === PaymentMethod.INTERNAL_TRANSFER;
-  
-  if (isInternalTransfer && sourceBankConfig?.internalTransferTemplateId) {
-      effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+  const isDualPrintEnabled = isInternalTransfer && sourceBankConfig?.enableDualPrint;
+
+  if (isInternalTransfer) {
+      if (isDualPrintEnabled) {
+          if (dualPrintMode === 'withdrawal' && sourceBankConfig?.internalWithdrawalTemplateId) {
+              effectiveTemplateId = sourceBankConfig.internalWithdrawalTemplateId;
+          } else if (dualPrintMode === 'deposit' && sourceBankConfig?.internalDepositTemplateId) {
+              effectiveTemplateId = sourceBankConfig.internalDepositTemplateId;
+          } else if (sourceBankConfig?.internalTransferTemplateId) {
+              // Fallback to legacy single internal template if dual specific isn't set
+              effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+          }
+      } else if (sourceBankConfig?.internalTransferTemplateId) {
+          effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+      }
   }
 
   const dynamicTemplate = settings?.printTemplates?.find(t => t.id === effectiveTemplateId);
   const canPrintBankForm = !!dynamicTemplate;
-  const isDualPrintEnabled = isInternalTransfer && sourceBankConfig?.enableDualPrint;
 
   // -- NEW: Manual Override State for Date and Place --
   const [overrideDate, setOverrideDate] = useState({ year: '', month: '', day: '' });

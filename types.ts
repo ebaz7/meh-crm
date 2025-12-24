@@ -193,8 +193,10 @@ export interface CompanyBank {
     accountNumber: string; 
     sheba?: string; // Source Sheba
     formLayoutId?: string; // Default template (Check, Satna, etc.)
-    internalTransferTemplateId?: string; // NEW: Specific template for Internal Transfer
+    internalTransferTemplateId?: string; // Legacy: Kept for compat, but new fields preferred if dual
     enableDualPrint?: boolean; // NEW: Toggle for Withdrawal/Deposit split printing
+    internalWithdrawalTemplateId?: string; // NEW: Template for Withdrawal (Bardasht)
+    internalDepositTemplateId?: string; // NEW: Template for Deposit (Variz)
 }
 
 export interface Company { 
