@@ -46,7 +46,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (permissions.canApproveExitFactory || currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
       
       // Stage 3: Warehouse Supervisor Approval
-      // FIX: Explicitly check for WAREHOUSE_KEEPER role to ensure button appears even if settings are quirky
+      // FIX: Check permission explicitly. Custom roles MUST rely on 'canApproveExitWarehouse'.
+      // If settings are not yet loaded, this might be false temporarily, but React will re-render when settings arrive.
       if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (
           permissions.canApproveExitWarehouse || 
           currentUser.role === UserRole.WAREHOUSE_KEEPER || 
@@ -54,7 +55,12 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       )) return true;
       
       // Stage 4: Security Approval
-      if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
+      if (p.status === ExitPermitStatus.PENDING_SECURITY && (
+          currentUser.role === UserRole.SECURITY_GUARD || 
+          currentUser.role === UserRole.SECURITY_HEAD || 
+          currentUser.role === UserRole.ADMIN ||
+          permissions.canViewSecurity // Allow custom security roles to see approvals too if they have view access? No, stick to standard or specific permission if exists.
+      )) return true;
       
       return false;
   };

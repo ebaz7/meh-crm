@@ -33,23 +33,23 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     if(permit) {
         const updates: any = { status };
         
-        // Stage 1: CEO Approval
-        if (status === ExitPermitStatus.PENDING_FACTORY && (approverUser.role === UserRole.CEO || approverUser.role === UserRole.ADMIN)) {
+        // Stage 1: CEO Approval (Target: Pending Factory)
+        if (status === ExitPermitStatus.PENDING_FACTORY) {
             updates.approverCeo = approverUser.fullName;
         }
         
-        // Stage 2: Factory Manager Approval
-        if (status === ExitPermitStatus.PENDING_WAREHOUSE && (approverUser.role === UserRole.FACTORY_MANAGER || approverUser.role === UserRole.ADMIN)) {
+        // Stage 2: Factory Manager Approval (Target: Pending Warehouse)
+        if (status === ExitPermitStatus.PENDING_WAREHOUSE) {
             updates.approverFactory = approverUser.fullName;
         }
 
-        // Stage 3: Warehouse Supervisor Approval (NEW)
-        if (status === ExitPermitStatus.PENDING_SECURITY && (approverUser.role === UserRole.WAREHOUSE_KEEPER || approverUser.role === UserRole.ADMIN)) {
+        // Stage 3: Warehouse Supervisor Approval (Target: Pending Security)
+        if (status === ExitPermitStatus.PENDING_SECURITY) {
             updates.approverWarehouse = approverUser.fullName;
         }
 
-        // Stage 4: Security Approval (Final - Archive)
-        if (status === ExitPermitStatus.EXITED && (approverUser.role === UserRole.SECURITY_GUARD || approverUser.role === UserRole.SECURITY_HEAD || approverUser.role === UserRole.ADMIN)) {
+        // Stage 4: Security Approval (Target: Exited)
+        if (status === ExitPermitStatus.EXITED) {
             updates.approverSecurity = approverUser.fullName;
             if (extra?.exitTime) updates.exitTime = extra.exitTime;
         }
