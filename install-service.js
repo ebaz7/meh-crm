@@ -39,6 +39,7 @@ rl.question('Please enter the port number to run the server (default: 3000): ', 
     name: 'PaymentSystem',
     description: 'Payment Order Management System Web Server',
     script: path.join(__dirname, 'server.js'),
+    workingDirectory: __dirname, // CRITICAL: Ensures DB and Auth files are found
     env: [{
       name: "PORT",
       value: port
@@ -60,7 +61,8 @@ rl.question('Please enter the port number to run the server (default: 3000): ', 
 
   svc.on('start', function() {
     console.log(`> Service started! App is running on http://localhost:${port}`);
-    console.log('> You can now close this window. The app runs in the background.');
+    console.log('> Telegram & WhatsApp bots are starting in the background.');
+    console.log('> You can now close this window.');
     rl.close();
   });
 
