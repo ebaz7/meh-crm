@@ -59,7 +59,7 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canViewPaymentOrders: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.MANAGER || userRole === UserRole.FINANCIAL),
         
         // Exit Permits
-        canViewExitPermits: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.SECURITY_HEAD),
+        canViewExitPermits: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.SALES_MANAGER || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.WAREHOUSE_KEEPER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.SECURITY_GUARD),
 
         canApproveFinancial: isStandardRole && (userRole === UserRole.FINANCIAL || userRole === UserRole.ADMIN),
         canApproveManager: isStandardRole && (userRole === UserRole.MANAGER || userRole === UserRole.ADMIN),
@@ -77,12 +77,17 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
         canCreateExitPermit: isStandardRole && (userRole === UserRole.SALES_MANAGER || userRole === UserRole.ADMIN || userRole === UserRole.CEO),
         canApproveExitCeo: isStandardRole && (userRole === UserRole.CEO || userRole === UserRole.ADMIN),
         canApproveExitFactory: isStandardRole && (userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.ADMIN),
-        // FIX: Broaden Warehouse approval default to include CEO and Factory Manager as overrides
         canApproveExitWarehouse: isStandardRole && (
             userRole === UserRole.WAREHOUSE_KEEPER || 
             userRole === UserRole.ADMIN || 
             userRole === UserRole.CEO || 
             userRole === UserRole.FACTORY_MANAGER
+        ),
+        // Security Approval Default
+        canApproveExitSecurity: isStandardRole && (
+            userRole === UserRole.SECURITY_GUARD || 
+            userRole === UserRole.SECURITY_HEAD || 
+            userRole === UserRole.ADMIN
         ),
         
         canViewExitArchive: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.WAREHOUSE_KEEPER),
