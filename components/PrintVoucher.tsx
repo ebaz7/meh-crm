@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString, getShamsiDateFromIso } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2, ChevronLeft, ChevronRight, Calendar, MapPin } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -48,6 +48,41 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const dynamicTemplate = settings?.printTemplates?.find(t => t.id === bankTemplateId);
 
   const canPrintBankForm = !!dynamicTemplate;
+
+  // -- NEW: Manual Override State for Date and Place --
+  const [overrideDate, setOverrideDate] = useState({ year: '', month: '', day: '' });
+  const [overridePlace, setOverridePlace] = useState('');
+
+  // Effect to set default override values when current line changes
+  useEffect(() => {
+      // 1. Determine initial date
+      let yStr = '', mStr = '', dStr = '';
+      
+      // If line is check and has chequeDate, parse it
+      if (currentLine.method === PaymentMethod.CHEQUE && currentLine.chequeDate) {
+          const parts = currentLine.chequeDate.split('/');
+          if (parts.length === 3) {
+              yStr = parts[0];
+              mStr = parts[1];
+              dStr = parts[2];
+          }
+      } 
+      
+      // Fallback to order date if no cheque date
+      if (!yStr) {
+          const shamsi = getShamsiDateFromIso(order.date);
+          yStr = shamsi.year.toString();
+          mStr = shamsi.month.toString();
+          dStr = shamsi.day.toString();
+      }
+
+      setOverrideDate({ year: yStr, month: mStr, day: dStr });
+      
+      // 2. Determine initial place (default empty or company city if available)
+      setOverridePlace(''); 
+
+  }, [currentLineIndex, order.date, currentLine]);
+
 
   // Load saved calibration for this specific template from localStorage
   useEffect(() => {
@@ -150,11 +185,10 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const DynamicBankFormOverlay = () => {
       if (!currentLine || !dynamicTemplate) return null;
       
-      // Reliable Date Parsing
-      const shamsi = getShamsiDateFromIso(order.date);
-      const yStr = shamsi.year.toString();
-      const mStr = shamsi.month.toString().padStart(2, '0');
-      const dStr = shamsi.day.toString().padStart(2, '0');
+      // Use Overrides
+      const yStr = overrideDate.year;
+      const mStr = overrideDate.month.padStart(2, '0');
+      const dStr = overrideDate.day.padStart(2, '0');
       const dateFull = `${yStr}/${mStr}/${dStr}`;
 
       const amountStr = formatNumberString(currentLine.amount);
@@ -171,6 +205,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'amount_word': return amountWords;
               case 'payee': return order.payee;
               case 'description': return currentLine.description || order.description;
+              case 'place': return overridePlace; // Map place to manual input
               case 'source_account': return sourceBankConfig?.accountNumber || '';
               case 'source_sheba': return sourceBankConfig?.sheba || '';
               case 'dest_account': return currentLine.destinationAccount || ''; 
@@ -395,7 +430,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
                  {/* Extra option for Bank Form */}
                  {printMode === 'bank_form' && (
-                     <div className="col-span-2 md:col-span-4 flex flex-col gap-2 mt-2 bg-gray-50 p-2 rounded border">
+                     <div className="col-span-2 md:col-span-4 flex flex-col gap-2 mt-2 bg-gray-50 p-2 rounded border animate-fade-in">
                          {/* Multi-Line Navigation */}
                          {paymentLines.length > 1 && (
                              <div className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 mb-2">
@@ -418,6 +453,24 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                                  </button>
                              </div>
                          )}
+
+                         <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-2">
+                             <div className="text-xs font-bold text-blue-800 mb-1 flex items-center gap-1"><Pencil size={12}/> ویرایش اطلاعات چاپ (دستی):</div>
+                             <div className="flex gap-2 mb-1">
+                                 <div className="flex items-center gap-1 flex-1">
+                                     <Calendar size={12} className="text-gray-500"/>
+                                     <input className="w-10 text-center border rounded text-xs p-0.5" value={overrideDate.day} onChange={e=>setOverrideDate({...overrideDate, day: e.target.value})} placeholder="روز"/>
+                                     <span className="text-gray-400">/</span>
+                                     <input className="w-10 text-center border rounded text-xs p-0.5" value={overrideDate.month} onChange={e=>setOverrideDate({...overrideDate, month: e.target.value})} placeholder="ماه"/>
+                                     <span className="text-gray-400">/</span>
+                                     <input className="w-12 text-center border rounded text-xs p-0.5" value={overrideDate.year} onChange={e=>setOverrideDate({...overrideDate, year: e.target.value})} placeholder="سال"/>
+                                 </div>
+                             </div>
+                             <div className="flex gap-1 items-center">
+                                 <MapPin size={12} className="text-gray-500"/>
+                                 <input className="w-full border rounded text-xs p-1" placeholder="محل صدور (شهر)..." value={overridePlace} onChange={e=>setOverridePlace(e.target.value)}/>
+                             </div>
+                         </div>
 
                          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                              <input type="checkbox" checked={showFormBackground} onChange={e => setShowFormBackground(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>

@@ -20,6 +20,7 @@ const AVAILABLE_FIELDS = [
     { key: 'amount_word', label: 'مبلغ (حروف)' },
     { key: 'payee', label: 'در وجه (ذینفع)' },
     { key: 'description', label: 'بابت' },
+    { key: 'place', label: 'محل صدور (شهر)' },
     { key: 'source_account', label: 'شماره حساب مبدا' },
     { key: 'source_sheba', label: 'شبا مبدا' },
     { key: 'dest_account', label: 'شماره حساب مقصد' },
