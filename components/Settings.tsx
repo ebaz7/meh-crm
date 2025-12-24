@@ -488,6 +488,7 @@ const Settings: React.FC = () => {
               { id: 'canApproveExitCeo', label: 'تایید خروج (مدیرعامل)' },
               { id: 'canApproveExitFactory', label: 'تایید خروج (مدیر کارخانه)' },
               { id: 'canApproveExitWarehouse', label: 'تایید خروج (سرپرست انبار)' },
+              { id: 'canApproveExitSecurity', label: 'تایید خروج (انتظامات - نهایی)' }, // Added this line
               { id: 'canViewExitArchive', label: 'مشاهده بایگانی خروج' },
               { id: 'canEditExitArchive', label: 'اصلاح اسناد بایگانی (Admin)' }
           ]

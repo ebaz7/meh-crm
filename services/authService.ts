@@ -85,6 +85,13 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
             userRole === UserRole.FACTORY_MANAGER
         ),
         
+        canApproveExitSecurity: isStandardRole && (
+            userRole === UserRole.SECURITY_GUARD ||
+            userRole === UserRole.SECURITY_HEAD ||
+            userRole === UserRole.ADMIN ||
+            userRole === UserRole.CEO
+        ),
+        
         canViewExitArchive: isStandardRole && (userRole === UserRole.ADMIN || userRole === UserRole.CEO || userRole === UserRole.FACTORY_MANAGER || userRole === UserRole.SECURITY_HEAD || userRole === UserRole.WAREHOUSE_KEEPER),
         canEditExitArchive: isStandardRole && (userRole === UserRole.ADMIN),
 

@@ -73,7 +73,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
           currentUser.role === UserRole.SECURITY_GUARD || 
           currentUser.role === UserRole.SECURITY_HEAD || 
           currentUser.role === UserRole.ADMIN ||
-          permissions.canViewSecurity 
+          permissions.canApproveExitSecurity // Use new permission
       )) return true;
       
       return false;
@@ -315,7 +315,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                         <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 animate-pulse"><Loader2 size={14} className="animate-spin"/> صبر کنید...</div>
                                     ) : (
                                         <>
-                                            {p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN) && (
+                                            {p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN || permissions.canApproveExitSecurity) && (
                                                 <div className="flex items-center gap-2 bg-amber-50 p-1 rounded-lg border border-amber-200">
                                                     <input className="w-16 border rounded p-1 text-[10px] text-center font-mono" placeholder="ساعت" value={showExitTimeInput === p.id ? exitTimeValue : ''} onFocus={() => { setShowExitTimeInput(p.id); setExitTimeValue(new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'})); }} onChange={e => setExitTimeValue(e.target.value)}/>
                                                     <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-amber-600 text-white p-1 rounded hover:bg-amber-700" title="ثبت خروج"><CheckCircle size={14}/></button>
