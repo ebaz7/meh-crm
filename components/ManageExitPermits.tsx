@@ -111,6 +111,20 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return c;
   };
 
+  // Helper for reliable sending
+  const sendWithRetry = async (payload: any, retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+          try {
+              await apiCall('/send-whatsapp', 'POST', payload);
+              return true;
+          } catch (e) {
+              console.warn(`WhatsApp Send Retry ${i + 1}/${retries} failed`);
+              await new Promise(r => setTimeout(r, 2000));
+          }
+      }
+      return false;
+  };
+
   // --- APPROVAL FLOW HANDLER ---
   const handleApproveAction = async (id: string, currentStatus: ExitPermitStatus) => {
       let nextStatus = currentStatus;
@@ -182,12 +196,24 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
                       // --- LOGIC PER STATUS ---
                       
-                      // CASE A: CEO Approved -> Goes to Factory Manager
+                      // CASE A: CEO Approved -> Goes to Factory Manager + GROUP NOTIFICATION
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
                           const caption = generateFullCaption(updatedPermitMock, "✍️ *مجوز خروج توسط مدیرعامل تایید شد*");
+                          
+                          // Send to Factory Manager
                           const target = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
                           if (target) {
                               try { await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
+                          }
+
+                          // NEW: Send to Notification Group (Immediate & Robust)
+                          if (settings?.exitPermitNotificationGroup) {
+                              const groupCaption = generateFullCaption(updatedPermitMock, "📢 *اطلاعیه: مجوز خروج صادر شد (تایید مدیرعامل)*");
+                              await sendWithRetry({
+                                  number: settings.exitPermitNotificationGroup, 
+                                  message: groupCaption, 
+                                  mediaData: { data: base64, mimeType: 'image/png' }
+                              }, 3); // 3 Retries
                           }
                       } 
                       // CASE B: Factory Approved -> Goes to Warehouse Supervisor
@@ -208,21 +234,23 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       }
                       // CASE D: Security Approved (Final Exit) -> Archive
                       else if (nextStatus === ExitPermitStatus.EXITED) {
-                          // EMPHASIZE EXIT TIME
                           const caption = generateFullCaption(updatedPermitMock, "✅ *خروج نهایی بار از کارخانه ثبت شد*", true);
                           
                           // Send to Requester
                           const target = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
                           if (target) { try { await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch(e) {} }
                           
-                          // Send to Group
+                          // Send to Group (Robust)
                           if (settings?.exitPermitNotificationGroup) {
-                              try { 
-                                  await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                                  // Update success flag
+                              const success = await sendWithRetry({ 
+                                  number: settings.exitPermitNotificationGroup, 
+                                  message: caption, 
+                                  mediaData: { data: base64, mimeType: 'image/png' } 
+                              }, 3);
+                              
+                              if (success) {
+                                  // Update success flag only if group send was successful
                                   await updateExitPermitStatus(id, ExitPermitStatus.EXITED, currentUser, { sentToGroup: true });
-                              } catch(e) {
-                                  console.error("Auto-send failed", e);
                               }
                           }
                       }
@@ -264,8 +292,12 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
               const base64 = canvas.toDataURL('image/png').split(',')[1];
               
-              // EMPHASIZE EXIT TIME
-              const caption = generateFullCaption(permit, "✅ *خروج نهایی بار از کارخانه ثبت شد* (ارسال مجدد)", true);
+              let caption = "";
+              if (permit.status === ExitPermitStatus.EXITED) {
+                  caption = generateFullCaption(permit, "✅ *خروج نهایی بار از کارخانه ثبت شد* (ارسال مجدد)", true);
+              } else {
+                  caption = generateFullCaption(permit, "📢 *اطلاعیه: مجوز خروج صادر شد (ارسال مجدد)*");
+              }
               
               await apiCall('/send-whatsapp', 'POST', { 
                   number: settings.exitPermitNotificationGroup, 
@@ -273,8 +305,10 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                   mediaData: { data: base64, mimeType: 'image/png' } 
               });
               
-              // 4. Update Flag
-              await updateExitPermitStatus(permit.id, ExitPermitStatus.EXITED, currentUser, { sentToGroup: true });
+              // 4. Update Flag (only if exited)
+              if (permit.status === ExitPermitStatus.EXITED) {
+                  await updateExitPermitStatus(permit.id, ExitPermitStatus.EXITED, currentUser, { sentToGroup: true });
+              }
               
               alert('با موفقیت ارسال شد.');
               loadData();
@@ -432,8 +466,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                         <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 animate-pulse"><Loader2 size={14} className="animate-spin"/> صبر کنید...</div>
                                     ) : (
                                         <>
-                                            {p.status === ExitPermitStatus.EXITED && !p.sentToGroup && (
-                                                <button onClick={() => handleResendToGroup(p)} className="bg-orange-100 text-orange-600 p-2 rounded-lg hover:bg-orange-200 border border-orange-200" title="تلاش مجدد برای ارسال به گروه"><Share2 size={16}/></button>
+                                            {/* Allow Resend for both EXITED and PENDING_FACTORY (CEO Approved) */}
+                                            {(p.status === ExitPermitStatus.EXITED || p.status === ExitPermitStatus.PENDING_FACTORY) && (
+                                                <button onClick={() => handleResendToGroup(p)} className={`p-2 rounded-lg border flex items-center gap-1 ${p.status === ExitPermitStatus.EXITED ? 'bg-orange-100 text-orange-600 border-orange-200 hover:bg-orange-200' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'}`} title={p.status === ExitPermitStatus.EXITED ? "تلاش مجدد برای ارسال نهایی" : "تلاش مجدد برای ارسال مجوز (CEO Approved)"}><Share2 size={16}/></button>
                                             )}
 
                                             {p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN || permissions.canApproveExitSecurity) && (
