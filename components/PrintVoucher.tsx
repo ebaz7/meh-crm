@@ -401,9 +401,9 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   if (embed) return contentToRender;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start md:justify-center p-4 overflow-y-auto animate-fade-in safe-pb">
-      <div className="relative md:absolute md:top-0 md:left-0 md:right-0 p-4 flex justify-between items-start z-[210] no-print w-full md:w-auto mb-4 md:mb-0 order-1">
-         <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full md:max-w-lg mx-auto relative border border-gray-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start p-4 animate-fade-in safe-pb">
+      <div className="w-full max-w-4xl mx-auto z-[210] no-print mb-4 shrink-0">
+         <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full border border-gray-200">
              <div className="flex items-center justify-between border-b pb-2 mb-1">
                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
                      {isRevocationProcess ? <span className="text-red-600 flex items-center gap-1 animate-pulse"><AlertTriangle size={16}/> چرخه ابطال</span> : 'جزئیات و عملیات'}
@@ -525,7 +525,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       </div>
       
       {/* Container specifically for on-screen viewing */}
-      <div className="order-2 w-full flex justify-center pb-10 overflow-auto">
+      <div className="flex-1 w-full overflow-y-auto flex justify-center pb-10">
           {/* Dynamic sizing for preview container */}
           <div style={{ 
               width: (printMode === 'bank_form' && dynamicTemplate) ? `${dynamicTemplate.width || 210}mm` : '210mm', 
