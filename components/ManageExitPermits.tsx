@@ -282,6 +282,57 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       setIsProcessingId(null);
   };
 
+  const handleDelete = async (id: string) => {
+      if(!confirm('آیا از حذف این مجوز خروج اطمینان دارید؟')) return;
+      
+      const permitToDelete = permits.find(p => p.id === id);
+      if (!permitToDelete) return;
+
+      // Only attempt to notify if it was fully exited and we have group settings
+      if (permitToDelete.status === ExitPermitStatus.EXITED && settings?.exitPermitNotificationGroup) {
+          setIsProcessingId(id);
+          
+          // 1. Set mockup for rendering (same data)
+          setPermitForAutoSend(permitToDelete);
+          
+          // 2. Wait render
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // 3. Capture & Send Warning
+          const element = document.getElementById(`print-permit-${permitToDelete.id}`);
+          if (element) {
+              try {
+                  // @ts-ignore
+                  const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                  const base64 = canvas.toDataURL('image/png').split(',')[1];
+                  
+                  const caption = `❌❌ *هشدار: مجوز خروج حذف شد* ❌❌\n` +
+                                  `🔢 شماره مجوز: ${permitToDelete.permitNumber}\n` +
+                                  `🗑️ حذف کننده: ${currentUser.fullName}\n` +
+                                  `⚠️ *این مجوز از سیستم حذف شده و فاقد اعتبار است.*`;
+
+                  await apiCall('/send-whatsapp', 'POST', { 
+                      number: settings.exitPermitNotificationGroup, 
+                      message: caption, 
+                      mediaData: { data: base64, mimeType: 'image/png' } 
+                  });
+              } catch (e) { console.error("Error sending delete notification", e); }
+          }
+      }
+
+      // 4. Actual Delete
+      try {
+          await deleteExitPermit(id);
+          loadData();
+          setViewPermit(null);
+      } catch(e) {
+          alert("خطا در حذف");
+      } finally {
+          setIsProcessingId(null);
+          setPermitForAutoSend(null);
+      }
+  };
+
   const handleReject = async (id: string) => {
       const reason = prompt('دلیل رد درخواست:');
       if (reason) {
@@ -392,7 +443,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
                                     {canEdit(p) && <button onClick={() => setEditingPermit(p)} className="bg-amber-50 text-amber-600 p-2 rounded-lg hover:bg-amber-100"><Edit size={16}/></button>}
                                     {(p.status !== ExitPermitStatus.EXITED && p.status !== ExitPermitStatus.REJECTED && canApprove(p)) && <button onClick={() => handleReject(p.id)} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100" title="رد درخواست"><XCircle size={16}/></button>}
-                                    {currentUser.role === UserRole.ADMIN && <button onClick={async () => { if(confirm('حذف نهایی؟')) { await deleteExitPermit(p.id); loadData(); } }} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={16}/></button>}
+                                    {currentUser.role === UserRole.ADMIN && <button onClick={() => handleDelete(p.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={16}/></button>}
                                 </div>
                             </td>
                         </tr>

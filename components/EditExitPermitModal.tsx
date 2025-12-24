@@ -7,6 +7,7 @@ import { Save, Loader2, Truck, Package, MapPin, Hash, Plus, Trash2, X, AlertTria
 import PrintExitPermit from './PrintExitPermit';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
+import { getSettings } from '../services/storageService'; // Add Import
 
 interface EditExitPermitModalProps {
   permit: ExitPermit;
@@ -71,22 +72,26 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
       try {
           await editExitPermit(updatedPermit);
           
-          // --- AUTO SEND CORRECTION TO CEO ---
+          // --- AUTO SEND NOTIFICATIONS ---
           setTempPermitForCapture(updatedPermit);
           
+          // 1. Get Settings for Group ID
+          const settings = await getSettings();
+          const groupTarget = settings?.exitPermitNotificationGroup;
+
           setTimeout(async () => {
               const element = document.getElementById(`print-permit-edit-${updatedPermit.id}`);
               if (element) {
                   try {
-                      // Find CEO
+                      // @ts-ignore
+                      const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                      const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+                      // 2. Notify CEO (Correction Request)
                       const users = await getUsers();
                       const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
                       
                       if (ceo) {
-                          // @ts-ignore
-                          const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                          const base64 = canvas.toDataURL('image/png').split(',')[1];
-                          
                           let caption = `🚛 *اصلاحیه مجوز خروج*\n`;
                           caption += `شماره: ${updatedPermit.permitNumber}\n`;
                           caption += `گیرنده: ${updatedPermit.recipientName}\n`;
@@ -99,6 +104,22 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                               mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Edit_${updatedPermit.permitNumber}.png` } 
                           });
                       }
+
+                      // 3. Notify Group (Edit Alert)
+                      if (groupTarget && permit.status === ExitPermitStatus.EXITED) {
+                          // Only notify group if it was ALREADY EXITED/SENT before edit
+                          let groupCaption = `📝 *مجوز خروج ویرایش شد*\n`;
+                          groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
+                          groupCaption += `⚠️ توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.\n`;
+                          groupCaption += `وضعیت فعلی: در انتظار تایید مجدد`;
+
+                          await apiCall('/send-whatsapp', 'POST', { 
+                              number: groupTarget, 
+                              message: groupCaption, 
+                              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Edit_Group_${updatedPermit.permitNumber}.png` } 
+                          });
+                      }
+
                   } catch(e) { console.error("Auto send error", e); }
               }
               onSave();
