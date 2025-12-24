@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '../types';
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
@@ -39,28 +40,22 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const canApprove = (p: ExitPermit) => {
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
       
-      // Stage 1: CEO Approval
+      // Stage 1: CEO Approval (After Sales Manager Request)
       if (p.status === ExitPermitStatus.PENDING_CEO && (permissions.canApproveExitCeo || currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
       
       // Stage 2: Factory Manager Approval
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (permissions.canApproveExitFactory || currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
       
       // Stage 3: Warehouse Supervisor Approval
-      // CRITICAL FIX: Ensure this returns true if ANY condition is met (Permission OR Role)
       if (p.status === ExitPermitStatus.PENDING_WAREHOUSE) {
-          // 1. Explicit Permission from Settings
           if (permissions.canApproveExitWarehouse) return true;
-          // 2. Standard Role Check
           if (currentUser.role === UserRole.WAREHOUSE_KEEPER) return true;
-          // 3. Admin/CEO Override
           if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-          // 4. Factory Manager Override (Often covers warehouse)
           if (currentUser.role === UserRole.FACTORY_MANAGER) return true;
-          
           return false;
       }
       
-      // Stage 4: Security Approval
+      // Stage 4: Security Approval (Final Exit)
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (
           currentUser.role === UserRole.SECURITY_GUARD || 
           currentUser.role === UserRole.SECURITY_HEAD || 
@@ -98,13 +93,21 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return c;
   };
 
+  // --- APPROVAL FLOW HANDLER ---
   const handleApproveAction = async (id: string, currentStatus: ExitPermitStatus) => {
       let nextStatus = currentStatus;
       let extra: any = {};
 
+      // 1. PENDING_CEO -> PENDING_FACTORY (CEO Approves)
       if (currentStatus === ExitPermitStatus.PENDING_CEO) nextStatus = ExitPermitStatus.PENDING_FACTORY;
+      
+      // 2. PENDING_FACTORY -> PENDING_WAREHOUSE (Factory Manager Approves)
       else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_WAREHOUSE; 
+      
+      // 3. PENDING_WAREHOUSE -> PENDING_SECURITY (Warehouse Supervisor Approves)
       else if (currentStatus === ExitPermitStatus.PENDING_WAREHOUSE) nextStatus = ExitPermitStatus.PENDING_SECURITY; 
+      
+      // 4. PENDING_SECURITY -> EXITED (Security Approves & Enters Exit Time)
       else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
           if (!exitTimeValue) { alert("لطفا ابتدا ساعت خروج را وارد کنید."); return; }
           nextStatus = ExitPermitStatus.EXITED;
@@ -122,16 +125,21 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               
               // 2. Prepare Mock Object for Rendering
               const updatedPermitMock = { ...permitToApprove, status: nextStatus, ...extra };
+              
+              // Simulate Signatures for the generated image
               if (nextStatus === ExitPermitStatus.PENDING_FACTORY) updatedPermitMock.approverCeo = currentUser.fullName;
+              
               if (nextStatus === ExitPermitStatus.PENDING_WAREHOUSE) {
                    updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                    updatedPermitMock.approverFactory = currentUser.fullName;
               }
+              
               if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
                   updatedPermitMock.approverWarehouse = currentUser.fullName;
               }
+              
               if (nextStatus === ExitPermitStatus.EXITED) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
@@ -164,7 +172,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                               try { await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
                           }
                       } 
-                      // CASE B: Factory Approved -> Goes to Warehouse Supervisor (NEW)
+                      // CASE B: Factory Approved -> Goes to Warehouse Supervisor
                       else if (nextStatus === ExitPermitStatus.PENDING_WAREHOUSE) {
                           const caption = generateFullCaption(updatedPermitMock, "🏭 *تایید مدیر کارخانه انجام شد* (ارسال به سرپرست انبار)");
                           const warehouseUsers = users.filter(u => u.role === UserRole.WAREHOUSE_KEEPER && u.phoneNumber);
@@ -180,7 +188,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                             try { await apiCall('/send-whatsapp', 'POST', { number: sec.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
                           }
                       }
-                      // CASE D: Security Approved (Final Exit)
+                      // CASE D: Security Approved (Final Exit) -> Archive
                       else if (nextStatus === ExitPermitStatus.EXITED) {
                           const caption = generateFullCaption(updatedPermitMock, "✅ *خروج نهایی بار از کارخانه ثبت شد*");
                           

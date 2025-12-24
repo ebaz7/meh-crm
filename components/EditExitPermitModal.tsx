@@ -55,10 +55,14 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
           driverName: driverInfo.driverName,
           description: driverInfo.description,
           
-          // Reset Approval Process
+          // Reset Approval Process (Full Reset)
           status: ExitPermitStatus.PENDING_CEO,
           approverCeo: undefined,
           approverFactory: undefined,
+          approverWarehouse: undefined, // Ensure warehouse approval is reset
+          approverSecurity: undefined, // Ensure security approval is reset
+          exitTime: undefined, // Reset exit time
+          
           rejectionReason: undefined,
           rejectedBy: undefined,
           updatedAt: Date.now()
