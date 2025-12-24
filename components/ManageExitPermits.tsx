@@ -41,17 +41,30 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
       
       // Stage 1: CEO Approval (After Sales Manager Request)
-      if (p.status === ExitPermitStatus.PENDING_CEO && (permissions.canApproveExitCeo || currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
+      if (p.status === ExitPermitStatus.PENDING_CEO && (
+          currentUser.role === UserRole.CEO || 
+          currentUser.role === UserRole.ADMIN ||
+          permissions.canApproveExitCeo
+      )) return true;
       
       // Stage 2: Factory Manager Approval
-      if (p.status === ExitPermitStatus.PENDING_FACTORY && (permissions.canApproveExitFactory || currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
+      if (p.status === ExitPermitStatus.PENDING_FACTORY && (
+          currentUser.role === UserRole.FACTORY_MANAGER || 
+          currentUser.role === UserRole.ADMIN ||
+          permissions.canApproveExitFactory
+      )) return true;
       
-      // Stage 3: Warehouse Supervisor Approval
+      // Stage 3: Warehouse Supervisor Approval (CRITICAL FIX)
       if (p.status === ExitPermitStatus.PENDING_WAREHOUSE) {
-          if (permissions.canApproveExitWarehouse) return true;
+          // If user is designated Warehouse Keeper
           if (currentUser.role === UserRole.WAREHOUSE_KEEPER) return true;
+          // If user is Admin or CEO
           if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CEO) return true;
-          if (currentUser.role === UserRole.FACTORY_MANAGER) return true;
+          // If user has specific exit approval permission
+          if (permissions.canApproveExitWarehouse) return true;
+          // FALLBACK: If user has general warehouse management permission (e.g. custom role 'Anbardar')
+          if (permissions.canManageWarehouse) return true;
+          
           return false;
       }
       
@@ -137,7 +150,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
-                  updatedPermitMock.approverWarehouse = currentUser.fullName;
+                  updatedPermitMock.approverWarehouse = currentUser.fullName; // Stamp Warehouse
               }
               
               if (nextStatus === ExitPermitStatus.EXITED) {

@@ -105,7 +105,7 @@ export const getRolePermissions = (userRole: string, settings: SystemSettings | 
     // If role has explicit settings, override defaults
     if (settings && settings.rolePermissions && settings.rolePermissions[userRole]) {
         // Merge defaults with custom settings (custom takes precedence)
-        // For custom roles (not standard), defaults are mostly false, so settings enable them.
+        // For custom roles (not standard), defaults are minimal (mostly false/null) except canEditOwn.
         const merged = { ...defaults, ...settings.rolePermissions[userRole] };
         
         if (userObject && userObject.canManageTrade) merged.canManageTrade = true;
