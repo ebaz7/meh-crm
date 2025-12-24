@@ -75,7 +75,9 @@ const Settings: React.FC = () => {
   const [tempBankName, setTempBankName] = useState('');
   const [tempAccountNum, setTempAccountNum] = useState('');
   const [tempBankSheba, setTempBankSheba] = useState('');
-  const [tempBankLayout, setTempBankLayout] = useState<string>(''); // Changed to hold ID
+  const [tempBankLayout, setTempBankLayout] = useState<string>(''); // Default Template
+  const [tempInternalLayout, setTempInternalLayout] = useState<string>(''); // Internal Transfer Template
+  const [tempDualPrint, setTempDualPrint] = useState(false); // Dual Print Toggle
 
   // Commerce Local States
   const [newInsuranceCompany, setNewInsuranceCompany] = useState('');
@@ -318,6 +320,8 @@ const Settings: React.FC = () => {
       setTempAccountNum('');
       setTempBankSheba('');
       setTempBankLayout('');
+      setTempInternalLayout('');
+      setTempDualPrint(false);
       setEditingBankId(null);
   };
 
@@ -331,7 +335,9 @@ const Settings: React.FC = () => {
           bankName: tempBankName, 
           accountNumber: tempAccountNum,
           sheba: tempBankSheba,
-          formLayoutId: tempBankLayout
+          formLayoutId: tempBankLayout,
+          internalTransferTemplateId: tempInternalLayout,
+          enableDualPrint: tempDualPrint
       };
 
       if (editingBankId) {
@@ -347,6 +353,8 @@ const Settings: React.FC = () => {
       setTempAccountNum(bank.accountNumber);
       setTempBankSheba(bank.sheba || '');
       setTempBankLayout(bank.formLayoutId || '');
+      setTempInternalLayout(bank.internalTransferTemplateId || '');
+      setTempDualPrint(bank.enableDualPrint || false);
       setEditingBankId(bank.id);
   };
 
@@ -498,7 +506,7 @@ const Settings: React.FC = () => {
         <div className="flex-1 p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-100px)]">
             <form onSubmit={handleSave} className="space-y-8 max-w-4xl mx-auto">
                 
-                {/* 1. SYSTEM SETTINGS */}
+                {/* ... (System settings kept) ... */}
                 {activeCategory === 'system' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">
@@ -570,7 +578,7 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
-                {/* 2. COMMERCE SETTINGS (NEW) */}
+                {/* ... (Other categories commerce/warehouse kept) ... */}
                 {activeCategory === 'commerce' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-2">
@@ -582,7 +590,6 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
-                {/* 3. WAREHOUSE SETTINGS */}
                 {activeCategory === 'warehouse' && (
                     <div className="space-y-8 animate-fade-in">
                         {/* New Exit Permit Group Setting */}
@@ -685,32 +692,64 @@ const Settings: React.FC = () => {
                                         <input className="border rounded p-1.5 text-sm" placeholder="نام بانک (مثال: بانک رفاه)" value={tempBankName} onChange={e => setTempBankName(e.target.value)} />
                                         <input className="border rounded p-1.5 text-sm dir-ltr text-left" placeholder="شماره حساب" value={tempAccountNum} onChange={e => setTempAccountNum(e.target.value)} />
                                         <input className="border rounded p-1.5 text-sm dir-ltr text-left md:col-span-2" placeholder="شماره شبا (اختیاری)" value={tempBankSheba} onChange={e => setTempBankSheba(e.target.value)} />
-                                        <div className="md:col-span-2 flex items-center gap-2">
-                                            <label className="text-xs font-bold">قالب چاپ:</label>
-                                            <select className="border rounded p-1.5 text-sm flex-1 bg-white" value={tempBankLayout} onChange={e => setTempBankLayout(e.target.value)}>
-                                                <option value="">استاندارد (ساده)</option>
-                                                <optgroup label="قالب‌های طراحی شده">
-                                                    {settings.printTemplates?.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            </select>
-                                            <button type="button" onClick={addOrUpdateCompanyBank} className="bg-blue-600 text-white p-1.5 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs">
-                                                {editingBankId ? <Pencil size={16}/> : <Plus size={16}/>} {editingBankId ? 'بروزرسانی' : 'افزودن'}
-                                            </button>
+                                        
+                                        <div className="md:col-span-2 flex flex-col gap-2 bg-gray-50 p-2 rounded border border-gray-200">
+                                            {/* Default Template */}
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-bold">قالب چاپ پیش‌فرض (چک، ساتنا و ...):</label>
+                                                <select className="border rounded p-1.5 text-sm bg-white" value={tempBankLayout} onChange={e => setTempBankLayout(e.target.value)}>
+                                                    <option value="">استاندارد (ساده)</option>
+                                                    <optgroup label="قالب‌های طراحی شده">
+                                                        {settings.printTemplates?.map(t => (
+                                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                </select>
+                                            </div>
+
+                                            {/* Internal Transfer Template */}
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-bold text-indigo-700">قالب چاپ حواله داخلی (اختیاری):</label>
+                                                <select className="border rounded p-1.5 text-sm bg-white" value={tempInternalLayout} onChange={e => setTempInternalLayout(e.target.value)}>
+                                                    <option value="">-- همانند پیش‌فرض --</option>
+                                                    <optgroup label="قالب‌های طراحی شده">
+                                                        {settings.printTemplates?.map(t => (
+                                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                </select>
+                                            </div>
+
+                                            {/* Dual Print Toggle */}
+                                            <label className="flex items-center gap-2 cursor-pointer mt-1">
+                                                <input type="checkbox" checked={tempDualPrint} onChange={e => setTempDualPrint(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>
+                                                <span className="text-xs font-bold text-gray-700">فعال‌سازی چاپ دوگانه (واریز/برداشت) برای حواله داخلی</span>
+                                            </label>
+                                        </div>
+
+                                        <div className="md:col-span-2 flex justify-end gap-2 mt-2">
                                             {editingBankId && <button type="button" onClick={resetBankForm} className="bg-gray-200 text-gray-700 p-1.5 rounded-lg hover:bg-gray-300 text-xs font-bold">انصراف</button>}
+                                            <button type="button" onClick={addOrUpdateCompanyBank} className="bg-blue-600 text-white p-1.5 px-4 rounded-lg border border-blue-600 hover:bg-blue-700 flex items-center gap-1 font-bold text-xs">
+                                                {editingBankId ? <Pencil size={16}/> : <Plus size={16}/>} {editingBankId ? 'بروزرسانی بانک' : 'افزودن بانک'}
+                                            </button>
                                         </div>
                                     </div>
 
                                     <div className="space-y-1 mt-2">
                                         {newCompanyBanks.map((bank, idx) => {
                                             const tplName = bank.formLayoutId ? (settings.printTemplates?.find(t => t.id === bank.formLayoutId)?.name || 'ناشناس') : null;
+                                            const internalTpl = bank.internalTransferTemplateId ? (settings.printTemplates?.find(t => t.id === bank.internalTransferTemplateId)?.name || 'ناشناس') : null;
+                                            
                                             return (
                                                 <div key={bank.id || idx} className={`flex justify-between items-center px-2 py-1.5 rounded text-xs border ${editingBankId === bank.id ? 'bg-blue-50 border-blue-300' : 'bg-gray-50'}`}>
-                                                    <div className="flex flex-col">
+                                                    <div className="flex flex-col gap-0.5">
                                                         <span className="font-bold">{bank.bankName}</span>
                                                         <span className="font-mono text-gray-500">{bank.accountNumber}</span>
-                                                        {tplName && <span className="text-[9px] bg-teal-100 text-teal-700 px-1 rounded w-fit">قالب: {tplName}</span>}
+                                                        <div className="flex gap-1 flex-wrap mt-0.5">
+                                                            {tplName && <span className="text-[9px] bg-teal-100 text-teal-700 px-1 rounded">قالب: {tplName}</span>}
+                                                            {internalTpl && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1 rounded">داخلی: {internalTpl}</span>}
+                                                            {bank.enableDualPrint && <span className="text-[9px] bg-orange-100 text-orange-700 px-1 rounded">چاپ دوگانه</span>}
+                                                        </div>
                                                     </div>
                                                     <div className="flex gap-1">
                                                         <button type="button" onClick={() => editCompanyBank(bank)} className="text-blue-500 hover:text-blue-700"><Pencil size={14}/></button>
@@ -754,6 +793,7 @@ const Settings: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* ... (Other sections kept the same) ... */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Briefcase size={18}/> بانک‌های عامل (بازرگانی)</h3>
@@ -769,7 +809,7 @@ const Settings: React.FC = () => {
                     </div>
                 )}
 
-                {/* 5. INTEGRATIONS */}
+                {/* ... (Integrations, Whatsapp, Permissions sections kept) ... */}
                 {activeCategory === 'integrations' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="space-y-4">

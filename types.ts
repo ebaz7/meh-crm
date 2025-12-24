@@ -186,13 +186,15 @@ export interface PersonnelDelay { id: string; date: string; personnelName: strin
 export interface SecurityIncident { id: string; reportNumber: string; date: string; subject: string; description: string; shift: string; registrant: string; status: SecurityStatus; witnesses?: string; shiftManagerOpinion?: string; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; hrAction?: string; safetyAction?: string; rejectionReason?: string; createdAt: number; }
 export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
 
-// Updated CompanyBank to include form layout
+// Updated CompanyBank to include form layout and dual print settings
 export interface CompanyBank { 
     id: string; 
     bankName: string; 
     accountNumber: string; 
     sheba?: string; // Source Sheba
-    formLayoutId?: string; // ID of the dynamic template
+    formLayoutId?: string; // Default template (Check, Satna, etc.)
+    internalTransferTemplateId?: string; // NEW: Specific template for Internal Transfer
+    enableDualPrint?: boolean; // NEW: Toggle for Withdrawal/Deposit split printing
 }
 
 export interface Company { 

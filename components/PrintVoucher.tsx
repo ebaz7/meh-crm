@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, PaymentMethod, SystemSettings } from '../types';
 import { formatCurrency, formatDate, getStatusLabel, numberToPersianWords, formatNumberString, getShamsiDateFromIso } from '../constants';
-import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2, ChevronLeft, ChevronRight, Calendar, MapPin } from 'lucide-react';
+import { X, Printer, FileDown, Loader2, CheckCircle, XCircle, Pencil, Share2, Users, Search, RotateCcw, AlertTriangle, FileText, LayoutTemplate, EyeOff, Eye, Settings2, ChevronLeft, ChevronRight, Calendar, MapPin, Layers } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { generatePdf } from '../utils/pdfGenerator'; 
 
@@ -35,23 +35,38 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
   // Line Selection for Multi-Payment Orders
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
+  
+  // NEW: Dual Print Mode State (full, withdrawal, deposit)
+  const [dualPrintMode, setDualPrintMode] = useState<'full' | 'withdrawal' | 'deposit'>('full');
 
   // Determine which line to show
-  // In 'receipt' mode, we show the whole order. In 'bank_form' mode, we focus on one line.
   const paymentLines = order.paymentDetails;
   const currentLine = paymentLines[currentLineIndex];
 
-  // Determine Form Type based on Bank Settings for the CURRENT line
+  // --- TEMPLATE LOGIC ---
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
   const sourceBankConfig = company?.banks?.find(b => currentLine.bankName?.includes(b.bankName));
-  const bankTemplateId = sourceBankConfig?.formLayoutId;
-  const dynamicTemplate = settings?.printTemplates?.find(t => t.id === bankTemplateId);
+  
+  // Logic to pick correct template based on method
+  let effectiveTemplateId = sourceBankConfig?.formLayoutId;
+  const isInternalTransfer = currentLine.method === PaymentMethod.INTERNAL_TRANSFER;
+  
+  if (isInternalTransfer && sourceBankConfig?.internalTransferTemplateId) {
+      effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+  }
 
+  const dynamicTemplate = settings?.printTemplates?.find(t => t.id === effectiveTemplateId);
   const canPrintBankForm = !!dynamicTemplate;
+  const isDualPrintEnabled = isInternalTransfer && sourceBankConfig?.enableDualPrint;
 
   // -- NEW: Manual Override State for Date and Place --
   const [overrideDate, setOverrideDate] = useState({ year: '', month: '', day: '' });
   const [overridePlace, setOverridePlace] = useState('');
+
+  // Reset Dual Print Mode when line changes
+  useEffect(() => {
+      setDualPrintMode('full');
+  }, [currentLineIndex]);
 
   // Effect to set default override values when current line changes
   useEffect(() => {
@@ -252,6 +267,17 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
               {/* --- DATA LAYER --- */}
               {dynamicTemplate.fields.map(field => {
+                  
+                  // --- DUAL PRINT FILTERING ---
+                  // If in 'withdrawal' mode, hide destination fields
+                  if (dualPrintMode === 'withdrawal') {
+                      if (['dest_account', 'dest_sheba', 'dest_bank'].includes(field.key)) return null;
+                  }
+                  // If in 'deposit' mode, hide source fields
+                  if (dualPrintMode === 'deposit') {
+                      if (['source_account', 'source_sheba'].includes(field.key)) return null;
+                  }
+
                   const val = getValue(field.key);
                   
                   // Special handling for Sheba (Letter Spacing)
@@ -478,6 +504,30 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                                  <input className="w-full border rounded text-xs p-1" placeholder="محل صدور (شهر)..." value={overridePlace} onChange={e=>setOverridePlace(e.target.value)}/>
                              </div>
                          </div>
+                        
+                         {/* DUAL PRINT TOGGLE BUTTONS */}
+                         {isDualPrintEnabled && (
+                             <div className="flex gap-1 bg-white p-1 rounded border border-orange-200 mb-2">
+                                 <button 
+                                    onClick={() => setDualPrintMode('full')}
+                                    className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'full' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                 >
+                                     کامل
+                                 </button>
+                                 <button 
+                                    onClick={() => setDualPrintMode('withdrawal')}
+                                    className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'withdrawal' ? 'bg-red-100 text-red-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                 >
+                                     نسخه برداشت
+                                 </button>
+                                 <button 
+                                    onClick={() => setDualPrintMode('deposit')}
+                                    className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'deposit' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                 >
+                                     نسخه واریز
+                                 </button>
+                             </div>
+                         )}
 
                          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                              <input type="checkbox" checked={showFormBackground} onChange={e => setShowFormBackground(e.target.checked)} className="w-4 h-4 text-blue-600 rounded"/>
