@@ -51,7 +51,7 @@ const ManageUsers: React.FC = () => {
           case UserRole.MANAGER: return 'مدیر داخلی';
           case UserRole.SALES_MANAGER: return 'مدیر فروش';
           case UserRole.FACTORY_MANAGER: return 'مدیر کارخانه';
-          case UserRole.WAREHOUSE_KEEPER: return 'انباردار';
+          case UserRole.WAREHOUSE_KEEPER: return 'انبار واردات'; // RENAMED from 'انباردار'
           case UserRole.SECURITY_HEAD: return 'سرپرست انتظامات';
           case UserRole.SECURITY_GUARD: return 'نگهبان';
           case UserRole.USER: return 'کاربر عادی';
@@ -91,7 +91,7 @@ const ManageUsers: React.FC = () => {
                     <option value={UserRole.CEO}>مدیر عامل</option>
                     <option value={UserRole.SALES_MANAGER}>مدیر فروش</option>
                     <option value={UserRole.FACTORY_MANAGER}>مدیر کارخانه</option>
-                    <option value={UserRole.WAREHOUSE_KEEPER}>انباردار</option>
+                    <option value={UserRole.WAREHOUSE_KEEPER}>انبار واردات</option> {/* Updated Label */}
                     <option value={UserRole.SECURITY_HEAD}>سرپرست انتظامات</option>
                     <option value={UserRole.SECURITY_GUARD}>نگهبان</option>
                     <option value={UserRole.ADMIN}>مدیر سیستم (دسترسی کامل)</option>

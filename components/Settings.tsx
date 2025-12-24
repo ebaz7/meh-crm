@@ -453,7 +453,7 @@ const Settings: React.FC = () => {
       { id: UserRole.CEO, label: 'مدیر عامل' }, 
       { id: UserRole.SALES_MANAGER, label: 'مدیر فروش' },
       { id: UserRole.FACTORY_MANAGER, label: 'مدیر کارخانه' },
-      { id: UserRole.WAREHOUSE_KEEPER, label: 'انباردار' },
+      { id: UserRole.WAREHOUSE_KEEPER, label: 'انبار واردات' }, // RENAMED
       { id: UserRole.SECURITY_HEAD, label: 'سرپرست انتظامات' },
       { id: UserRole.SECURITY_GUARD, label: 'نگهبان' },
       { id: UserRole.ADMIN, label: 'مدیر سیستم' }, 
@@ -665,7 +665,7 @@ const Settings: React.FC = () => {
                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
                             <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2"><Truck size={20}/> تنظیمات خروج کارخانه</h3>
                             <div>
-                                <label className="text-xs font-bold text-gray-700 block mb-1">گروه انبار (جهت دریافت خودکار مجوز)</label>
+                                <label className="text-xs font-bold text-gray-700 block mb-1">شماره موبایل سرپرست انبار (جهت مجوز خروج)</label> {/* RENAMED LABEL */}
                                 <select 
                                     className="w-full border rounded-lg p-2 text-sm bg-white" 
                                     value={settings.exitPermitNotificationGroup || ''} 
@@ -678,7 +678,7 @@ const Settings: React.FC = () => {
                                         </option>
                                     ))}
                                 </select>
-                                <p className="text-[10px] text-gray-500 mt-1">پس از تایید مجوز خروج توسط مدیرعامل، تصویر مجوز به این گروه ارسال خواهد شد.</p>
+                                <p className="text-[10px] text-gray-500 mt-1">پس از تایید مجوز خروج توسط مدیرعامل، تصویر مجوز به این شخص/گروه (سرپرست انبار) ارسال خواهد شد. (متفاوت از انبار واردات)</p>
                             </div>
                         </div>
 
