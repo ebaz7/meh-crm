@@ -27,7 +27,7 @@ export enum OrderStatus {
 export enum ExitPermitStatus {
   PENDING_CEO = 'در انتظار تایید مدیرعامل',
   PENDING_FACTORY = 'تایید مدیرعامل / در انتظار مدیر کارخانه',
-  PENDING_WAREHOUSE = 'تایید کارخانه / در انتظار سرپرست انبار', // NEW STAGE ADDED
+  PENDING_WAREHOUSE = 'تایید کارخانه / در انتظار سرپرست انبار', // NEW STAGE
   PENDING_SECURITY = 'تایید انبار / در انتظار تایید انتظامات',
   EXITED = 'خارج شده (بایگانی)',
   REJECTED = 'رد شده'

@@ -22,7 +22,7 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
 };
 export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE'); };
 
-// --- UPDATED: Exit Permits Workflow (5 Stages) ---
+// --- UPDATED: Exit Permits Workflow (5 Stages with Warehouse) ---
 export const getExitPermits = async (): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits'); };
 export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
 export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
@@ -33,22 +33,22 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     if(permit) {
         const updates: any = { status };
         
-        // Stage 1: CEO Approved (Moves to Factory)
+        // Stage 1: CEO Approval (Target: Pending Factory)
         if (status === ExitPermitStatus.PENDING_FACTORY) {
             updates.approverCeo = approverUser.fullName;
         }
         
-        // Stage 2: Factory Approved (Moves to Warehouse)
+        // Stage 2: Factory Manager Approval (Target: Pending Warehouse)
         if (status === ExitPermitStatus.PENDING_WAREHOUSE) {
             updates.approverFactory = approverUser.fullName;
         }
 
-        // Stage 3: Warehouse Approved (Moves to Security)
+        // Stage 3: Warehouse Supervisor Approval (Target: Pending Security)
         if (status === ExitPermitStatus.PENDING_SECURITY) {
             updates.approverWarehouse = approverUser.fullName;
         }
 
-        // Stage 4: Security Approved (Moves to Exited)
+        // Stage 4: Security Approval (Target: Exited)
         if (status === ExitPermitStatus.EXITED) {
             updates.approverSecurity = approverUser.fullName;
             if (extra?.exitTime) updates.exitTime = extra.exitTime;
