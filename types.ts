@@ -97,7 +97,7 @@ export interface PaymentOrder {
   description: string;
   status: OrderStatus;
   payingCompany?: string; 
-  paymentLocation?: string; // NEW: Place of Issue/Payment
+  // paymentLocation removed as requested
   paymentDetails: PaymentDetail[];
   requester: string;
   approverFinancial?: string;
@@ -184,7 +184,7 @@ export interface DailySecurityMeta { dailyDescription?: string; morningGuard?: {
 export interface SecurityLog { id: string; rowNumber: number; date: string; shift: string; origin: string; entryTime: string; exitTime: string; driverName: string; plateNumber: string; goodsName: string; quantity: string; destination: string; receiver: string; workDescription: string; permitProvider: string; registrant: string; status: SecurityStatus; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; rejectionReason?: string; createdAt: number; }
 export interface PersonnelDelay { id: string; date: string; personnelName: string; unit: string; arrivalTime: string; delayAmount: string; repeatCount?: string; instruction?: string; registrant: string; status: SecurityStatus; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; rejectionReason?: string; createdAt: number; }
 export interface SecurityIncident { id: string; reportNumber: string; date: string; subject: string; description: string; shift: string; registrant: string; status: SecurityStatus; witnesses?: string; shiftManagerOpinion?: string; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; hrAction?: string; safetyAction?: string; rejectionReason?: string; createdAt: number; }
-export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
+export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canApproveExitWarehouse?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
 
 // Updated CompanyBank to include form layout and dual print settings
 export interface CompanyBank { 

@@ -468,6 +468,7 @@ const Settings: React.FC = () => {
       { id: 'canCreateExitPermit', label: 'ثبت درخواست خروج بار' },
       { id: 'canApproveExitCeo', label: 'تایید خروج بار (مدیرعامل)' },
       { id: 'canApproveExitFactory', label: 'تایید خروج بار (کارخانه)' },
+      { id: 'canApproveExitWarehouse', label: 'تایید خروج بار (سرپرست انبار)' }, // NEW PERMISSION
       { id: 'canViewExitArchive', label: 'مشاهده بایگانی خروج بار' },
       { id: 'canEditExitArchive', label: 'اصلاح اسناد بایگانی خروج' },
       { id: 'canManageWarehouse', label: 'مدیریت انبار (ورود/خروج)' },

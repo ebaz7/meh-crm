@@ -40,7 +40,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
       if (p.status === ExitPermitStatus.PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
-      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (currentUser.role === UserRole.WAREHOUSE_KEEPER || currentUser.role === UserRole.ADMIN)) return true;
+      // Updated to check permission instead of hardcoded role
+      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && permissions.canApproveExitWarehouse) return true;
+      
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
       return false;
   };
