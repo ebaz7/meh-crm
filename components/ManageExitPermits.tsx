@@ -28,6 +28,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
   const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
 
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
+  const [autoSendWatermark, setAutoSendWatermark] = useState<'DELETED' | 'EDITED' | null>(null);
   
   // Calculate permissions with fallbacks to ensure buttons show even if settings lag
   const permissions = getRolePermissions(currentUser.role, settings || null);
@@ -151,6 +152,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
       if(window.confirm('آیا تایید می‌کنید؟')) {
           setIsProcessingId(id); // LOCK UI
+          setAutoSendWatermark(null); // No watermark for approvals
           try {
               // 1. Update Database
               await updateExitPermitStatus(id, nextStatus, currentUser, extra);
@@ -276,6 +278,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if(!confirm('آیا مطمئن هستید که می‌خواهید مجوز را مجدداً به گروه ارسال کنید؟')) return;
       
       setIsProcessingId(permit.id);
+      setAutoSendWatermark(null);
       
       // 1. Prepare Mock
       const mockPermit = { ...permit }; 
@@ -329,36 +332,49 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       const permitToDelete = permits.find(p => p.id === id);
       if (!permitToDelete) return;
 
-      // Only attempt to notify if it was fully exited and we have group settings
-      if (permitToDelete.status === ExitPermitStatus.EXITED && settings?.exitPermitNotificationGroup) {
-          setIsProcessingId(id);
-          
-          // 1. Set mockup for rendering (same data)
-          setPermitForAutoSend(permitToDelete);
-          
-          // 2. Wait render
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // 3. Capture & Send Warning
-          const element = document.getElementById(`print-permit-${permitToDelete.id}`);
-          if (element) {
-              try {
-                  // @ts-ignore
-                  const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                  const base64 = canvas.toDataURL('image/png').split(',')[1];
-                  
-                  const caption = `❌❌ *هشدار: مجوز خروج حذف شد* ❌❌\n` +
-                                  `🔢 شماره مجوز: ${permitToDelete.permitNumber}\n` +
-                                  `🗑️ حذف کننده: ${currentUser.fullName}\n` +
-                                  `⚠️ *این مجوز از سیستم حذف شده و فاقد اعتبار است.*`;
+      setIsProcessingId(id);
+      setAutoSendWatermark('DELETED'); // SET WATERMARK
+      
+      // 1. Set mockup for rendering (same data)
+      setPermitForAutoSend(permitToDelete);
+      
+      // 2. Wait render
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 3. Capture & Send Warning
+      const element = document.getElementById(`print-permit-${permitToDelete.id}`);
+      if (element) {
+          try {
+              // @ts-ignore
+              const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+              const base64 = canvas.toDataURL('image/png').split(',')[1];
+              
+              const caption = `❌❌ *هشدار: مجوز خروج حذف شد* ❌❌\n` +
+                              `🔢 شماره مجوز: ${permitToDelete.permitNumber}\n` +
+                              `🗑️ حذف کننده: ${currentUser.fullName}\n` +
+                              `⚠️ *این مجوز از سیستم حذف شده و فاقد اعتبار است.*`;
 
+              // Send to Group
+              if (settings?.exitPermitNotificationGroup) {
                   await apiCall('/send-whatsapp', 'POST', { 
                       number: settings.exitPermitNotificationGroup, 
                       message: caption, 
-                      mediaData: { data: base64, mimeType: 'image/png' } 
+                      mediaData: { data: base64, mimeType: 'image/png', filename: `DELETED_PERMIT.png` } 
                   });
-              } catch (e) { console.error("Error sending delete notification", e); }
-          }
+              }
+
+              // Send to CEO
+              const users = await getUsers();
+              const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+              if (ceo) {
+                  await apiCall('/send-whatsapp', 'POST', { 
+                      number: ceo.phoneNumber, 
+                      message: caption, 
+                      mediaData: { data: base64, mimeType: 'image/png', filename: `DELETED_PERMIT.png` } 
+                  });
+              }
+
+          } catch (e) { console.error("Error sending delete notification", e); }
       }
 
       // 4. Actual Delete
@@ -371,6 +387,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       } finally {
           setIsProcessingId(null);
           setPermitForAutoSend(null);
+          setAutoSendWatermark(null);
       }
   };
 
@@ -421,7 +438,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
         
         {permitForAutoSend && (
             <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '210mm'}}>
-                <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} />
+                <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} watermark={autoSendWatermark} />
             </div>
         )}
         <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

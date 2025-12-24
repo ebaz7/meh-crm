@@ -93,6 +93,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                       
                       if (ceo) {
                           let caption = `🚛 *اصلاحیه مجوز خروج*\n`;
+                          caption += `⚠️ *این مجوز ویرایش شده است*\n`;
                           caption += `شماره: ${updatedPermit.permitNumber}\n`;
                           caption += `گیرنده: ${updatedPermit.recipientName}\n`;
                           caption += `وضعیت: بازگشت به صف بررسی\n\n`;
@@ -110,7 +111,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           // Only notify group if it was ALREADY EXITED/SENT before edit
                           let groupCaption = `📝 *مجوز خروج ویرایش شد*\n`;
                           groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
-                          groupCaption += `⚠️ توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.\n`;
+                          groupCaption += `⚠️ *توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.*\n`;
                           groupCaption += `وضعیت فعلی: در انتظار تایید مجدد`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
@@ -137,10 +138,10 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        {/* Hidden Render for Auto Send */}
+        {/* Hidden Render for Auto Send with Watermark */}
         {tempPermitForCapture && (
             <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
-                <PrintExitPermit permit={tempPermitForCapture} onClose={()=>{}} embed />
+                <PrintExitPermit permit={tempPermitForCapture} onClose={()=>{}} embed watermark="EDITED" />
             </div>
         )}
 

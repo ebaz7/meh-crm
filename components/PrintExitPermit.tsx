@@ -15,9 +15,10 @@ interface Props {
   onEdit?: () => void;
   settings?: SystemSettings;
   embed?: boolean; 
+  watermark?: 'DELETED' | 'EDITED' | null; // NEW PROP
 }
 
-const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject, onEdit, settings, embed }) => {
+const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject, onEdit, settings, embed, watermark }) => {
   const [sharing, setSharing] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showContactSelect, setShowContactSelect] = useState(false);
@@ -103,6 +104,22 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             maxHeight: '296mm',
             overflow: 'hidden'
         }}>
+            {/* WATERMARK OVERLAY */}
+            {watermark === 'DELETED' && (
+                <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
+                    <div className="border-[12px] border-red-500 text-red-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap">
+                        حذف شد
+                    </div>
+                </div>
+            )}
+            {watermark === 'EDITED' && (
+                <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
+                    <div className="border-[12px] border-orange-500 text-orange-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap">
+                        اصلاحیه
+                    </div>
+                </div>
+            )}
+
             {/* ... Content ... */}
             <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-8">
                 <div className="flex flex-col"><h1 className="text-3xl font-black mb-1">مجوز خروج کالا از کارخانه</h1><p className="text-sm font-bold text-gray-600">سیستم مکانیزه مدیریت بار و خروج</p></div>
