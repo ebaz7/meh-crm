@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, restoreSystemData, uploadFile } from '../services/storageService';
 import { SystemSettings, UserRole, RolePermissions, Company, Contact, CompanyBank, User, CustomRole, PrintTemplate } from '../types';
-import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container, Printer, LayoutTemplate, ChevronDown, ChevronRight, Lock } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Loader2, Database, Bell, Plus, Trash2, Building, ShieldCheck, Landmark, Package, AppWindow, BellRing, BellOff, Send, Image as ImageIcon, Pencil, X, Check, MessageCircle, Calendar, Phone, LogOut, RefreshCw, Users, FolderSync, BrainCircuit, Smartphone, Link, Truck, MessageSquare, DownloadCloud, UploadCloud, Warehouse, FileDigit, Briefcase, FileText, Container, Printer, LayoutTemplate, ChevronDown, ChevronRight, Lock, ChevronUp } from 'lucide-react';
 import { apiCall } from '../services/apiService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
 import { getUsers, updateUser } from '../services/authService';
@@ -109,7 +109,7 @@ const Settings: React.FC = () => {
   // App Users to merge into contacts list and manage access
   const [appUsers, setAppUsers] = useState<(Contact | User)[]>([]); // Mixed list or handle separately
   
-  // Collapsed state for permission groups
+  // Collapsed state for permission groups (Default False for cleaner view)
   const [expandedPermGroups, setExpandedPermGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => { 
@@ -468,6 +468,7 @@ const Settings: React.FC = () => {
           id: 'payment',
           title: 'ماژول پرداخت',
           icon: Landmark,
+          color: 'blue',
           items: [
               { id: 'canCreatePaymentOrder', label: 'ثبت دستور پرداخت جدید' },
               { id: 'canViewPaymentOrders', label: 'مشاهده کارتابل پرداخت' },
@@ -480,6 +481,7 @@ const Settings: React.FC = () => {
           id: 'exit',
           title: 'ماژول خروج کارخانه',
           icon: Truck,
+          color: 'orange',
           items: [
               { id: 'canCreateExitPermit', label: 'ثبت درخواست خروج بار' },
               { id: 'canViewExitPermits', label: 'مشاهده کارتابل خروج' },
@@ -494,6 +496,7 @@ const Settings: React.FC = () => {
           id: 'warehouse',
           title: 'ماژول انبار',
           icon: Warehouse,
+          color: 'green',
           items: [
               { id: 'canManageWarehouse', label: 'مدیریت انبار (ورود/خروج)' },
               { id: 'canViewWarehouseReports', label: 'مشاهده گزارشات انبار' },
@@ -504,6 +507,7 @@ const Settings: React.FC = () => {
           id: 'security',
           title: 'ماژول انتظامات',
           icon: ShieldCheck,
+          color: 'purple',
           items: [
               { id: 'canViewSecurity', label: 'مشاهده ماژول انتظامات' },
               { id: 'canCreateSecurityLog', label: 'ثبت گزارشات (نگهبان)' },
@@ -514,6 +518,7 @@ const Settings: React.FC = () => {
           id: 'general',
           title: 'عمومی و مدیریتی',
           icon: Lock,
+          color: 'gray',
           items: [
               { id: 'canViewAll', label: 'مشاهده تمام دستورات (همه کاربران)' },
               { id: 'canEditOwn', label: 'ویرایش دستور خود' },
@@ -990,41 +995,53 @@ const Settings: React.FC = () => {
                                     <div className="space-y-3">
                                         {PERMISSION_GROUPS.map(group => {
                                             const groupKey = `${role.id}-${group.id}`;
-                                            const isExpanded = expandedPermGroups[groupKey] !== false; // Default expanded
+                                            const isExpanded = expandedPermGroups[groupKey]; // Default to collapsed
 
                                             // Check if all items in group are checked to check group checkbox
                                             const allChecked = group.items.every(item => settings.rolePermissions?.[role.id]?.[item.id as keyof RolePermissions]);
 
+                                            // Determine Header Color based on group color prop (or fallback)
+                                            const headerColorClass = 
+                                                group.color === 'blue' ? 'bg-blue-100 text-blue-900 border-blue-200' :
+                                                group.color === 'orange' ? 'bg-orange-100 text-orange-900 border-orange-200' :
+                                                group.color === 'green' ? 'bg-green-100 text-green-900 border-green-200' :
+                                                group.color === 'purple' ? 'bg-purple-100 text-purple-900 border-purple-200' :
+                                                'bg-gray-200 text-gray-800 border-gray-300';
+
                                             return (
-                                                <div key={group.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                                    <div className="bg-gray-100 p-2 flex items-center justify-between cursor-pointer select-none" onClick={() => toggleGroupExpand(groupKey)}>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="p-1" onClick={(e) => e.stopPropagation()}>
+                                                <div key={group.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200">
+                                                    <div 
+                                                        className={`p-3 flex items-center justify-between cursor-pointer select-none border-b ${headerColorClass}`} 
+                                                        onClick={() => toggleGroupExpand(groupKey)}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1 bg-white/50 rounded hover:bg-white transition-colors" onClick={(e) => e.stopPropagation()}>
                                                                 <input 
                                                                     type="checkbox" 
                                                                     className="w-4 h-4 text-blue-600 rounded cursor-pointer"
                                                                     checked={allChecked}
                                                                     onChange={(e) => togglePermissionGroup(role.id, group.items, e.target.checked)}
+                                                                    title="انتخاب/لغو انتخاب همه موارد این گروه"
                                                                 />
                                                             </div>
-                                                            <div className="flex items-center gap-2 font-bold text-xs text-gray-700">
-                                                                <group.icon size={16}/> {group.title}
+                                                            <div className="flex items-center gap-2 font-bold text-xs">
+                                                                <group.icon size={18}/> {group.title}
                                                             </div>
                                                         </div>
-                                                        {isExpanded ? <ChevronDown size={16} className="text-gray-400"/> : <ChevronRight size={16} className="text-gray-400"/>}
+                                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                                     </div>
                                                     
                                                     {isExpanded && (
-                                                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2 border-t bg-gray-50/50">
+                                                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2 bg-white animate-fade-in">
                                                             {group.items.map(item => (
-                                                                <label key={`${role.id}-${item.id}`} className="flex items-center gap-2 cursor-pointer hover:bg-blue-50 p-1.5 rounded transition-colors">
+                                                                <label key={`${role.id}-${item.id}`} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors border border-transparent hover:border-gray-100">
                                                                     <input 
                                                                         type="checkbox" 
                                                                         className="w-4 h-4 text-blue-600 rounded border-gray-300"
                                                                         checked={settings.rolePermissions?.[role.id]?.[item.id as keyof RolePermissions] ?? false}
                                                                         onChange={(e) => handlePermissionChange(role.id, item.id as keyof RolePermissions, e.target.checked)}
                                                                     />
-                                                                    <span className="text-xs text-gray-700">{item.label}</span>
+                                                                    <span className="text-xs text-gray-700 font-medium">{item.label}</span>
                                                                 </label>
                                                             ))}
                                                         </div>
