@@ -4,7 +4,7 @@ import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '..
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
-import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2 } from 'lucide-react';
+import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import EditExitPermitModal from './EditExitPermitModal';
 import { apiCall } from '../services/apiService'; 
@@ -40,6 +40,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       if (activeTab === 'archive' && !permissions.canEditExitArchive) return false;
       if (p.status === ExitPermitStatus.PENDING_CEO && (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN)) return true;
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
+      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (currentUser.role === UserRole.WAREHOUSE_KEEPER || currentUser.role === UserRole.ADMIN)) return true;
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;
       return false;
   };
@@ -76,7 +77,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       let extra: any = {};
 
       if (currentStatus === ExitPermitStatus.PENDING_CEO) nextStatus = ExitPermitStatus.PENDING_FACTORY;
-      else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_SECURITY;
+      else if (currentStatus === ExitPermitStatus.PENDING_FACTORY) nextStatus = ExitPermitStatus.PENDING_WAREHOUSE; // NEW STEP
+      else if (currentStatus === ExitPermitStatus.PENDING_WAREHOUSE) nextStatus = ExitPermitStatus.PENDING_SECURITY; // NEW STEP
       else if (currentStatus === ExitPermitStatus.PENDING_SECURITY) {
           if (!exitTimeValue) { alert("لطفا ابتدا ساعت خروج را وارد کنید."); return; }
           nextStatus = ExitPermitStatus.EXITED;
@@ -95,13 +97,19 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               // 2. Prepare Mock Object for Rendering
               const updatedPermitMock = { ...permitToApprove, status: nextStatus, ...extra };
               if (nextStatus === ExitPermitStatus.PENDING_FACTORY) updatedPermitMock.approverCeo = currentUser.fullName;
+              if (nextStatus === ExitPermitStatus.PENDING_WAREHOUSE) {
+                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
+                   updatedPermitMock.approverFactory = currentUser.fullName;
+              }
               if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
-                  updatedPermitMock.approverFactory = currentUser.fullName;
+                  updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
+                  updatedPermitMock.approverWarehouse = currentUser.fullName;
               }
               if (nextStatus === ExitPermitStatus.EXITED) {
                   updatedPermitMock.approverCeo = permitToApprove.approverCeo || 'تایید شده';
                   updatedPermitMock.approverFactory = permitToApprove.approverFactory || 'تایید شده';
+                  updatedPermitMock.approverWarehouse = permitToApprove.approverWarehouse || 'تایید شده';
                   updatedPermitMock.approverSecurity = currentUser.fullName; 
               }
 
@@ -125,54 +133,38 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       // CASE A: CEO Approved -> Goes to Factory Manager
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
                           const caption = generateFullCaption(updatedPermitMock, "✍️ *مجوز خروج توسط مدیرعامل تایید شد*");
-                          
-                          // Send to Factory Manager
                           const target = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
                           if (target) {
-                              try {
-                                  await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                              } catch (err) { console.error("Failed to send to Factory Manager", err); }
-                          }
-
-                          // Send to Configured Group (REQUIRED)
-                          if (settings?.exitPermitNotificationGroup) {
-                              try {
-                                  await apiCall('/send-whatsapp', 'POST', { 
-                                      number: settings.exitPermitNotificationGroup, 
-                                      message: caption, 
-                                      mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Approved_${updatedPermitMock.permitNumber}.png` } 
-                                  });
-                              } catch (err) { console.error("Failed to send to Group", err); }
+                              try { await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
                           }
                       } 
-                      // CASE B: Factory Approved -> Goes to Security
-                      else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
-                          const caption = generateFullCaption(updatedPermitMock, "🏭 *تایید مدیر کارخانه انجام شد* (ارسال به انتظامات)");
-                          
-                          const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
-                          for (const sec of securityUsers) {
-                            try {
-                                await apiCall('/send-whatsapp', 'POST', { number: sec.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                            } catch (err) { console.error("Failed to send to Security", err); }
+                      // CASE B: Factory Approved -> Goes to Warehouse Supervisor (NEW)
+                      else if (nextStatus === ExitPermitStatus.PENDING_WAREHOUSE) {
+                          const caption = generateFullCaption(updatedPermitMock, "🏭 *تایید مدیر کارخانه انجام شد* (ارسال به سرپرست انبار)");
+                          const warehouseUsers = users.filter(u => u.role === UserRole.WAREHOUSE_KEEPER && u.phoneNumber);
+                          for (const whUser of warehouseUsers) {
+                            try { await apiCall('/send-whatsapp', 'POST', { number: whUser.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
                           }
                       }
-                      // CASE C: Security Approved (Final Exit) -> Goes to Requester & Group
+                      // CASE C: Warehouse Approved -> Goes to Security
+                      else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
+                          const caption = generateFullCaption(updatedPermitMock, "📦 *تایید سرپرست انبار انجام شد* (ارسال به انتظامات)");
+                          const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
+                          for (const sec of securityUsers) {
+                            try { await apiCall('/send-whatsapp', 'POST', { number: sec.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
+                          }
+                      }
+                      // CASE D: Security Approved (Final Exit)
                       else if (nextStatus === ExitPermitStatus.EXITED) {
                           const caption = generateFullCaption(updatedPermitMock, "✅ *خروج نهایی بار از کارخانه ثبت شد*");
-
+                          
                           // Send to Requester
                           const target = users.find(u => u.fullName === updatedPermitMock.requester && u.phoneNumber);
-                          if (target) {
-                              try {
-                                  await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                              } catch(e) {}
-                          }
+                          if (target) { try { await apiCall('/send-whatsapp', 'POST', { number: target.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch(e) {} }
                           
                           // Send to Group
                           if (settings?.exitPermitNotificationGroup) {
-                              try {
-                                  await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
-                              } catch(e) {}
+                              try { await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch(e) {}
                           }
                       }
                   } catch (e) { console.error("Error in auto-send logic", e); }
@@ -206,6 +198,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       switch(status) {
           case ExitPermitStatus.PENDING_CEO: return <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-[10px] font-bold">انتظار مدیرعامل</span>;
           case ExitPermitStatus.PENDING_FACTORY: return <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-[10px] font-bold">انتظار مدیر کارخانه</span>;
+          case ExitPermitStatus.PENDING_WAREHOUSE: return <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-[10px] font-bold">انتظار سرپرست انبار</span>;
           case ExitPermitStatus.PENDING_SECURITY: return <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-[10px] font-bold">انتظار انتظامات</span>;
           case ExitPermitStatus.EXITED: return <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-[10px] font-bold">خارج شده</span>;
           case ExitPermitStatus.REJECTED: return <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-[10px] font-bold">رد شده</span>;

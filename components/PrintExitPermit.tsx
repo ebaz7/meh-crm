@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ExitPermit, ExitPermitStatus, SystemSettings, UserRole } from '../types';
 import { formatDate, formatCurrency } from '../constants';
@@ -122,12 +123,16 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                     <div className="flex items-center gap-3 text-lg"><div className="font-bold">شماره پلاک:</div> <div className="font-black font-mono tracking-widest dir-ltr border-2 border-gray-400 bg-white px-4 py-1 rounded-lg">{permit.plateNumber || '---'}</div></div>
                 </div>
             </div>
-            <div className="mt-12 pt-8 border-t-4 border-black grid grid-cols-4 gap-4 text-center">
-                <div className="flex flex-col items-center justify-end min-h-[140px]"><div className="mb-2"><Stamp title="مدیر فروش (درخواست)" name={permit.requester} /></div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر فروش</span></div></div>
-                <div className="flex flex-col items-center justify-end min-h-[140px]"><div className="mb-2">{permit.approverCeo ? <Stamp title="تایید مدیریت عامل" name={permit.approverCeo} /> : <span className="text-gray-300 text-xs italic">امضا مدیرعامل</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر عامل</span></div></div>
-                <div className="flex flex-col items-center justify-end min-h-[140px]"><div className="mb-2">{permit.approverFactory ? <Stamp title="تایید مدیر کارخانه" name={permit.approverFactory} /> : <span className="text-gray-300 text-xs italic">امضا مدیر کارخانه</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر کارخانه</span></div></div>
-                <div className="flex flex-col items-center justify-end min-h-[140px]"><div className="mb-2">{permit.approverSecurity ? <Stamp title="خروج نهایی (ساعت)" name={`${permit.approverSecurity} (${permit.exitTime})`} /> : <span className="text-gray-300 text-xs italic">تایید انتظامات</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">انتظامات / حراست</span></div></div>
+            
+            {/* UPDATED SIGNATURE GRID TO INCLUDE WAREHOUSE KEEPER */}
+            <div className="mt-12 pt-8 border-t-4 border-black grid grid-cols-5 gap-4 text-center">
+                <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2"><Stamp title="مدیر فروش (درخواست)" name={permit.requester} /></div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر فروش</span></div></div>
+                <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2">{permit.approverCeo ? <Stamp title="تایید مدیریت عامل" name={permit.approverCeo} /> : <span className="text-gray-300 text-xs italic">امضا مدیرعامل</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر عامل</span></div></div>
+                <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2">{permit.approverFactory ? <Stamp title="تایید مدیر کارخانه" name={permit.approverFactory} /> : <span className="text-gray-300 text-xs italic">امضا مدیر کارخانه</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر کارخانه</span></div></div>
+                <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2">{permit.approverWarehouse ? <Stamp title="تایید سرپرست انبار" name={permit.approverWarehouse} /> : <span className="text-gray-300 text-xs italic">امضا سرپرست انبار</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">سرپرست انبار</span></div></div>
+                <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2">{permit.approverSecurity ? <Stamp title="خروج نهایی (ساعت)" name={`${permit.approverSecurity} (${permit.exitTime})`} /> : <span className="text-gray-300 text-xs italic">تایید انتظامات</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">انتظامات / حراست</span></div></div>
             </div>
+            
             <div className="mt-8 text-center text-[10px] text-gray-400">این سند به صورت سیستمی تولید شده و فاقد خدشه معتبر می‌باشد. | تاریخ چاپ: {new Date().toLocaleString('fa-IR')}</div>
         </div>
   );

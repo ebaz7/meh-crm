@@ -200,9 +200,12 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           setEditingLineId(null);
       } else {
           setPaymentLines([...paymentLines, detail]); 
-          // Append description only for new lines
-          if(newLine.description && newLine.method !== PaymentMethod.SHEBA && newLine.method !== PaymentMethod.SATNA && newLine.method !== PaymentMethod.INTERNAL_TRANSFER) {
-              setFormData(p => ({...p, description: p.description ? `${p.description} - ${newLine.description}` : newLine.description}));
+          // Auto Append description logic (For ALL methods)
+          if(newLine.description) {
+              setFormData(p => ({
+                  ...p, 
+                  description: p.description ? `${p.description} - ${newLine.description}` : newLine.description
+              }));
           }
       }
       
@@ -278,8 +281,6 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
         await saveOrder(newOrder); 
         
         // --- BACKGROUND PROCESSING (INSTANT UI RESPONSE) ---
-        // Instead of waiting for html2canvas here, dispatch a custom event
-        // The App.tsx will listen to this and handle the "Auto Send" in background
         const event = new CustomEvent('QUEUE_WHATSAPP_JOB', { 
             detail: { order: newOrder, type: 'create' } 
         });
@@ -349,6 +350,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                     </div>
                 </div>
 
+                {/* Analysis Result Display */}
                 {analysisResult && (
                     <div className={`mb-4 p-3 rounded-xl border flex items-start gap-3 animate-fade-in ${analysisResult.score >= 80 ? 'bg-green-50 border-green-200 text-green-800' : analysisResult.score >= 50 ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
                         {analysisResult.score >= 50 ? <BrainCircuit className="shrink-0 mt-0.5" size={20}/> : <AlertTriangle className="shrink-0 mt-0.5" size={20}/>}
@@ -419,7 +421,7 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                                 <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationOwner} onChange={e => setNewLine({...newLine, destinationOwner: e.target.value})} placeholder="نام صاحب حساب..." />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-indigo-800">شعبه مقصد</label>
+                                <label className="text-xs font-bold text-indigo-800">شعبه مقصد (اختیاری)</label>
                                 <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationBranch} onChange={e => setNewLine({...newLine, destinationBranch: e.target.value})} placeholder="نام یا کد شعبه..." />
                             </div>
                         </div>

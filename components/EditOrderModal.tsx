@@ -4,7 +4,7 @@ import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus
 import { editOrder, uploadFile, getSettings, saveSettings } from '../services/storageService';
 import { enhanceDescription } from '../services/geminiService';
 import { jalaliToGregorian, getShamsiDateFromIso, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../constants';
-import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark, ArrowRightLeft, MapPin } from 'lucide-react';
+import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark, ArrowRightLeft, MapPin, Edit } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
@@ -30,6 +30,9 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   const [paymentLines, setPaymentLines] = useState<PaymentDetail[]>(order.paymentDetails || []);
   const [attachments, setAttachments] = useState<{ fileName: string, data: string }[]>(order.attachments || []);
   
+  // NEW: Editing state for lines
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+
   const [newLine, setNewLine] = useState<{ 
       method: PaymentMethod; 
       amount: string; 
@@ -159,7 +162,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       }
       
       const detail: PaymentDetail = { 
-          id: generateUUID(), 
+          id: editingLineId || generateUUID(), 
           method: newLine.method, 
           amount: amt, 
           chequeNumber: newLine.method === PaymentMethod.CHEQUE ? normalizeInputNumber(newLine.chequeNumber) : undefined, 
@@ -177,20 +180,27 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
           destinationBranch: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationBranch : undefined,
       };
       
-      const updatedLines = [...paymentLines, detail];
+      let updatedLines = [...paymentLines];
+      if (editingLineId) {
+          updatedLines = paymentLines.map(p => p.id === editingLineId ? detail : p);
+          setEditingLineId(null);
+      } else {
+          updatedLines = [...paymentLines, detail];
+          // Auto Append description logic (For ALL methods)
+          if(newLine.description) {
+              setFormData(p => ({
+                  ...p, 
+                  description: p.description ? `${p.description} - ${newLine.description}` : newLine.description
+              }));
+          }
+      }
+
       setPaymentLines(updatedLines); 
       
       const newTotal = updatedLines.reduce((acc, curr) => acc + curr.amount, 0);
-      
-      let newDescription = formData.description;
-      if (newLine.description && newLine.method !== PaymentMethod.SHEBA && newLine.method !== PaymentMethod.SATNA && newLine.method !== PaymentMethod.INTERNAL_TRANSFER) {
-          newDescription = newDescription ? `${newDescription} - ${newLine.description}` : newLine.description;
-      }
-
       setFormData(prev => ({ 
           ...prev, 
-          totalAmount: newTotal.toString(),
-          description: newDescription
+          totalAmount: newTotal.toString()
       }));
 
       setNewLine({ 
@@ -209,9 +219,37 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
       }); 
   };
   
+  const handleEditLine = (line: PaymentDetail) => {
+      // Parse cheque date if exists
+      let cDate = { year: currentShamsi.year, month: currentShamsi.month, day: currentShamsi.day };
+      if (line.chequeDate) {
+          const parts = line.chequeDate.split('/');
+          if (parts.length === 3) {
+              cDate = { year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) };
+          }
+      }
+
+      setNewLine({
+          method: line.method,
+          amount: formatNumberString(line.amount),
+          chequeNumber: line.chequeNumber || '',
+          bankName: line.bankName || '',
+          description: line.description || '',
+          chequeDate: cDate as any,
+          sheba: line.sheba || '',
+          recipientBank: line.recipientBank || '',
+          paymentId: line.paymentId || '',
+          destinationAccount: line.destinationAccount || '',
+          destinationOwner: line.destinationOwner || '',
+          destinationBranch: line.destinationBranch || ''
+      });
+      setEditingLineId(line.id);
+  };
+
   const removePaymentLine = (id: string) => { 
       const updatedLines = paymentLines.filter(p => p.id !== id);
       setPaymentLines(updatedLines);
+      if(editingLineId === id) setEditingLineId(null);
       const newTotal = updatedLines.reduce((acc, curr) => acc + curr.amount, 0);
       setFormData(prev => ({ ...prev, totalAmount: newTotal.toString() }));
   };
@@ -418,7 +456,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                                     <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationOwner} onChange={e => setNewLine({...newLine, destinationOwner: e.target.value})} placeholder="نام صاحب حساب..." />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-indigo-800">شعبه مقصد</label>
+                                    <label className="text-xs font-bold text-indigo-800">شعبه مقصد (اختیاری)</label>
                                     <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationBranch} onChange={e => setNewLine({...newLine, destinationBranch: e.target.value})} placeholder="نام یا کد شعبه..." />
                                 </div>
                             </div>
@@ -427,10 +465,14 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                         <div className="md:col-span-2 space-y-1"><label className="text-xs text-gray-500">{newLine.method === PaymentMethod.SATNA ? 'بابت (شرح)' : 'شرح (اختیاری)'}</label><input type="text" className="w-full border rounded-lg p-2 text-sm" placeholder="..." value={newLine.description} onChange={e => setNewLine({ ...newLine, description: e.target.value })} /></div>
                         
                         {newLine.method === PaymentMethod.CHEQUE && (<div className="md:col-span-12 bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-1 flex items-center gap-4"><label className="text-xs font-bold text-gray-700 flex items-center gap-1 min-w-fit"><Calendar size={14}/> تاریخ سررسید چک:</label><div className="flex gap-2 flex-1"><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.d} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, d: Number(e.target.value)}})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.m} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, m: Number(e.target.value)}})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border rounded px-2 py-1 text-sm bg-white flex-1" value={newLine.chequeDate.y} onChange={e => setNewLine({...newLine, chequeDate: {...newLine.chequeDate, y: Number(e.target.value)}})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>)}
-                        <div className="md:col-span-1"><button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center"><Plus size={20} /></button></div>
+                        <div className="md:col-span-1">
+                            <button type="button" onClick={addPaymentLine} disabled={!newLine.amount} className={`w-full text-white p-2 rounded-lg transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center ${editingLineId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}>
+                                {editingLineId ? <Save size={20} /> : <Plus size={20} />}
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{(line.method === PaymentMethod.SHEBA || line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}{line.method === PaymentMethod.INTERNAL_TRANSFER && <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">به: {line.destinationOwner} ({line.destinationAccount}) {line.destinationBranch ? `- ${line.destinationBranch}` : ''}</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div>))}</div>
+                    <div className="space-y-2">{paymentLines.map((line) => (<div key={line.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors"><div className="flex gap-4 text-sm items-center flex-wrap"><span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">{line.method}</span><span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>{line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}{line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}{(line.method === PaymentMethod.SHEBA || line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}{line.method === PaymentMethod.INTERNAL_TRANSFER && <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">به: {line.destinationOwner} ({line.destinationAccount}) {line.destinationBranch ? `- ${line.destinationBranch}` : ''}</span>}{line.description && <span className="text-gray-500 text-xs italic">{line.description}</span>}</div><div className="flex gap-1"><button type="button" onClick={() => handleEditLine(line)} className="text-amber-500 hover:text-amber-700 hover:bg-amber-50 p-2 rounded-lg transition-colors"><Edit size={18} /></button><button type="button" onClick={() => removePaymentLine(line.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button></div></div>))}</div>
                 </div>
 
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
