@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PaymentOrder, OrderStatus, SystemSettings, User, ExitPermit, ExitPermitStatus, WarehouseTransaction, UserRole } from '../types';
 import { formatCurrency, getShamsiDateFromIso } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { TrendingUp, Clock, CheckCircle, Activity, XCircle, Banknote, Calendar as CalendarIcon, ShieldCheck, ArrowUpRight, CheckSquare, Truck, Package, ListChecks } from 'lucide-react';
+import { TrendingUp, Clock, CheckCircle, Activity, XCircle, Banknote, Calendar as CalendarIcon, ShieldCheck, ArrowUpRight, CheckSquare, Truck, Package, ListChecks, Lock } from 'lucide-react';
 import { getRolePermissions } from '../services/authService';
 import { getExitPermits, getWarehouseTransactions } from '../services/storageService';
 
@@ -37,8 +37,16 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       fetchData();
   }, []);
 
-  const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false };
+  const permissions = settings ? getRolePermissions(currentUser.role, settings, currentUser) : { canViewPaymentOrders: false, canCreatePaymentOrder: false };
   const hasPaymentAccess = permissions.canViewPaymentOrders === true;
+  
+  // Logic to hide charts for normal users (users who cannot create payment orders)
+  // We keep it visible for Admins, CEOs, and Managers regardless of permissions settings just in case
+  const showCharts = permissions.canCreatePaymentOrder || 
+                     currentUser.role === UserRole.ADMIN || 
+                     currentUser.role === UserRole.CEO || 
+                     currentUser.role === UserRole.MANAGER || 
+                     currentUser.role === UserRole.FINANCIAL;
 
   // --- CALC PENDING COUNTS FOR ACTION CARDS (Including Revocation) ---
   let pendingPaymentCount = 0;
@@ -55,6 +63,8 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   let pendingExitCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_CEO).length;
   if (currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_FACTORY).length;
+  // Warehouse Supervisor pending count
+  if (currentUser.role === UserRole.WAREHOUSE_KEEPER || currentUser.role === UserRole.ADMIN) pendingExitCount += exitPermits.filter(p => p.status === ExitPermitStatus.PENDING_WAREHOUSE).length;
 
   let pendingBijakCount = 0;
   if (currentUser.role === UserRole.CEO || currentUser.role === UserRole.ADMIN) pendingBijakCount += warehouseTxs.filter(t => t.type === 'OUT' && t.status === 'PENDING').length;
@@ -62,7 +72,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const showActionSection = pendingPaymentCount > 0 || pendingExitCount > 0 || pendingBijakCount > 0;
 
   // --- WIDGET LOGIC ---
-  // Use custom filter keys for role-based cartables to include revocation
   const statusWidgets = [
     { key: 'cartable_financial', label: 'کارتابل مالی', count: orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE).length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', barColor: 'bg-amber-500' },
     { key: 'cartable_manager', label: 'کارتابل مدیریت', count: orders.filter(o => o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER).length, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', barColor: 'bg-blue-500' },
@@ -77,7 +86,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       }
   };
   
-  // Custom Action Card Handler to send ROLE BASED filter
   const handlePaymentCardClick = () => {
       let filter = 'pending_all';
       if (currentUser.role === UserRole.FINANCIAL) filter = 'cartable_financial';
@@ -85,20 +93,15 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
       else if (currentUser.role === UserRole.CEO) filter = 'cartable_ceo';
       
       if (onFilterByStatus) onFilterByStatus(filter);
-      // We also need to switch tab, which is done via prop usually, but here we reuse the prop
       onGoToPaymentApprovals(); 
   };
 
-  // Active list logic for Dashboard view (Role aware)
   const activeCartable = hasPaymentAccess ? orders
     .filter(o => {
         if (o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED || o.status === OrderStatus.REJECTED) return false;
-        
-        // Show relevant items for specific roles
         if (currentUser.role === UserRole.FINANCIAL) return o.status === OrderStatus.PENDING || o.status === OrderStatus.REVOCATION_PENDING_FINANCE;
         if (currentUser.role === UserRole.MANAGER) return o.status === OrderStatus.APPROVED_FINANCE || o.status === OrderStatus.REVOCATION_PENDING_MANAGER;
         if (currentUser.role === UserRole.CEO) return o.status === OrderStatus.APPROVED_MANAGER || o.status === OrderStatus.REVOCATION_PENDING_CEO;
-        
         return true; 
     })
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -107,7 +110,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
   const completedOrders = orders.filter(o => o.status === OrderStatus.APPROVED_CEO || o.status === OrderStatus.REVOKED);
   const totalAmount = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
 
-  // Charts Data Prep
   const methodDataRaw: Record<string, number> = {};
   orders.forEach(order => { order.paymentDetails.forEach(detail => { methodDataRaw[detail.method] = (methodDataRaw[detail.method] || 0) + detail.amount; }); });
   const methodData = Object.keys(methodDataRaw).map(key => ({ name: key, amount: methodDataRaw[key] }));
@@ -196,57 +198,62 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             </div>
         )}
 
-        {/* Status Widgets (Overview) */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {statusWidgets.map((widget) => (
-                <div key={widget.key} onClick={() => handleWidgetClick(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm transition-all relative overflow-hidden group ${hasPaymentAccess ? 'cursor-pointer hover:shadow-md' : 'opacity-80 cursor-default'}`}>
-                    <div className={`absolute top-0 right-0 w-1.5 h-full ${widget.barColor}`}></div>
-                    <div className="flex justify-between items-start mb-2">
-                        <div className={`p-2 rounded-xl ${widget.bg} ${widget.color}`}>
-                            <widget.icon size={20} />
+        {/* Show Overview Widgets/Charts ONLY if user can create payments (or is Admin/Manager) */}
+        {showCharts && (
+            <>
+                {/* Status Widgets (Overview) */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {statusWidgets.map((widget) => (
+                        <div key={widget.key} onClick={() => handleWidgetClick(widget.key === OrderStatus.APPROVED_CEO ? 'pending_all' : widget.key)} className={`bg-white p-4 rounded-2xl border ${widget.border} shadow-sm transition-all relative overflow-hidden group ${hasPaymentAccess ? 'cursor-pointer hover:shadow-md' : 'opacity-80 cursor-default'}`}>
+                            <div className={`absolute top-0 right-0 w-1.5 h-full ${widget.barColor}`}></div>
+                            <div className="flex justify-between items-start mb-2">
+                                <div className={`p-2 rounded-xl ${widget.bg} ${widget.color}`}>
+                                    <widget.icon size={20} />
+                                </div>
+                                <span className="text-2xl font-black text-gray-800 font-mono">{widget.count}</span>
+                            </div>
+                            <h3 className="text-xs font-bold text-gray-500">{widget.label}</h3>
                         </div>
-                        <span className="text-2xl font-black text-gray-800 font-mono">{widget.count}</span>
+                    ))}
+                </div>
+
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChart size={20} className="text-blue-500"/> توزیع روش‌های پرداخت</h3>
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={methodData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="amount">
+                                        {methodData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                                    </Pie>
+                                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
-                    <h3 className="text-xs font-bold text-gray-500">{widget.label}</h3>
-                </div>
-            ))}
-        </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-                <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChart size={20} className="text-blue-500"/> توزیع روش‌های پرداخت</h3>
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie data={methodData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="amount">
-                                {methodData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><BarChart size={20} className="text-indigo-500"/> پرداخت‌ها بر اساس بانک</h3>
+                            {hasPaymentAccess && <button onClick={() => setShowBankReport(true)} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors">گزارش کامل</button>}
+                        </div>
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={bankStats.slice(0, 5)}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                    <YAxis tick={{fontSize: 10}} tickFormatter={(value) => `${value/1000000}M`} />
+                                    <Tooltip formatter={(value: number) => formatCurrency(value)} cursor={{fill: '#f3f4f6'}} />
+                                    <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><BarChart size={20} className="text-indigo-500"/> پرداخت‌ها بر اساس بانک</h3>
-                    {hasPaymentAccess && <button onClick={() => setShowBankReport(true)} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors">گزارش کامل</button>}
-                </div>
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={bankStats.slice(0, 5)}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" tick={{fontSize: 10}} />
-                            <YAxis tick={{fontSize: 10}} tickFormatter={(value) => `${value/1000000}M`} />
-                            <Tooltip formatter={(value: number) => formatCurrency(value)} cursor={{fill: '#f3f4f6'}} />
-                            <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-        </div>
+            </>
+        )}
 
         {/* Active Cartable List */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -257,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
             
             {!hasPaymentAccess ? (
                 <div className="p-8 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
-                    <ShieldCheck size={32} className="opacity-20"/>
+                    <Lock size={32} className="opacity-20"/>
                     دسترسی به جزئیات پرداخت محدود شده است.
                 </div>
             ) : (
@@ -312,7 +319,6 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, settings, currentUser, on
                         <h3 className="font-bold text-gray-800 flex items-center gap-2"><Banknote size={20}/> گزارش تفصیلی بانک‌ها</h3>
                         <button onClick={() => setShowBankReport(false)} className="p-1 hover:bg-gray-200 rounded-full transition-colors"><XCircle size={20} className="text-gray-500"/></button>
                     </div>
-                    {/* ... (Keep existing bank report content) ... */}
                     <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
                         {bankReportTab === 'summary' ? (
                             <div className="space-y-4">
