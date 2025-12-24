@@ -45,8 +45,13 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       // Stage 2: Factory Manager Approval
       if (p.status === ExitPermitStatus.PENDING_FACTORY && (permissions.canApproveExitFactory || currentUser.role === UserRole.FACTORY_MANAGER || currentUser.role === UserRole.ADMIN)) return true;
       
-      // Stage 3: Warehouse Supervisor Approval (Now uses dynamic permission correctly)
-      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (permissions.canApproveExitWarehouse || currentUser.role === UserRole.ADMIN)) return true;
+      // Stage 3: Warehouse Supervisor Approval
+      // FIX: Explicitly check for WAREHOUSE_KEEPER role to ensure button appears even if settings are quirky
+      if (p.status === ExitPermitStatus.PENDING_WAREHOUSE && (
+          permissions.canApproveExitWarehouse || 
+          currentUser.role === UserRole.WAREHOUSE_KEEPER || 
+          currentUser.role === UserRole.ADMIN
+      )) return true;
       
       // Stage 4: Security Approval
       if (p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN)) return true;

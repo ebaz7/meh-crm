@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
@@ -45,10 +45,45 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [recordingMimeType, setRecordingMimeType] = useState<string>('');
 
+  // NEW: Update Detection State
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+
   useEffect(() => {
     setTelegramChatId(currentUser.telegramChatId || '');
     setPhoneNumber(currentUser.phoneNumber || ''); // Initialize phone
   }, [currentUser]);
+
+  // Version Check Logic
+  useEffect(() => {
+    // Initial Check
+    checkVersion();
+    
+    // Poll every minute
+    const interval = setInterval(checkVersion, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkVersion = async () => {
+    try {
+      const response = await apiCall<{version: string}>('/version');
+      if (response && response.version) {
+        if (serverVersion === null) {
+          // First load
+          setServerVersion(response.version);
+        } else if (serverVersion !== response.version) {
+          // Version mismatch -> Update available
+          setIsUpdateAvailable(true);
+        }
+      }
+    } catch (e) {
+      // Ignore version check errors silently (network issues etc)
+    }
+  };
+
+  const handleReload = () => {
+    window.location.reload();
+  };
 
   useEffect(() => {
     getSettings().then(data => {
@@ -191,6 +226,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
 
   return (
     <div className="flex min-h-[100dvh] bg-gray-50 text-gray-800 font-sans relative">
+      
+      {/* UPDATE BANNER */}
+      {isUpdateAvailable && (
+          <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white z-[9999] p-3 text-center shadow-lg animate-slide-down flex justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                  <RefreshCw size={20} className="animate-spin"/>
+                  <span className="font-bold text-sm">نسخه جدید نرم‌افزار در دسترس است!</span>
+              </div>
+              <button 
+                  onClick={handleReload}
+                  className="bg-white text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-50 transition-colors shadow-sm"
+              >
+                  بروزرسانی (رفرش صفحه)
+              </button>
+          </div>
+      )}
+
       {/* AI Voice Assistant FAB */}
       <div className="fixed bottom-24 left-4 md:bottom-8 md:left-8 z-[60]">
           <button 
@@ -337,7 +389,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
         </header>
         
         {/* Dynamic bottom padding to account for mobile nav bar + safe area */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 pb-[calc(80px+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
+        <div className={`flex-1 overflow-y-auto bg-gray-50 pb-[calc(80px+env(safe-area-inset-bottom))] md:pb-0 min-w-0 ${isUpdateAvailable ? 'pt-12' : ''}`}>
             <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-full min-w-0">
                 {children}
             </div>

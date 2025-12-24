@@ -33,6 +33,9 @@ const app = express();
 // Priority: Argument passed -> .env file -> Default 3000
 const PORT = process.env.PORT || 3000;
 
+// SERVER BUILD ID (For Client Updates)
+const SERVER_BUILD_ID = Date.now().toString();
+
 const DB_FILE = path.join(__dirname, 'database.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const AI_UPLOADS_DIR = path.join(__dirname, 'uploads', 'ai');
@@ -142,6 +145,9 @@ const formatCurrency = (amount) => {
 };
 
 // --- ROUTES ---
+
+// NEW: Version Check
+app.get('/api/version', (req, res) => res.json({ version: SERVER_BUILD_ID }));
 
 // --- NEW: PDF GENERATION ENDPOINT ---
 app.post('/api/render-pdf', async (req, res) => {
