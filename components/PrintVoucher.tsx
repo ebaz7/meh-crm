@@ -47,17 +47,28 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const company = settings?.companies?.find(c => c.name === order.payingCompany);
   const sourceBankConfig = company?.banks?.find(b => currentLine.bankName?.includes(b.bankName));
   
-  // Logic to pick correct template based on method
+  // Logic to pick correct template based on method and DUAL PRINT mode
   let effectiveTemplateId = sourceBankConfig?.formLayoutId;
   const isInternalTransfer = currentLine.method === PaymentMethod.INTERNAL_TRANSFER;
-  
-  if (isInternalTransfer && sourceBankConfig?.internalTransferTemplateId) {
-      effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+  const isDualPrintEnabled = isInternalTransfer && sourceBankConfig?.enableDualPrint;
+
+  if (isInternalTransfer) {
+      if (isDualPrintEnabled) {
+          if (dualPrintMode === 'withdrawal' && sourceBankConfig?.internalWithdrawalTemplateId) {
+              effectiveTemplateId = sourceBankConfig.internalWithdrawalTemplateId;
+          } else if (dualPrintMode === 'deposit' && sourceBankConfig?.internalDepositTemplateId) {
+              effectiveTemplateId = sourceBankConfig.internalDepositTemplateId;
+          } else if (sourceBankConfig?.internalTransferTemplateId) {
+              // Fallback to legacy single internal template if dual specific isn't set
+              effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+          }
+      } else if (sourceBankConfig?.internalTransferTemplateId) {
+          effectiveTemplateId = sourceBankConfig.internalTransferTemplateId;
+      }
   }
 
   const dynamicTemplate = settings?.printTemplates?.find(t => t.id === effectiveTemplateId);
   const canPrintBankForm = !!dynamicTemplate;
-  const isDualPrintEnabled = isInternalTransfer && dynamicTemplate?.isDual;
 
   // -- NEW: Manual Override State for Date and Place --
   const [overrideDate, setOverrideDate] = useState({ year: '', month: '', day: '' });
@@ -209,16 +220,6 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const amountStr = formatNumberString(currentLine.amount);
       const amountWords = numberToPersianWords(currentLine.amount);
 
-      // Determine fields and bg based on Dual Mode
-      let fieldsToRender = dynamicTemplate.fields;
-      let bgImageToRender = dynamicTemplate.backgroundImage;
-
-      if (dynamicTemplate.isDual && dualPrintMode === 'deposit') {
-          fieldsToRender = dynamicTemplate.depositFields || [];
-          bgImageToRender = dynamicTemplate.depositBackgroundImage || dynamicTemplate.backgroundImage;
-      }
-      // If withdrawal or full, use default fields (which are primary/withdrawal fields)
-
       // Data Mapping Logic
       const getValue = (key: string) => {
           switch(key) {
@@ -230,7 +231,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'amount_word': return amountWords;
               case 'payee': return order.payee;
               case 'description': return currentLine.description || order.description;
-              case 'place': return overridePlace; 
+              case 'place': return overridePlace; // Map place to manual input
               case 'source_account': return sourceBankConfig?.accountNumber || '';
               case 'source_sheba': return sourceBankConfig?.sheba || '';
               case 'dest_account': return currentLine.destinationAccount || ''; 
@@ -267,16 +268,27 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                }}>
               
               {/* --- BACKGROUND SIMULATION --- */}
-              {showFormBackground && bgImageToRender && (
+              {showFormBackground && dynamicTemplate.backgroundImage && (
                   <img 
-                    src={bgImageToRender} 
+                    src={dynamicTemplate.backgroundImage} 
                     className="absolute inset-0 w-full h-full object-contain opacity-50 z-0 pointer-events-none"
                     style={{ transform: `translate(${calibration.x}mm, ${calibration.y}mm)` }} 
                   />
               )}
 
               {/* --- DATA LAYER --- */}
-              {fieldsToRender.map(field => {
+              {dynamicTemplate.fields.map(field => {
+                  
+                  // --- DUAL PRINT FILTERING ---
+                  // If in 'withdrawal' mode, hide destination fields
+                  if (dualPrintMode === 'withdrawal') {
+                      if (['dest_account', 'dest_sheba', 'dest_bank', 'dest_owner'].includes(field.key)) return null;
+                  }
+                  // If in 'deposit' mode, hide source fields
+                  if (dualPrintMode === 'deposit') {
+                      if (['source_account', 'source_sheba'].includes(field.key)) return null;
+                  }
+
                   const val = getValue(field.key);
                   
                   // Special handling for Sheba (Letter Spacing)
@@ -504,20 +516,26 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                              </div>
                          </div>
                         
-                         {/* DUAL PRINT TOGGLE BUTTONS - NOW ONLY IF TEMPLATE IS DUAL */}
+                         {/* DUAL PRINT TOGGLE BUTTONS */}
                          {isDualPrintEnabled && (
                              <div className="flex gap-1 bg-white p-1 rounded border border-orange-200 mb-2">
+                                 <button 
+                                    onClick={() => setDualPrintMode('full')}
+                                    className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'full' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                 >
+                                     کامل
+                                 </button>
                                  <button 
                                     onClick={() => setDualPrintMode('withdrawal')}
                                     className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'withdrawal' ? 'bg-red-100 text-red-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                  >
-                                     نسخه برداشت (مبدا)
+                                     نسخه برداشت
                                  </button>
                                  <button 
                                     onClick={() => setDualPrintMode('deposit')}
                                     className={`flex-1 text-[10px] font-bold py-1 rounded ${dualPrintMode === 'deposit' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
                                  >
-                                     نسخه واریز (مقصد)
+                                     نسخه واریز
                                  </button>
                              </div>
                          )}

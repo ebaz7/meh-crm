@@ -131,13 +131,8 @@ export interface PrintTemplate {
     height: number; // mm (297 for A4)
     pageSize: 'A4' | 'A5'; // NEW
     orientation: 'portrait' | 'landscape'; // NEW
-    backgroundImage?: string; // Base64 of the form (Primary/Withdrawal)
-    fields: PrintField[]; // Primary fields (Withdrawal)
-    
-    // Dual Print Support (For Internal Transfers)
-    isDual?: boolean; 
-    depositBackgroundImage?: string; // Background for Deposit form
-    depositFields?: PrintField[]; // Fields for Deposit form
+    backgroundImage?: string; // Base64 of the form
+    fields: PrintField[];
 }
 
 export interface ExitPermitItem {
@@ -191,15 +186,17 @@ export interface PersonnelDelay { id: string; date: string; personnelName: strin
 export interface SecurityIncident { id: string; reportNumber: string; date: string; subject: string; description: string; shift: string; registrant: string; status: SecurityStatus; witnesses?: string; shiftManagerOpinion?: string; approverSupervisor?: string; approverFactory?: string; approverCeo?: string; hrAction?: string; safetyAction?: string; rejectionReason?: string; createdAt: number; }
 export interface RolePermissions { canViewAll: boolean; canCreatePaymentOrder: boolean; canViewPaymentOrders: boolean; canViewExitPermits: boolean; canApproveFinancial: boolean; canApproveManager: boolean; canApproveCeo: boolean; canEditOwn: boolean; canEditAll: boolean; canDeleteOwn: boolean; canDeleteAll: boolean; canManageTrade: boolean; canManageSettings?: boolean; canCreateExitPermit?: boolean; canApproveExitCeo?: boolean; canApproveExitFactory?: boolean; canApproveExitWarehouse?: boolean; canViewExitArchive?: boolean; canEditExitArchive?: boolean; canManageWarehouse?: boolean; canViewWarehouseReports?: boolean; canApproveBijak?: boolean; canViewSecurity?: boolean; canCreateSecurityLog?: boolean; canApproveSecuritySupervisor?: boolean; }
 
-// Updated CompanyBank
+// Updated CompanyBank to include form layout and dual print settings
 export interface CompanyBank { 
     id: string; 
     bankName: string; 
     accountNumber: string; 
     sheba?: string; // Source Sheba
     formLayoutId?: string; // Default template (Check, Satna, etc.)
-    internalTransferTemplateId?: string; // Internal Transfer Template (Can be Dual)
-    enableDualPrint?: boolean; // Toggle for Withdrawal/Deposit split printing (Logic driven by template type now)
+    internalTransferTemplateId?: string; // Legacy: Kept for compat, but new fields preferred if dual
+    enableDualPrint?: boolean; // NEW: Toggle for Withdrawal/Deposit split printing
+    internalWithdrawalTemplateId?: string; // NEW: Template for Withdrawal (Bardasht)
+    internalDepositTemplateId?: string; // NEW: Template for Deposit (Variz)
 }
 
 export interface Company { 

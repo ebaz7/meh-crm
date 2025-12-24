@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PrintTemplate, PrintField } from '../types';
 import { uploadFile } from '../services/storageService';
-import { Save, Upload, Plus, Move, X, Type, AlignLeft, AlignCenter, AlignRight, Bold, Trash2, Printer, LayoutTemplate, Layers, ArrowLeftRight } from 'lucide-react';
+import { Save, Upload, Plus, Move, X, Type, AlignLeft, AlignCenter, AlignRight, Bold, Trash2, Printer, LayoutTemplate } from 'lucide-react';
 import { generateUUID } from '../constants';
 
 interface Props {
@@ -26,37 +26,26 @@ const AVAILABLE_FIELDS = [
     { key: 'dest_account', label: 'شماره حساب مقصد' },
     { key: 'dest_sheba', label: 'شبا مقصد' },
     { key: 'dest_bank', label: 'نام بانک مقصد' },
-    { key: 'dest_owner', label: 'نام صاحب حساب مقصد' },
+    { key: 'dest_owner', label: 'نام صاحب حساب مقصد' }, // Added
     { key: 'payment_id', label: 'شناسه پرداخت' },
     { key: 'cheque_no', label: 'شماره چک' },
     // Company Info
     { key: 'company_name', label: 'نام شرکت' },
     { key: 'company_id', label: 'شناسه ملی شرکت' },
     { key: 'company_reg', label: 'شماره ثبت شرکت' },
-    { key: 'company_address', label: 'آدرس شرکت' },
-    { key: 'company_postal', label: 'کد پستی شرکت' },
-    { key: 'company_tel', label: 'تلفن شرکت' },
-    { key: 'company_fax', label: 'فکس شرکت' },
-    { key: 'company_eco_code', label: 'کد اقتصادی شرکت' },
+    { key: 'company_address', label: 'آدرس شرکت' }, // New
+    { key: 'company_postal', label: 'کد پستی شرکت' }, // New
+    { key: 'company_tel', label: 'تلفن شرکت' }, // New
+    { key: 'company_fax', label: 'فکس شرکت' }, // New
+    { key: 'company_eco_code', label: 'کد اقتصادی شرکت' }, // New
 ];
 
 const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTemplate }) => {
     const [templateName, setTemplateName] = useState(initialTemplate?.name || '');
     const [pageSize, setPageSize] = useState<'A4' | 'A5'>(initialTemplate?.pageSize || 'A4');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(initialTemplate?.orientation || 'portrait');
-    
-    // Dual Mode Logic
-    const [isDual, setIsDual] = useState(initialTemplate?.isDual || false);
-    const [activeSide, setActiveSide] = useState<'primary' | 'deposit'>('primary'); // 'primary' is Withdrawal/Default, 'deposit' is Deposit
-    
-    // Primary (Withdrawal) Fields & BG
     const [bgImage, setBgImage] = useState(initialTemplate?.backgroundImage || '');
     const [fields, setFields] = useState<PrintField[]>(initialTemplate?.fields || []);
-    
-    // Deposit Fields & BG
-    const [depositBgImage, setDepositBgImage] = useState(initialTemplate?.depositBackgroundImage || '');
-    const [depositFields, setDepositFields] = useState<PrintField[]>(initialTemplate?.depositFields || []);
-
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     
@@ -92,25 +81,6 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
             setScale(newScale);
         }
     }, [paperDims.w]);
-    
-    // Reset active side if dual turned off
-    useEffect(() => {
-        if (!isDual) setActiveSide('primary');
-    }, [isDual]);
-
-    // Helpers to get current active set
-    const currentFields = activeSide === 'primary' ? fields : depositFields;
-    const currentBg = activeSide === 'primary' ? bgImage : depositBgImage;
-    
-    const setcurrentFields = (newFields: PrintField[]) => {
-        if (activeSide === 'primary') setFields(newFields);
-        else setDepositFields(newFields);
-    };
-    
-    const setcurrentBg = (url: string) => {
-        if (activeSide === 'primary') setBgImage(url);
-        else setDepositBgImage(url);
-    };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -119,7 +89,7 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
         const reader = new FileReader();
         reader.onload = async (ev) => {
             const base64 = ev.target?.result as string;
-            setcurrentBg(base64);
+            setBgImage(base64);
             setIsUploading(false);
         };
         reader.readAsDataURL(file);
@@ -131,22 +101,22 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
             key,
             label,
             x: 20, 
-            y: 20 + (currentFields.length * 10),
+            y: 20 + (fields.length * 10),
             width: 50,
             fontSize: 12,
             align: 'right',
             isBold: true
         };
-        setcurrentFields([...currentFields, newField]);
+        setFields([...fields, newField]);
         setSelectedFieldId(newField.id);
     };
 
     const updateField = (id: string, updates: Partial<PrintField>) => {
-        setcurrentFields(currentFields.map(f => f.id === id ? { ...f, ...updates } : f));
+        setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
     };
 
     const removeField = (id: string) => {
-        setcurrentFields(currentFields.filter(f => f.id !== id));
+        setFields(fields.filter(f => f.id !== id));
         if (selectedFieldId === id) setSelectedFieldId(null);
     };
 
@@ -184,16 +154,12 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
             pageSize: pageSize,
             orientation: orientation,
             backgroundImage: bgImage,
-            fields: fields,
-            // Dual Props
-            isDual: isDual,
-            depositBackgroundImage: isDual ? depositBgImage : undefined,
-            depositFields: isDual ? depositFields : undefined
+            fields
         };
         onSave(template);
     };
 
-    const selectedField = currentFields.find(f => f.id === selectedFieldId);
+    const selectedField = fields.find(f => f.id === selectedFieldId);
 
     return (
         <div className="fixed inset-0 bg-gray-100 z-[200] flex flex-col animate-fade-in" onMouseMove={handleDragMove} onMouseUp={handleDragEnd}>
@@ -207,36 +173,12 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                         value={templateName} 
                         onChange={e => setTemplateName(e.target.value)} 
                     />
-                    
-                    {/* DUAL MODE TOGGLE */}
-                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${isDual ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
-                        <input type="checkbox" className="w-4 h-4 rounded" checked={isDual} onChange={e => setIsDual(e.target.checked)} />
-                        <span className="text-xs font-bold">حواله داخلی دوگانه (واریز/برداشت)</span>
-                    </label>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={onCancel} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-bold">انصراف</button>
                     <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 flex items-center gap-2"><Save size={16}/> ذخیره قالب</button>
                 </div>
             </div>
-
-            {/* DUAL MODE TABS */}
-            {isDual && (
-                <div className="bg-white border-b px-6 py-0 flex items-end gap-1">
-                    <button 
-                        onClick={() => { setActiveSide('primary'); setSelectedFieldId(null); }}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeSide === 'primary' ? 'border-red-600 text-red-700 bg-red-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        <ArrowLeftRight size={16}/> نسخه برداشت (مبدا)
-                    </button>
-                    <button 
-                        onClick={() => { setActiveSide('deposit'); setSelectedFieldId(null); }}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeSide === 'deposit' ? 'border-green-600 text-green-700 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        <ArrowLeftRight size={16}/> نسخه واریز (مقصد)
-                    </button>
-                </div>
-            )}
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Sidebar Controls */}
@@ -257,10 +199,7 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
 
                     {/* Add Fields Section */}
                     <div className="p-4 border-b overflow-y-auto flex-1 max-h-[40%]">
-                        <h3 className="font-bold text-xs text-gray-500 mb-3 uppercase flex items-center justify-between">
-                            <span>افزودن فیلد داده</span>
-                            {isDual && <span className={`text-[10px] px-2 py-0.5 rounded ${activeSide==='primary'?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}`}>{activeSide==='primary' ? 'برداشت' : 'واریز'}</span>}
-                        </h3>
+                        <h3 className="font-bold text-xs text-gray-500 mb-3 uppercase">افزودن فیلد داده</h3>
                         <div className="grid grid-cols-2 gap-2">
                             {AVAILABLE_FIELDS.map(f => (
                                 <button 
@@ -320,17 +259,17 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                         }}
                     >
                         {/* Background Image Layer */}
-                        {currentBg ? (
-                            <img src={currentBg} className="absolute inset-0 w-full h-full object-contain opacity-50 pointer-events-none" />
+                        {bgImage ? (
+                            <img src={bgImage} className="absolute inset-0 w-full h-full object-contain opacity-50 pointer-events-none" />
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 pointer-events-none border-2 border-dashed border-gray-300 m-4 rounded-xl">
                                 <Upload size={48} className="mb-2"/>
-                                <span>تصویر فرم خام {isDual ? (activeSide === 'primary' ? '(برداشت)' : '(واریز)') : ''} را آپلود کنید</span>
+                                <span>تصویر فرم خام را آپلود کنید</span>
                             </div>
                         )}
 
                         {/* Fields Layer */}
-                        {currentFields.map(field => (
+                        {fields.map(field => (
                             <div
                                 key={field.id}
                                 onMouseDown={(e) => handleDragStart(e, field)}
@@ -373,7 +312,7 @@ const PrintTemplateDesigner: React.FC<Props> = ({ onSave, onCancel, initialTempl
                              <label className="text-xs font-bold text-gray-600 text-center">زوم</label>
                              <input type="range" min="0.3" max="2" step="0.1" value={scale} onChange={e => setScale(Number(e.target.value))} className="w-24" />
                          </div>
-                         <label className="bg-white p-3 rounded shadow cursor-pointer hover:bg-gray-50 flex items-center justify-center" title={`آپلود تصویر زمینه ${isDual ? (activeSide === 'primary' ? '(برداشت)' : '(واریز)') : ''}`}>
+                         <label className="bg-white p-3 rounded shadow cursor-pointer hover:bg-gray-50 flex items-center justify-center" title="آپلود تصویر زمینه">
                              <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                              <Upload size={20} className="text-blue-600"/>
                          </label>
