@@ -341,7 +341,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       // 2. Wait render
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // 3. Capture & Send Warning
+      // 3. Capture & Send Warning to RELEVANT MANAGERS
       const element = document.getElementById(`print-permit-${permitToDelete.id}`);
       if (element) {
           try {
@@ -349,26 +349,52 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
               const base64 = canvas.toDataURL('image/png').split(',')[1];
               
-              const caption = `❌❌ *هشدار: مجوز خروج حذف شد* ❌❌\n` +
+              const statusLabel = 
+                  permitToDelete.status === ExitPermitStatus.PENDING_CEO ? "در انتظار مدیرعامل" :
+                  permitToDelete.status === ExitPermitStatus.PENDING_FACTORY ? "در انتظار مدیر کارخانه" :
+                  permitToDelete.status === ExitPermitStatus.PENDING_WAREHOUSE ? "در انتظار انبار" :
+                  permitToDelete.status === ExitPermitStatus.PENDING_SECURITY ? "در انتظار انتظامات" :
+                  "خارج شده";
+
+              const caption = `❌❌ *مجوز خروج حذف شد* ❌❌\n` +
                               `🔢 شماره مجوز: ${permitToDelete.permitNumber}\n` +
+                              `🏷️ وضعیت هنگام حذف: ${statusLabel}\n` +
                               `🗑️ حذف کننده: ${currentUser.fullName}\n` +
                               `⚠️ *این مجوز از سیستم حذف شده و فاقد اعتبار است.*`;
 
-              // Send to Group
-              if (settings?.exitPermitNotificationGroup) {
-                  await apiCall('/send-whatsapp', 'POST', { 
-                      number: settings.exitPermitNotificationGroup, 
-                      message: caption, 
-                      mediaData: { data: base64, mimeType: 'image/png', filename: `DELETED_PERMIT.png` } 
-                  });
+              const users = await getUsers();
+              
+              // Target Lists
+              const targets = new Set<string>();
+
+              // Always notify CEO
+              const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
+              if (ceo) targets.add(ceo.phoneNumber!);
+
+              // Notify Group if Exited
+              if (permitToDelete.status === ExitPermitStatus.EXITED && settings?.exitPermitNotificationGroup) {
+                  targets.add(settings.exitPermitNotificationGroup);
               }
 
-              // Send to CEO
-              const users = await getUsers();
-              const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
-              if (ceo) {
+              // Notify Factory Manager if it passed CEO
+              if (permitToDelete.status !== ExitPermitStatus.PENDING_CEO) {
+                  const fm = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
+                  if (fm) targets.add(fm.phoneNumber!);
+              }
+
+              // Notify Warehouse/Security if further along
+              if (permitToDelete.status === ExitPermitStatus.PENDING_SECURITY || permitToDelete.status === ExitPermitStatus.EXITED) {
+                  const secHead = users.find(u => u.role === UserRole.SECURITY_HEAD && u.phoneNumber);
+                  if (secHead) targets.add(secHead.phoneNumber!);
+                  
+                  const wh = users.find(u => u.role === UserRole.WAREHOUSE_KEEPER && u.phoneNumber);
+                  if (wh) targets.add(wh.phoneNumber!);
+              }
+
+              // Send loop
+              for (const number of Array.from(targets)) {
                   await apiCall('/send-whatsapp', 'POST', { 
-                      number: ceo.phoneNumber, 
+                      number: number, 
                       message: caption, 
                       mediaData: { data: base64, mimeType: 'image/png', filename: `DELETED_PERMIT.png` } 
                   });

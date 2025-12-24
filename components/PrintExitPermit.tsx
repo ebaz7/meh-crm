@@ -141,7 +141,6 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                 </div>
             </div>
             
-            {/* UPDATED SIGNATURE GRID TO INCLUDE WAREHOUSE KEEPER */}
             <div className="mt-12 pt-8 border-t-4 border-black grid grid-cols-5 gap-4 text-center">
                 <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2"><Stamp title="مدیر فروش (درخواست)" name={permit.requester} /></div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر فروش</span></div></div>
                 <div className="flex flex-col items-center justify-end min-h-[120px]"><div className="mb-2">{permit.approverCeo ? <Stamp title="تایید مدیریت عامل" name={permit.approverCeo} /> : <span className="text-gray-300 text-xs italic">امضا مدیرعامل</span>}</div><div className="w-full border-t-2 border-gray-300 pt-2"><span className="text-[10px] font-black text-gray-700">مدیر عامل</span></div></div>

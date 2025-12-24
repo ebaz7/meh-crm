@@ -87,7 +87,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                       const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                       const base64 = canvas.toDataURL('image/png').split(',')[1];
 
-                      // 2. Notify CEO (Correction Request)
+                      // 2. Notify CEO (Correction Request) - ALWAYS
                       const users = await getUsers();
                       const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
                       
@@ -96,7 +96,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           caption += `⚠️ *این مجوز ویرایش شده است*\n`;
                           caption += `شماره: ${updatedPermit.permitNumber}\n`;
                           caption += `گیرنده: ${updatedPermit.recipientName}\n`;
-                          caption += `وضعیت: بازگشت به صف بررسی\n\n`;
+                          caption += `وضعیت جدید: بازگشت به صف بررسی (مدیرعامل)\n\n`;
                           caption += `لطفا مجدداً بررسی و تایید نمایید.`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
@@ -106,12 +106,11 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           });
                       }
 
-                      // 3. Notify Group (Edit Alert)
+                      // 3. Notify Group (Edit Alert) - IF IT WAS EXITED
                       if (groupTarget && permit.status === ExitPermitStatus.EXITED) {
-                          // Only notify group if it was ALREADY EXITED/SENT before edit
                           let groupCaption = `📝 *مجوز خروج ویرایش شد*\n`;
-                          groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
                           groupCaption += `⚠️ *توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.*\n`;
+                          groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
                           groupCaption += `وضعیت فعلی: در انتظار تایید مجدد`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
