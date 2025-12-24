@@ -176,14 +176,46 @@ export const handleRejectPayment = (db, number) => {
     return `🚫 دستور پرداخت ${number} رد شد.`;
 };
 
+// UPDATED: Fixed status strings to match frontend Types exactly (5 Stages)
 export const handleApproveExit = (db, number) => {
     const permit = db.exitPermits.find(p => p.permitNumber == number);
     if (!permit) return "❌ مجوز خروج یافت نشد.";
     
+    // Status Enum Mappings from types.ts
+    const STATUS = {
+        PENDING_CEO: 'در انتظار تایید مدیرعامل',
+        PENDING_FACTORY: 'تایید مدیرعامل / در انتظار مدیر کارخانه',
+        PENDING_WAREHOUSE: 'تایید کارخانه / در انتظار سرپرست انبار',
+        PENDING_SECURITY: 'تایید انبار / در انتظار تایید انتظامات',
+        EXITED: 'خارج شده (بایگانی)'
+    };
+
     let oldStatus = permit.status;
-    if (permit.status === 'در انتظار تایید مدیرعامل') permit.status = 'تایید مدیرعامل / در انتظار خروج (کارخانه)';
-    else if (permit.status === 'تایید مدیرعامل / در انتظار خروج (کارخانه)') permit.status = 'خارج شده (بایگانی)';
-    else return "ℹ️ وضعیت این مجوز قابل تغییر نیست.";
+    
+    // 1. CEO -> Factory
+    if (permit.status === STATUS.PENDING_CEO) {
+        permit.status = STATUS.PENDING_FACTORY;
+        permit.approverCeo = 'تایید ربات';
+    }
+    // 2. Factory -> Warehouse
+    else if (permit.status === STATUS.PENDING_FACTORY) {
+        permit.status = STATUS.PENDING_WAREHOUSE;
+        permit.approverFactory = 'تایید ربات';
+    }
+    // 3. Warehouse -> Security (NEW STEP)
+    else if (permit.status === STATUS.PENDING_WAREHOUSE) {
+        permit.status = STATUS.PENDING_SECURITY;
+        permit.approverWarehouse = 'تایید ربات';
+    }
+    // 4. Security -> Exit
+    else if (permit.status === STATUS.PENDING_SECURITY) {
+        permit.status = STATUS.EXITED;
+        permit.approverSecurity = 'تایید ربات';
+        permit.exitTime = new Date().toLocaleTimeString('fa-IR');
+    }
+    else {
+        return "ℹ️ وضعیت این مجوز قابل تغییر نیست یا قبلاً نهایی شده است.";
+    }
     
     saveDb(db);
     return `✅ *تایید شد*\nمجوز خروج: ${number}\nوضعیت جدید: ${permit.status}`;
