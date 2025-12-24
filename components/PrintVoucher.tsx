@@ -226,6 +226,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               case 'dest_account': return currentLine.destinationAccount || ''; 
               case 'dest_sheba': return currentLine.sheba || '';
               case 'dest_bank': return currentLine.recipientBank || '';
+              case 'dest_owner': return currentLine.destinationOwner || '';
               case 'payment_id': return currentLine.paymentId || '';
               case 'cheque_no': return currentLine.chequeNumber || '';
               // Company Info
@@ -270,7 +271,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
                   // --- DUAL PRINT FILTERING ---
                   // If in 'withdrawal' mode, hide destination fields
                   if (dualPrintMode === 'withdrawal') {
-                      if (['dest_account', 'dest_sheba', 'dest_bank'].includes(field.key)) return null;
+                      if (['dest_account', 'dest_sheba', 'dest_bank', 'dest_owner'].includes(field.key)) return null;
                   }
                   // If in 'deposit' mode, hide source fields
                   if (dualPrintMode === 'deposit') {

@@ -26,6 +26,7 @@ const AVAILABLE_FIELDS = [
     { key: 'dest_account', label: 'شماره حساب مقصد' },
     { key: 'dest_sheba', label: 'شبا مقصد' },
     { key: 'dest_bank', label: 'نام بانک مقصد' },
+    { key: 'dest_owner', label: 'نام صاحب حساب مقصد' }, // Added
     { key: 'payment_id', label: 'شناسه پرداخت' },
     { key: 'cheque_no', label: 'شماره چک' },
     // Company Info

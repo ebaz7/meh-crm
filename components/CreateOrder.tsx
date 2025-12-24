@@ -187,9 +187,11 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
           recipientBank: (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.recipientBank : undefined,
           paymentId: (newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.paymentId : undefined,
           
+          // Destination Owner is now used for both Internal and Sheba
+          destinationOwner: (newLine.method === PaymentMethod.INTERNAL_TRANSFER || newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) ? newLine.destinationOwner : undefined,
+
           // Internal Transfer Fields
           destinationAccount: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? normalizeInputNumber(newLine.destinationAccount) : undefined,
-          destinationOwner: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationOwner : undefined,
           destinationBranch: newLine.method === PaymentMethod.INTERNAL_TRANSFER ? newLine.destinationBranch : undefined,
       }; 
       
@@ -386,13 +388,17 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
 
                     {/* SHEBA Specific Fields (Satna/Paya) */}
                     {(newLine.method === PaymentMethod.SHEBA || newLine.method === PaymentMethod.SATNA || newLine.method === PaymentMethod.PAYA) && (
-                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3 bg-purple-50 p-2 rounded-lg border border-purple-200 mt-1">
-                            <div className="space-y-1">
+                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-4 gap-3 bg-purple-50 p-2 rounded-lg border border-purple-200 mt-1">
+                            <div className="space-y-1 md:col-span-2">
                                 <label className="text-xs font-bold text-purple-800">شماره شبا (۲۴ رقم)</label>
                                 <div className="flex items-center gap-1 dir-ltr">
                                     <span className="font-bold text-gray-500 text-xs">IR -</span>
                                     <input className="w-full border rounded-lg p-2 text-sm font-mono tracking-widest text-center" maxLength={24} value={newLine.sheba} onChange={e => setNewLine({...newLine, sheba: normalizeInputNumber(e.target.value).replace(/[^0-9]/g, '')})} placeholder="........................" />
                                 </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-purple-800">نام صاحب حساب</label>
+                                <input className="w-full border rounded-lg p-2 text-sm" value={newLine.destinationOwner} onChange={e => setNewLine({...newLine, destinationOwner: e.target.value})} placeholder="نام صاحب حساب..." />
                             </div>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-purple-800">نام بانک گیرنده</label>
@@ -441,7 +447,11 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                                 <span className="text-blue-600 font-bold font-mono text-lg">{formatCurrency(line.amount)}</span>
                                 {line.chequeNumber && <span className="text-gray-600 text-xs bg-yellow-50 px-2 py-1 rounded border border-yellow-100">شماره چک: {line.chequeNumber} {line.chequeDate && `(${line.chequeDate})`}</span>}
                                 {line.bankName && <span className="text-gray-600 text-xs bg-blue-50 px-2 py-1 rounded border border-blue-100">{line.bankName}</span>}
-                                {(line.method === PaymentMethod.SHEBA || line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">شبا: IR-{line.sheba}</span>}
+                                {(line.method === PaymentMethod.SHEBA || line.method === PaymentMethod.SATNA || line.method === PaymentMethod.PAYA) && (
+                                    <span className="text-purple-700 text-xs bg-purple-50 px-2 py-1 rounded border border-purple-100 font-mono">
+                                        شبا: IR-{line.sheba} {line.destinationOwner ? `(${line.destinationOwner})` : ''}
+                                    </span>
+                                )}
                                 {line.method === PaymentMethod.INTERNAL_TRANSFER && (
                                     <span className="text-indigo-700 text-xs bg-indigo-50 px-2 py-1 rounded border border-indigo-100 font-mono">
                                         به: {line.destinationOwner} ({line.destinationAccount}) {line.destinationBranch ? `- ${line.destinationBranch}` : ''}
