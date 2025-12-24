@@ -5,7 +5,7 @@ import { saveOrder, getNextTrackingNumber, uploadFile, getSettings, saveSettings
 import { enhanceDescription } from '../services/geminiService';
 import { apiCall } from '../services/apiService';
 import { jalaliToGregorian, getCurrentShamsiDate, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, formatDate } from '../constants';
-import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar, Landmark, CreditCard, Edit, ArrowRightLeft } from 'lucide-react';
+import { Wand2, Save, Loader2, Plus, Trash2, Paperclip, X, Hash, UploadCloud, Building2, BrainCircuit, AlertTriangle, Calendar, Landmark, CreditCard, Edit, ArrowRightLeft, MapPin } from 'lucide-react';
 import { getUsers } from '../services/authService';
 
 interface CreateOrderProps {
@@ -21,6 +21,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
   const [formData, setFormData] = useState({ payee: '', description: '', });
   const [trackingNumber, setTrackingNumber] = useState<string>('');
   const [payingCompany, setPayingCompany] = useState('');
+  const [paymentLocation, setPaymentLocation] = useState(''); // NEW: Payment Location
+  
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
   const [availableBanks, setAvailableBanks] = useState<string[]>([]); // Strings for dropdown options
   const [paymentLines, setPaymentLines] = useState<PaymentDetail[]>([]);
@@ -253,7 +255,21 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
     
     setIsSubmitting(true);
     try { 
-        const newOrder: PaymentOrder = { id: generateUUID(), trackingNumber: Number(trackingNumber), date: getIsoDate(), payee: formData.payee, totalAmount: sumPaymentLines, description: formData.description, status: OrderStatus.PENDING, requester: currentUser.fullName, createdAt: Date.now(), paymentDetails: paymentLines, attachments: attachments, payingCompany: payingCompany };
+        const newOrder: PaymentOrder = { 
+            id: generateUUID(), 
+            trackingNumber: Number(trackingNumber), 
+            date: getIsoDate(), 
+            payee: formData.payee, 
+            totalAmount: sumPaymentLines, 
+            description: formData.description, 
+            status: OrderStatus.PENDING, 
+            requester: currentUser.fullName, 
+            createdAt: Date.now(), 
+            paymentDetails: paymentLines, 
+            attachments: attachments, 
+            payingCompany: payingCompany,
+            paymentLocation: paymentLocation // Save Location
+        };
         await saveOrder(newOrder); 
         
         // --- BACKGROUND PROCESSING (INSTANT UI RESPONSE) ---
@@ -311,6 +327,8 @@ const CreateOrder: React.FC<CreateOrderProps> = ({ onSuccess, currentUser }) => 
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700">گیرنده وجه (ذینفع)</label><input required type="text" className="w-full border border-gray-300 rounded-xl px-4 py-3" placeholder="نام شخص یا شرکت..." value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} onKeyDown={handleKeyDown} /></div>
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Building2 size={16}/> شرکت پرداخت کننده</label><select className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white" value={payingCompany} onChange={handleCompanyChange} onKeyDown={handleKeyDown}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Calendar size={16} />تاریخ پرداخت (شمسی)</label><div className="grid grid-cols-3 gap-2"><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
+                {/* NEW: Payment Location Input */}
+                <div className="space-y-2 md:col-span-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><MapPin size={16}/> محل صدور / پرداخت</label><input type="text" className="w-full border border-gray-300 rounded-xl px-4 py-3" placeholder="مثال: تهران" value={paymentLocation} onChange={e => setPaymentLocation(e.target.value)} onKeyDown={handleKeyDown} /></div>
             </div>
             
             <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-sm font-bold text-gray-700">شرح پرداخت</label><button type="button" onClick={handleEnhance} disabled={isEnhancing || !formData.description} className="text-xs flex items-center gap-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">{isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}بهبود متن با هوش مصنوعی</button></div><textarea required rows={4} className="w-full border border-gray-300 rounded-xl px-4 py-3 resize-none" placeholder="توضیحات کامل دستور پرداخت..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} onKeyDown={handleKeyDown} /></div>

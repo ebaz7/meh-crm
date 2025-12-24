@@ -4,7 +4,7 @@ import { PaymentMethod, PaymentOrder, PaymentDetail, SystemSettings, OrderStatus
 import { editOrder, uploadFile, getSettings, saveSettings } from '../services/storageService';
 import { enhanceDescription } from '../services/geminiService';
 import { jalaliToGregorian, getShamsiDateFromIso, formatCurrency, generateUUID, normalizeInputNumber, formatNumberString, deformatNumberString, getCurrentShamsiDate } from '../constants';
-import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark, ArrowRightLeft } from 'lucide-react';
+import { Wand2, Save, Loader2, X, Calendar, Plus, Trash2, Paperclip, Hash, AlertTriangle, Landmark, ArrowRightLeft, MapPin } from 'lucide-react';
 import PrintVoucher from './PrintVoucher';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
@@ -23,6 +23,8 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
   const [shamsiDate, setShamsiDate] = useState({ year: initialShamsi.year, month: initialShamsi.month, day: initialShamsi.day });
   const [formData, setFormData] = useState({ payee: order.payee, totalAmount: order.totalAmount.toString(), description: order.description, trackingNumber: order.trackingNumber.toString() });
   const [payingCompany, setPayingCompany] = useState(order.payingCompany || '');
+  const [paymentLocation, setPaymentLocation] = useState(order.paymentLocation || ''); // NEW
+
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
   const [availableBanks, setAvailableBanks] = useState<string[]>([]);
   const [paymentLines, setPaymentLines] = useState<PaymentDetail[]>(order.paymentDetails || []);
@@ -232,9 +234,8 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
             paymentDetails: paymentLines,
             attachments: attachments,
             updatedAt: Date.now(),
-            // Reset approvals if sensitive data changed? For now keep them unless logic says otherwise.
-            // Usually editing resets approvals, but let's assume simple edit.
-            // If we want to reset status:
+            paymentLocation: paymentLocation, // Save
+            // Reset approvals
             status: OrderStatus.PENDING, 
             approverFinancial: undefined,
             approverManager: undefined,
@@ -349,6 +350,8 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                     <div className="space-y-2"><label className="text-sm font-medium text-gray-700">گیرنده وجه (ذینفع)</label><input required type="text" className="w-full border border-gray-300 rounded-xl px-4 py-3" placeholder="نام شخص یا شرکت..." value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} /></div>
                     <div className="space-y-2"><label className="text-sm font-medium text-gray-700">شرکت پرداخت کننده</label><select className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white" value={payingCompany} onChange={handleCompanyChange}><option value="">-- انتخاب کنید --</option>{availableCompanies.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                     <div className="space-y-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><Calendar size={16} />تاریخ پرداخت (شمسی)</label><div className="grid grid-cols-3 gap-2"><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.day} onChange={e => setShamsiDate({...shamsiDate, day: Number(e.target.value)})}>{days.map(d => <option key={d} value={d}>{d}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.month} onChange={e => setShamsiDate({...shamsiDate, month: Number(e.target.value)})}>{MONTHS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}</select><select className="border border-gray-300 rounded-xl px-2 py-3 bg-white" value={shamsiDate.year} onChange={e => setShamsiDate({...shamsiDate, year: Number(e.target.value)})}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select></div></div>
+                    {/* NEW: Payment Location Input */}
+                    <div className="space-y-2 md:col-span-2"><label className="text-sm font-medium text-gray-700 flex items-center gap-2"><MapPin size={16}/> محل صدور / پرداخت</label><input type="text" className="w-full border border-gray-300 rounded-xl px-4 py-3" placeholder="مثال: تهران" value={paymentLocation} onChange={e => setPaymentLocation(e.target.value)} /></div>
                 </div>
                 
                 <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-sm font-bold text-gray-700">شرح پرداخت</label><button type="button" onClick={handleEnhance} disabled={isEnhancing || !formData.description} className="text-xs flex items-center gap-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">{isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}بهبود متن</button></div><textarea required rows={4} className="w-full border border-gray-300 rounded-xl px-4 py-3 resize-none" placeholder="توضیحات کامل..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} /></div>

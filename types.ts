@@ -93,6 +93,7 @@ export interface PaymentOrder {
   description: string;
   status: OrderStatus;
   payingCompany?: string; 
+  paymentLocation?: string; // NEW: Place of Issue/Payment
   paymentDetails: PaymentDetail[];
   requester: string;
   approverFinancial?: string;

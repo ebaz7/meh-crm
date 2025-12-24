@@ -78,10 +78,11 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
       setOverrideDate({ year: yStr, month: mStr, day: dStr });
       
-      // 2. Determine initial place (default empty or company city if available)
-      setOverridePlace(''); 
+      // 2. Determine initial place
+      // Use saved location if available, otherwise blank
+      setOverridePlace(order.paymentLocation || ''); 
 
-  }, [currentLineIndex, order.date, currentLine]);
+  }, [currentLineIndex, order.date, currentLine, order.paymentLocation]);
 
 
   // Load saved calibration for this specific template from localStorage
