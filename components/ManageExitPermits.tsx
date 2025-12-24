@@ -4,7 +4,7 @@ import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '..
 import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
-import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw } from 'lucide-react';
+import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw, Share2, CheckCheck, AlertTriangle } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import EditExitPermitModal from './EditExitPermitModal';
 import { apiCall } from '../services/apiService'; 
@@ -211,7 +211,13 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                           
                           // Send to Group
                           if (settings?.exitPermitNotificationGroup) {
-                              try { await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch(e) {}
+                              try { 
+                                  await apiCall('/send-whatsapp', 'POST', { number: settings.exitPermitNotificationGroup, message: caption, mediaData: { data: base64, mimeType: 'image/png' } });
+                                  // Update success flag
+                                  await updateExitPermitStatus(id, ExitPermitStatus.EXITED, currentUser, { sentToGroup: true });
+                              } catch(e) {
+                                  console.error("Auto-send failed", e);
+                              }
                           }
                       }
                   } catch (e) { console.error("Error in auto-send logic", e); }
@@ -230,6 +236,50 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               setIsProcessingId(null); // UNLOCK UI ONLY AFTER EVERYTHING IS DONE
           }
       }
+  };
+
+  const handleResendToGroup = async (permit: ExitPermit) => {
+      if(!confirm('آیا مطمئن هستید که می‌خواهید مجوز را مجدداً به گروه ارسال کنید؟')) return;
+      
+      setIsProcessingId(permit.id);
+      
+      // 1. Prepare Mock
+      const mockPermit = { ...permit }; 
+      setPermitForAutoSend(mockPermit);
+      
+      // 2. Wait for Render
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 3. Capture and Send
+      const element = document.getElementById(`print-permit-${permit.id}`);
+      if (element && settings?.exitPermitNotificationGroup) {
+          try {
+              // @ts-ignore
+              const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+              const base64 = canvas.toDataURL('image/png').split(',')[1];
+              
+              const caption = generateFullCaption(permit, "✅ *خروج نهایی بار از کارخانه ثبت شد* (ارسال مجدد)");
+              
+              await apiCall('/send-whatsapp', 'POST', { 
+                  number: settings.exitPermitNotificationGroup, 
+                  message: caption, 
+                  mediaData: { data: base64, mimeType: 'image/png' } 
+              });
+              
+              // 4. Update Flag
+              await updateExitPermitStatus(permit.id, ExitPermitStatus.EXITED, currentUser, { sentToGroup: true });
+              
+              alert('با موفقیت ارسال شد.');
+              loadData();
+          } catch (e) {
+              alert('خطا در ارسال به واتساپ.');
+          }
+      } else {
+          alert('تنظیمات گروه واتساپ یافت نشد یا خطا در تولید تصویر.');
+      }
+      
+      setPermitForAutoSend(null);
+      setIsProcessingId(null);
   };
 
   const handleReject = async (id: string) => {
@@ -306,7 +356,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                             <td className="p-4 font-bold text-xs">{p.goodsName}</td>
                             <td className="p-4 text-xs">{p.recipientName}</td>
                             <td className="p-4 font-mono font-bold text-blue-600">{p.exitTime || '-'}</td>
-                            <td className="p-4">{getStatusBadge(p.status)}</td>
+                            <td className="p-4">
+                                <div className="flex flex-col gap-1">
+                                    {getStatusBadge(p.status)}
+                                    {p.status === ExitPermitStatus.EXITED && (
+                                        p.sentToGroup ? 
+                                        <span className="text-[9px] text-green-600 flex items-center gap-1 font-bold"><CheckCheck size={12}/> ارسال شده</span> :
+                                        <span className="text-[9px] text-red-500 flex items-center gap-1 font-bold animate-pulse"><AlertTriangle size={12}/> ارسال نشده</span>
+                                    )}
+                                </div>
+                            </td>
                             <td className="p-4 text-center">
                                 <div className="flex justify-center gap-2">
                                     <button onClick={() => setViewPermit(p)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200" title="مشاهده"><Eye size={16}/></button>
@@ -315,13 +374,17 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                         <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 animate-pulse"><Loader2 size={14} className="animate-spin"/> صبر کنید...</div>
                                     ) : (
                                         <>
+                                            {p.status === ExitPermitStatus.EXITED && !p.sentToGroup && (
+                                                <button onClick={() => handleResendToGroup(p)} className="bg-orange-100 text-orange-600 p-2 rounded-lg hover:bg-orange-200 border border-orange-200" title="تلاش مجدد برای ارسال به گروه"><Share2 size={16}/></button>
+                                            )}
+
                                             {p.status === ExitPermitStatus.PENDING_SECURITY && (currentUser.role === UserRole.SECURITY_GUARD || currentUser.role === UserRole.SECURITY_HEAD || currentUser.role === UserRole.ADMIN || permissions.canApproveExitSecurity) && (
                                                 <div className="flex items-center gap-2 bg-amber-50 p-1 rounded-lg border border-amber-200">
                                                     <input className="w-16 border rounded p-1 text-[10px] text-center font-mono" placeholder="ساعت" value={showExitTimeInput === p.id ? exitTimeValue : ''} onFocus={() => { setShowExitTimeInput(p.id); setExitTimeValue(new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'})); }} onChange={e => setExitTimeValue(e.target.value)}/>
                                                     <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-amber-600 text-white p-1 rounded hover:bg-amber-700" title="ثبت خروج"><CheckCircle size={14}/></button>
                                                 </div>
                                             )}
-                                            {p.status !== ExitPermitStatus.PENDING_SECURITY && canApprove(p) && (
+                                            {p.status !== ExitPermitStatus.PENDING_SECURITY && p.status !== ExitPermitStatus.EXITED && canApprove(p) && (
                                                 <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله بعدی"><CheckCircle size={16}/></button>
                                             )}
                                         </>

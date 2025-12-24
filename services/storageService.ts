@@ -27,7 +27,7 @@ export const getExitPermits = async (): Promise<ExitPermit[]> => { return await 
 export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
 export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
 
-export const updateExitPermitStatus = async (id: string, status: ExitPermitStatus, approverUser: User, extra?: { rejectionReason?: string, exitTime?: string }): Promise<ExitPermit[]> => {
+export const updateExitPermitStatus = async (id: string, status: ExitPermitStatus, approverUser: User, extra?: { rejectionReason?: string, exitTime?: string, sentToGroup?: boolean }): Promise<ExitPermit[]> => {
     const permits = await getExitPermits();
     const permit = permits.find(p => p.id === id);
     if(permit) {
@@ -58,6 +58,11 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
             updates.rejectionReason = extra?.rejectionReason || 'بدون دلیل';
             updates.rejectedBy = approverUser.fullName;
         }
+        
+        if (extra?.sentToGroup !== undefined) {
+            updates.sentToGroup = extra.sentToGroup;
+        }
+
         const updatedPermit = { ...permit, ...updates };
         return await apiCall<ExitPermit[]>(`/exit-permits/${id}`, 'PUT', updatedPermit);
     }

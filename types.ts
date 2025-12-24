@@ -172,6 +172,7 @@ export interface ExitPermit {
   approverCeo?: string;
   rejectionReason?: string;
   rejectedBy?: string;
+  sentToGroup?: boolean; // NEW: Track if sent to whatsapp group
   createdAt: number;
   updatedAt?: number;
 }
