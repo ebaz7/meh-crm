@@ -22,7 +22,7 @@ export const updateOrderStatus = async (id: string, status: OrderStatus, approve
 };
 export const deleteOrder = async (id: string): Promise<PaymentOrder[]> => { return await apiCall<PaymentOrder[]>(`/orders/${id}`, 'DELETE'); };
 
-// --- UPDATED: Exit Permits Workflow (5 Stages with Warehouse) ---
+// --- UPDATED: Exit Permits Workflow (5 Stages) ---
 export const getExitPermits = async (): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits'); };
 export const saveExitPermit = async (permit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>('/exit-permits', 'POST', permit); };
 export const editExitPermit = async (updatedPermit: ExitPermit): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${updatedPermit.id}`, 'PUT', updatedPermit); };
@@ -33,22 +33,22 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
     if(permit) {
         const updates: any = { status };
         
-        // Stage 1: CEO Approval (Target: Pending Factory)
+        // Stage 1: CEO Approved (Moves to Factory)
         if (status === ExitPermitStatus.PENDING_FACTORY) {
             updates.approverCeo = approverUser.fullName;
         }
         
-        // Stage 2: Factory Manager Approval (Target: Pending Warehouse)
+        // Stage 2: Factory Approved (Moves to Warehouse)
         if (status === ExitPermitStatus.PENDING_WAREHOUSE) {
             updates.approverFactory = approverUser.fullName;
         }
 
-        // Stage 3: Warehouse Supervisor Approval (Target: Pending Security)
+        // Stage 3: Warehouse Approved (Moves to Security)
         if (status === ExitPermitStatus.PENDING_SECURITY) {
             updates.approverWarehouse = approverUser.fullName;
         }
 
-        // Stage 4: Security Approval (Target: Exited)
+        // Stage 4: Security Approved (Moves to Exited)
         if (status === ExitPermitStatus.EXITED) {
             updates.approverSecurity = approverUser.fullName;
             if (extra?.exitTime) updates.exitTime = extra.exitTime;
@@ -67,7 +67,7 @@ export const updateExitPermitStatus = async (id: string, status: ExitPermitStatu
 export const deleteExitPermit = async (id: string): Promise<ExitPermit[]> => { return await apiCall<ExitPermit[]>(`/exit-permits/${id}`, 'DELETE'); };
 export const getNextExitPermitNumber = async (): Promise<number> => { try { const response = await apiCall<{ nextNumber: number }>('/next-exit-permit-number'); return response.nextNumber; } catch(e) { const settings = await getSettings(); return (settings.currentExitPermitNumber || 1000) + 1; } };
 
-// ... (Security, Warehouse, Settings methods remain same) ...
+// ... (Rest of file kept same) ...
 export const getSecurityLogs = async (): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs'); };
 export const saveSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>('/security/logs', 'POST', log); };
 export const updateSecurityLog = async (log: SecurityLog): Promise<SecurityLog[]> => { return await apiCall<SecurityLog[]>(`/security/logs/${log.id}`, 'PUT', log); };
