@@ -7,7 +7,7 @@ import { Save, Loader2, Truck, Package, MapPin, Hash, Plus, Trash2, X, AlertTria
 import PrintExitPermit from './PrintExitPermit';
 import { getUsers } from '../services/authService';
 import { apiCall } from '../services/apiService';
-import { getSettings } from '../services/storageService'; // Add Import
+import { getSettings } from '../services/storageService'; 
 
 interface EditExitPermitModalProps {
   permit: ExitPermit;
@@ -79,6 +79,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
           const settings = await getSettings();
           const groupTarget = settings?.exitPermitNotificationGroup;
 
+          // Short timeout to allow state to update and DOM to render the hidden print component
           setTimeout(async () => {
               const element = document.getElementById(`print-permit-edit-${updatedPermit.id}`);
               if (element) {
@@ -106,10 +107,12 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           });
                       }
 
-                      // 3. Notify Group (Edit Alert) - IF IT WAS EXITED
-                      if (groupTarget && permit.status === ExitPermitStatus.EXITED) {
+                      // 3. Notify Group (Edit/Invalidation Alert) - ALWAYS if groupTarget exists
+                      // Notify them that the current permit (if printed) is now INVALID until re-approved
+                      if (groupTarget) {
                           let groupCaption = `📝 *مجوز خروج ویرایش شد*\n`;
-                          groupCaption += `⚠️ *توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.*\n`;
+                          groupCaption += `🚨 *توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.*\n`;
+                          groupCaption += `⛔ *از خروج بار با مجوز قبلی خودداری کنید.*\n`;
                           groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
                           groupCaption += `وضعیت فعلی: در انتظار تایید مجدد`;
 
@@ -140,7 +143,10 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
         {/* Hidden Render for Auto Send with Watermark */}
         {tempPermitForCapture && (
             <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
-                <PrintExitPermit permit={tempPermitForCapture} onClose={()=>{}} embed watermark="EDITED" />
+                {/* We use a specific ID to target this element for html2canvas */}
+                <div id={`print-permit-edit-${tempPermitForCapture.id}`}>
+                    <PrintExitPermit permit={tempPermitForCapture} onClose={()=>{}} embed watermark="EDITED" />
+                </div>
             </div>
         )}
 

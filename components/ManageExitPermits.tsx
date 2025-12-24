@@ -200,7 +200,10 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       
                       // CASE A: CEO Approved -> Goes to Factory Manager + GROUP NOTIFICATION
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
-                          const caption = generateFullCaption(updatedPermitMock, "✍️ *مجوز خروج توسط مدیرعامل تایید شد*");
+                          // Check if it was edited
+                          const isEdited = (permitToApprove.updatedAt || 0) > (permitToApprove.createdAt || 0) + 60000;
+                          const title = isEdited ? "📢 *اطلاعیه: مجوز خروج صادر شد (اصلاحیه)*" : "📢 *اطلاعیه: مجوز خروج صادر شد*";
+                          const caption = generateFullCaption(updatedPermitMock, title);
                           
                           // Send to Factory Manager
                           const target = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
@@ -210,7 +213,14 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
                           // NEW: Send to Notification Group (Immediate & Robust)
                           if (settings?.exitPermitNotificationGroup) {
-                              const groupCaption = generateFullCaption(updatedPermitMock, "📢 *اطلاعیه: مجوز خروج صادر شد (تایید مدیرعامل)*");
+                              // If edited, add emphasis
+                              let groupCaption = caption;
+                              if (isEdited) {
+                                  groupCaption = `🚨 *توجه: مجوز خروج اصلاح شد*\n` + 
+                                                 `⚠️ *لطفاً نسخه قبلی را نادیده بگیرید.*\n\n` + 
+                                                 groupCaption;
+                              }
+
                               await sendWithRetry({
                                   number: settings.exitPermitNotificationGroup, 
                                   message: groupCaption, 
@@ -341,7 +351,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       // 2. Wait render
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // 3. Capture & Send Warning to RELEVANT MANAGERS
+      // 3. Capture & Send Warning to ALL STAKEHOLDERS
       const element = document.getElementById(`print-permit-${permitToDelete.id}`);
       if (element) {
           try {
@@ -364,32 +374,28 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
               const users = await getUsers();
               
-              // Target Lists
+              // Target Lists - Be Aggressive
               const targets = new Set<string>();
 
-              // Always notify CEO
+              // 1. Always notify CEO
               const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
               if (ceo) targets.add(ceo.phoneNumber!);
 
-              // Notify Group if Exited
-              if (permitToDelete.status === ExitPermitStatus.EXITED && settings?.exitPermitNotificationGroup) {
+              // 2. Always notify Group (Critical for invalidation)
+              if (settings?.exitPermitNotificationGroup) {
                   targets.add(settings.exitPermitNotificationGroup);
               }
 
-              // Notify Factory Manager if it passed CEO
-              if (permitToDelete.status !== ExitPermitStatus.PENDING_CEO) {
-                  const fm = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
-                  if (fm) targets.add(fm.phoneNumber!);
-              }
+              // 3. Notify Factory Manager
+              const fm = users.find(u => u.role === UserRole.FACTORY_MANAGER && u.phoneNumber);
+              if (fm) targets.add(fm.phoneNumber!);
 
-              // Notify Warehouse/Security if further along
-              if (permitToDelete.status === ExitPermitStatus.PENDING_SECURITY || permitToDelete.status === ExitPermitStatus.EXITED) {
-                  const secHead = users.find(u => u.role === UserRole.SECURITY_HEAD && u.phoneNumber);
-                  if (secHead) targets.add(secHead.phoneNumber!);
-                  
-                  const wh = users.find(u => u.role === UserRole.WAREHOUSE_KEEPER && u.phoneNumber);
-                  if (wh) targets.add(wh.phoneNumber!);
-              }
+              // 4. Notify Security/Warehouse
+              const secHead = users.find(u => u.role === UserRole.SECURITY_HEAD && u.phoneNumber);
+              if (secHead) targets.add(secHead.phoneNumber!);
+              
+              const wh = users.find(u => u.role === UserRole.WAREHOUSE_KEEPER && u.phoneNumber);
+              if (wh) targets.add(wh.phoneNumber!);
 
               // Send loop
               for (const number of Array.from(targets)) {

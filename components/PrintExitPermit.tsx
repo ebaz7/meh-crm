@@ -107,14 +107,14 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             {/* WATERMARK OVERLAY */}
             {watermark === 'DELETED' && (
                 <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
-                    <div className="border-[12px] border-red-500 text-red-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap">
+                    <div className="border-[12px] border-red-500 text-red-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap bg-white/50 backdrop-blur-[2px]">
                         حذف شد
                     </div>
                 </div>
             )}
             {watermark === 'EDITED' && (
                 <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
-                    <div className="border-[12px] border-orange-500 text-orange-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap">
+                    <div className="border-[12px] border-orange-500 text-orange-500 font-black text-9xl opacity-40 rotate-[-45deg] p-10 rounded-3xl whitespace-nowrap bg-white/50 backdrop-blur-[2px]">
                         اصلاحیه
                     </div>
                 </div>
