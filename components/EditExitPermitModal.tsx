@@ -70,26 +70,28 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
       };
 
       try {
+          // 1. Save to DB
           await editExitPermit(updatedPermit);
           
-          // --- AUTO SEND NOTIFICATIONS ---
+          // 2. Prepare for Capture
           setTempPermitForCapture(updatedPermit);
           
-          // 1. Get Settings for Group ID
-          const settings = await getSettings();
-          const groupTarget = settings?.exitPermitNotificationGroup;
-
-          // Short timeout to allow state to update and DOM to render the hidden print component
+          // 3. Wait for Render and Send
           setTimeout(async () => {
-              const element = document.getElementById(`print-permit-edit-${updatedPermit.id}`);
+              // Unique ID for the hidden element in this modal
+              const elementId = `print-permit-edit-modal-${updatedPermit.id}`;
+              const element = document.getElementById(elementId);
+              
               if (element) {
                   try {
                       // @ts-ignore
                       const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                       const base64 = canvas.toDataURL('image/png').split(',')[1];
 
-                      // 2. Notify CEO (Correction Request) - ALWAYS
                       const users = await getUsers();
+                      const settings = await getSettings();
+
+                      // A. Notify CEO (Correction Request) - CRITICAL
                       const ceo = users.find(u => u.role === UserRole.CEO && u.phoneNumber);
                       
                       if (ceo) {
@@ -97,7 +99,7 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           caption += `⚠️ *این مجوز ویرایش شده است*\n`;
                           caption += `شماره: ${updatedPermit.permitNumber}\n`;
                           caption += `گیرنده: ${updatedPermit.recipientName}\n`;
-                          caption += `وضعیت جدید: بازگشت به صف بررسی (مدیرعامل)\n\n`;
+                          caption += `وضعیت: بازگشت به صف (مدیرعامل)\n\n`;
                           caption += `لطفا مجدداً بررسی و تایید نمایید.`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
@@ -107,27 +109,29 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
                           });
                       }
 
-                      // 3. Notify Group (Edit/Invalidation Alert) - ALWAYS if groupTarget exists
-                      // Notify them that the current permit (if printed) is now INVALID until re-approved
+                      // B. Notify Group (Invalidation Alert) if group is configured
+                      const groupTarget = settings?.exitPermitNotificationGroup;
                       if (groupTarget) {
                           let groupCaption = `📝 *مجوز خروج ویرایش شد*\n`;
-                          groupCaption += `🚨 *توجه: این مجوز ویرایش شده و نسخه قبلی فاقد اعتبار است.*\n`;
-                          groupCaption += `⛔ *از خروج بار با مجوز قبلی خودداری کنید.*\n`;
+                          groupCaption += `🚨 *توجه: نسخه قبلی این مجوز فاقد اعتبار است.*\n`;
                           groupCaption += `شماره: ${updatedPermit.permitNumber}\n`;
-                          groupCaption += `وضعیت فعلی: در انتظار تایید مجدد`;
+                          groupCaption += `وضعیت فعلی: در انتظار تایید مجدد مدیریت`;
 
                           await apiCall('/send-whatsapp', 'POST', { 
                               number: groupTarget, 
                               message: groupCaption, 
-                              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Edit_Group_${updatedPermit.permitNumber}.png` } 
+                              mediaData: { data: base64, mimeType: 'image/png', filename: `Permit_Invalidated_${updatedPermit.permitNumber}.png` } 
                           });
                       }
 
                   } catch(e) { console.error("Auto send error", e); }
+              } else {
+                  console.error("Print element not found for ID:", elementId);
               }
+              
               onSave();
               onClose();
-          }, 1500);
+          }, 2000); // 2 seconds wait for reliable render
 
       } catch (e) { alert('خطا در ذخیره تغییرات'); setIsSubmitting(false); }
   };
@@ -140,17 +144,17 @@ const EditExitPermitModal: React.FC<EditExitPermitModalProps> = ({ permit, onClo
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        {/* Hidden Render for Auto Send with Watermark */}
+        {/* Hidden Render for Auto Send with Watermark - MUST BE HERE */}
         {tempPermitForCapture && (
-            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px'}}>
-                {/* We use a specific ID to target this element for html2canvas */}
-                <div id={`print-permit-edit-${tempPermitForCapture.id}`}>
+            <div className="hidden-print-export" style={{position: 'absolute', top: '-9999px', left: '-9999px', width: '800px', zIndex: -1}}>
+                {/* We use a specific ID to target this element for html2canvas inside the modal */}
+                <div id={`print-permit-edit-modal-${tempPermitForCapture.id}`}>
                     <PrintExitPermit permit={tempPermitForCapture} onClose={()=>{}} embed watermark="EDITED" />
                 </div>
             </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
                 <div className="flex items-center gap-3">
                     <div className="bg-orange-50 p-2 rounded-lg text-orange-600"><Save size={20} /></div>

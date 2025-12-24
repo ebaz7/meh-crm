@@ -200,8 +200,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       
                       // CASE A: CEO Approved -> Goes to Factory Manager + GROUP NOTIFICATION
                       if (nextStatus === ExitPermitStatus.PENDING_FACTORY) {
-                          // Check if it was edited
+                          // Check if it was edited (updatedAt > createdAt + 1 minute grace)
                           const isEdited = (permitToApprove.updatedAt || 0) > (permitToApprove.createdAt || 0) + 60000;
+                          
                           const title = isEdited ? "📢 *اطلاعیه: مجوز خروج صادر شد (اصلاحیه)*" : "📢 *اطلاعیه: مجوز خروج صادر شد*";
                           const caption = generateFullCaption(updatedPermitMock, title);
                           
@@ -213,11 +214,11 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
                           // NEW: Send to Notification Group (Immediate & Robust)
                           if (settings?.exitPermitNotificationGroup) {
-                              // If edited, add emphasis
+                              // If edited, add explicit warning
                               let groupCaption = caption;
                               if (isEdited) {
-                                  groupCaption = `🚨 *توجه: مجوز خروج اصلاح شد*\n` + 
-                                                 `⚠️ *لطفاً نسخه قبلی را نادیده بگیرید.*\n\n` + 
+                                  groupCaption = `🚨 *توجه: مجوز خروج اصلاح شد (نسخه نهایی)*\n` + 
+                                                 `⚠️ *لطفاً نسخه قبلی را نادیده بگیرید و از این نسخه استفاده کنید.*\n\n` + 
                                                  groupCaption;
                               }
 
