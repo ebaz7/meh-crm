@@ -155,31 +155,40 @@ app.post('/api/render-pdf', async (req, res) => {
         const { html, landscape, format } = req.body;
         
         // Launch Puppeteer
-        // 'new' headless mode is recommended for newer versions, 'true' for older.
-        // We use 'true' (classic headless) to be safe across versions.
         const browser = await puppeteer.launch({
             headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Critical for Docker/Low memory envs
+                '--disable-gpu'
+            ]
         });
         
         const page = await browser.newPage();
         
-        // Set content
-        // Relaxed waitUntil to 'load' instead of 'networkidle0' to prevent timeouts on slow CDNs (fonts/tailwind)
+        // Set content strategy:
+        // 1. Wait for DOM content (fast)
+        // 2. Wait manual delay for Fonts/Tailwind CDN to apply (stable)
+        // This avoids 'networkidle0' timeouts if external resources hang
         await page.setContent(html, { 
-            waitUntil: ['load'], 
-            timeout: 60000 // Increased timeout to 60s
+            waitUntil: 'domcontentloaded', 
+            timeout: 60000 
         });
+
+        // Optional: Wait for fonts explicitly if supported, catch if fails
+        try { await page.evaluateHandle('document.fonts.ready'); } catch (e) {}
+
+        // Hard wait to ensure styles are applied (Tailwind CDN needs a moment)
+        await new Promise(r => setTimeout(r, 1000));
         
-        // Emulate print media type to ensure CSS @media print is applied (if any) or defaults
+        // Emulate print media
         await page.emulateMediaType('print');
         
         const pdfBuffer = await page.pdf({
             format: format || 'A4',
             landscape: landscape || false,
             printBackground: true,
-            // CRITICAL FIX: Zero margins here. We handle padding in CSS/HTML via 'printable-content'.
-            // This prevents the browser from shrinking content to fit its own margins.
             margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
             preferCSSPageSize: true
         });
@@ -195,7 +204,6 @@ app.post('/api/render-pdf', async (req, res) => {
 
     } catch (error) {
         console.error('PDF Generation Error:', error);
-        // Send a clearer error message back
         res.status(500).json({ error: 'Failed to generate PDF on server', details: error.message });
     }
 });

@@ -98,7 +98,7 @@ export const generatePdf = async ({
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || `Server Error: ${response.status}`);
+            throw new Error((errData.error || 'Server Error') + (errData.details ? `: ${errData.details}` : ''));
         }
 
         // 4. Download Blob
