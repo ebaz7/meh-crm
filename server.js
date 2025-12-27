@@ -116,7 +116,7 @@ setTimeout(() => {
 // --- SMART NOTIFICATION LOGIC ---
 
 // Find a user phone by role
-const findUserPhoneByRole = (db, role) => {
+const findUserPhoneBy role = (db, role) => {
     const user = db.users.find(u => u.role === role && u.phoneNumber);
     return user ? user.phoneNumber : null;
 };
@@ -144,6 +144,59 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fa-IR').format(amount) + ' ریال';
 };
 
+// --- CHROME PATH FINDER (THE FIX) ---
+const findChromePath = () => {
+    // 1. Look inside project .cache (from npm install)
+    const projectCache = path.join(__dirname, '.cache', 'puppeteer');
+    console.log(">>> Searching for local Chrome in:", projectCache);
+    
+    // Recursive function to find chrome.exe in the cache folder structure
+    const findExe = (dir) => {
+        if (!fs.existsSync(dir)) return null;
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+            const fullPath = path.join(dir, file);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+                const found = findExe(fullPath);
+                if (found) return found;
+            } else if (file === 'chrome.exe') {
+                return fullPath;
+            }
+        }
+        return null;
+    };
+
+    const localChrome = findExe(projectCache);
+    if (localChrome) {
+        console.log(">>> Using Local Chrome (Success):", localChrome);
+        return localChrome;
+    } else {
+        console.warn(">>> Local Chrome NOT FOUND in .cache folder.");
+    }
+
+    // 2. Look for System Installed Chrome/Edge (Fallback)
+    const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    
+    const systemPaths = [
+        path.join(programFiles, 'Google\\Chrome\\Application\\chrome.exe'),
+        path.join(programFilesX86, 'Google\\Chrome\\Application\\chrome.exe'),
+        path.join(programFiles, 'Microsoft\\Edge\\Application\\msedge.exe'),
+        path.join(programFilesX86, 'Microsoft\\Edge\\Application\\msedge.exe')
+    ];
+
+    for (const sysPath of systemPaths) {
+        if (fs.existsSync(sysPath)) {
+            console.log(">>> Using System Browser:", sysPath);
+            return sysPath;
+        }
+    }
+
+    console.warn(">>> CRITICAL WARNING: Could not find any Chrome/Edge executable. PDF Generation will likely fail.");
+    return undefined; // Let Puppeteer try its default
+};
+
 // --- ROUTES ---
 
 // NEW: Version Check
@@ -154,38 +207,36 @@ app.post('/api/render-pdf', async (req, res) => {
     try {
         const { html, landscape, format } = req.body;
         
-        // Launch Puppeteer
-        // NOTE: We removed 'channel: chrome' to use the local cached version defined in .puppeteerrc.cjs
-        // This ensures compatibility when running as a Service.
+        // RESOLVE EXECUTABLE PATH
+        const executablePath = findChromePath();
+
+        // Launch Puppeteer with explicit path
         const browser = await puppeteer.launch({
             headless: true,
+            executablePath: executablePath, // <--- CRITICAL FIX
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
                 '--no-zygote',
-                '--single-process' // Helps in low-resource environments
+                '--single-process'
             ]
         });
         
         const page = await browser.newPage();
         
-        // Set content strategy:
-        // 1. Wait for DOM content (fast)
-        // 2. Wait manual delay for Fonts/Tailwind CDN to apply (stable)
         await page.setContent(html, { 
             waitUntil: 'domcontentloaded', 
             timeout: 60000 
         });
 
-        // Optional: Wait for fonts explicitly if supported, catch if fails
+        // Optional: Wait for fonts
         try { await page.evaluateHandle('document.fonts.ready'); } catch (e) {}
 
-        // Hard wait to ensure styles are applied (Tailwind CDN needs a moment)
+        // Hard wait to ensure styles apply
         await new Promise(r => setTimeout(r, 1000));
         
-        // Emulate print media
         await page.emulateMediaType('print');
         
         const pdfBuffer = await page.pdf({
@@ -207,7 +258,11 @@ app.post('/api/render-pdf', async (req, res) => {
 
     } catch (error) {
         console.error('PDF Generation Error:', error);
-        res.status(500).json({ error: 'Failed to generate PDF on server', details: error.message });
+        const errorDetails = error.message.includes('Could not find Chrome') 
+            ? 'مرورگر کروم پیدا نشد. لطفا دستور npm run fix-browser را اجرا کنید تا مرورگر در پوشه پروژه دانلود شود.'
+            : error.message;
+            
+        res.status(500).json({ error: 'Failed to generate PDF on server', details: errorDetails });
     }
 });
 

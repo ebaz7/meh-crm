@@ -9,8 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "postinstall": "npx puppeteer browsers install",
-    "fix-browser": "npx puppeteer browsers install",
+    "postinstall": "npx puppeteer browsers install chrome",
+    "fix-browser": "npx puppeteer browsers install chrome",
     "install-service": "node install-service.js",
     "uninstall-service": "node uninstall-service.js"
   },
