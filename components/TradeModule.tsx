@@ -11,6 +11,7 @@ import CompanyPerformanceReport from './reports/CompanyPerformanceReport';
 import PrintFinalCostReport from './print/PrintFinalCostReport';
 import PrintClearanceDeclaration from './print/PrintClearanceDeclaration';
 import InsuranceLedgerReport from './reports/InsuranceLedgerReport';
+import GuaranteeReport from './reports/GuaranteeReport'; // IMPORT NEW REPORT
 import InsuranceTab from './InsuranceTab';
 
 interface TradeModuleProps {
@@ -26,8 +27,8 @@ const CURRENCIES = [
     { code: 'TRY', label: 'لیر (₺)' },
 ];
 
-// Report Types
-type ReportType = 'general' | 'allocation_queue' | 'allocated' | 'currency' | 'insurance' | 'shipping' | 'inspection' | 'clearance' | 'green_leaf' | 'company_performance' | 'insurance_ledger';
+// Report Types - Added 'guarantee'
+type ReportType = 'general' | 'allocation_queue' | 'allocated' | 'currency' | 'insurance' | 'shipping' | 'inspection' | 'clearance' | 'green_leaf' | 'company_performance' | 'insurance_ledger' | 'guarantee';
 
 const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [records, setRecords] = useState<TradeRecord[]>([]);
@@ -50,6 +51,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [reportSearchTerm, setReportSearchTerm] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
     
+    // ... (rest of state definitions same as before) ...
     // Modal & Form States
     const [showNewModal, setShowNewModal] = useState(false);
     const [newFileNumber, setNewFileNumber] = useState('');
@@ -61,36 +63,29 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     
     const [activeTab, setActiveTab] = useState<'timeline' | 'proforma' | 'insurance' | 'currency_purchase' | 'shipping_docs' | 'inspection' | 'clearance_docs' | 'green_leaf' | 'internal_shipping' | 'agent_fees' | 'final_calculation'>('timeline');
     
-    // EDIT METADATA STATE (NEW)
     const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
     const [editMetadataForm, setEditMetadataForm] = useState<Partial<TradeRecord>>({});
 
-    // Stage Detail Modal State
     const [editingStage, setEditingStage] = useState<TradeStage | null>(null);
     const [stageFormData, setStageFormData] = useState<Partial<TradeStageData>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingStageFile, setUploadingStageFile] = useState(false);
 
-    // Items State
     const [newItem, setNewItem] = useState<Partial<TradeItem> & { weightStr?: string, unitPriceStr?: string }>({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' });
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-    // Insurance State
     const [insuranceForm, setInsuranceForm] = useState<NonNullable<TradeRecord['insuranceData']>>({ policyNumber: '', company: '', cost: 0, bank: '', endorsements: [], isPaid: false, paymentDate: '' });
     const [newEndorsement, setNewEndorsement] = useState<Partial<InsuranceEndorsement>>({ amount: 0, description: '', date: '' });
     const [endorsementType, setEndorsementType] = useState<'increase' | 'refund'>('increase');
     
-    // Inspection State
     const [inspectionForm, setInspectionForm] = useState<InspectionData>({ certificates: [], payments: [] });
     const [newInspectionCertificate, setNewInspectionCertificate] = useState<Partial<InspectionCertificate>>({ part: '', company: '', certificateNumber: '', amount: 0 });
     const [newInspectionPayment, setNewInspectionPayment] = useState<Partial<InspectionPayment>>({ part: '', amount: 0, date: '', bank: '' });
 
-    // Clearance State
     const [clearanceForm, setClearanceForm] = useState<ClearanceData>({ receipts: [], payments: [] });
     const [newWarehouseReceipt, setNewWarehouseReceipt] = useState<Partial<WarehouseReceipt>>({ number: '', part: '', issueDate: '' });
     const [newClearancePayment, setNewClearancePayment] = useState<Partial<ClearancePayment>>({ amount: 0, part: '', bank: '', date: '', payingBank: '' });
 
-    // Green Leaf State
     const [greenLeafForm, setGreenLeafForm] = useState<GreenLeafData>({ duties: [], guarantees: [], taxes: [], roadTolls: [] });
     const [newCustomsDuty, setNewCustomsDuty] = useState<Partial<GreenLeafCustomsDuty>>({ cottageNumber: '', part: '', amount: 0, paymentMethod: 'Bank', bank: '', date: '' });
     const [newGuaranteeDetails, setNewGuaranteeDetails] = useState<Partial<GreenLeafGuarantee>>({ guaranteeNumber: '', chequeNumber: '', chequeBank: '', chequeDate: '', cashAmount: 0, cashBank: '', cashDate: '', chequeAmount: 0 });
@@ -98,23 +93,18 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [newTax, setNewTax] = useState<Partial<GreenLeafTax>>({ part: '', amount: 0, bank: '', date: '' });
     const [newRoadToll, setNewRoadToll] = useState<Partial<GreenLeafRoadToll>>({ part: '', amount: 0, bank: '', date: '' });
 
-    // Internal Shipping State
     const [internalShippingForm, setInternalShippingForm] = useState<InternalShippingData>({ payments: [] });
     const [newShippingPayment, setNewShippingPayment] = useState<Partial<ShippingPayment>>({ part: '', amount: 0, date: '', bank: '', description: '' });
 
-    // Agent Fees State
     const [agentForm, setAgentForm] = useState<AgentData>({ payments: [] });
     const [newAgentPayment, setNewAgentPayment] = useState<Partial<AgentPayment>>({ agentName: '', amount: 0, bank: '', date: '', part: '', description: '' });
 
-    // License Transactions State
     const [newLicenseTx, setNewLicenseTx] = useState<Partial<TradeTransaction>>({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
 
-    // Currency Purchase State
     const [currencyForm, setCurrencyForm] = useState<CurrencyPurchaseData>({
         payments: [], purchasedAmount: 0, purchasedCurrencyType: '', purchaseDate: '', brokerName: '', exchangeName: '', deliveredAmount: 0, deliveredCurrencyType: '', deliveryDate: '', recipientName: '', remittedAmount: 0, isDelivered: false, tranches: [], guaranteeCheque: undefined
     });
     
-    // EXTENDED STATE FOR RETURN AMOUNT AND RECEIVED AMOUNT
     const [newCurrencyTranche, setNewCurrencyTranche] = useState<Partial<CurrencyTranche> & { returnAmount?: string, returnDate?: string, amountStr?: string, rialAmountStr?: string, receivedAmountStr?: string, currencyFeeStr?: string }>({ 
         amount: 0, 
         currencyType: 'EUR', 
@@ -134,7 +124,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [editingTrancheId, setEditingTrancheId] = useState<string | null>(null);
     const [currencyGuarantee, setCurrencyGuarantee] = useState<{amount: string, bank: string, number: string, date: string, isDelivered: boolean}>({amount: '', bank: '', number: '', date: '', isDelivered: false});
 
-    // Shipping Docs State
     const [activeShippingSubTab, setActiveShippingSubTab] = useState<ShippingDocType>('Commercial Invoice');
     const [shippingDocForm, setShippingDocForm] = useState<Partial<ShippingDocument>>({
         status: 'Draft',
@@ -150,12 +139,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const [uploadingDocFile, setUploadingDocFile] = useState(false);
     const docFileInputRef = useRef<HTMLInputElement>(null);
 
-    // Final Calculation State
     const [calcExchangeRate, setCalcExchangeRate] = useState<number>(0);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [showFinalReportPrint, setShowFinalReportPrint] = useState(false);
     
-    // Clearance Print State
     const [showClearancePrint, setShowClearancePrint] = useState(false);
 
     useEffect(() => {
@@ -170,9 +157,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         });
     }, []);
 
+    // ... (useEffect for selectedRecord sync - same as before) ...
     useEffect(() => {
         if (selectedRecord) {
-            // CRITICAL FIX: Safe initialization to prevent crashes on empty legacy data
             const insData = selectedRecord.insuranceData || {};
             setInsuranceForm({
                 policyNumber: insData.policyNumber || '',
@@ -250,7 +237,6 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
             
             setCalcExchangeRate(selectedRecord.exchangeRate || 0);
             
-            // RESET LOCAL FORMS
             setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' });
             setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' });
             setEditingTrancheId(null);
@@ -278,6 +264,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const goCompany = (company: string) => { setSelectedCompany(company); setNavLevel('COMPANY'); setSelectedGroup(null); setSearchTerm(''); };
     const goGroup = (group: string) => { setSelectedGroup(group); setNavLevel('GROUP'); setSearchTerm(''); };
 
+    // ... (groupedData and getStageData same) ...
     const groupedData = useMemo(() => {
         const currentRecords = records.filter(r => showArchived ? r.isArchived : !r.isArchived);
         if (navLevel === 'ROOT') {
@@ -297,81 +284,21 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
         return record.stages[stage] || { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: 'EUR', attachments: [], updatedAt: 0, updatedBy: '' };
     };
 
+    // ... (All Action Handlers kept the same) ...
+    // Note: I am collapsing standard handlers for brevity in this response, but assume they exist exactly as before.
     const handleCreateRecord = async () => { if (!newFileNumber || !newGoodsName) return; const newRecord: TradeRecord = { id: generateUUID(), company: newRecordCompany, fileNumber: newFileNumber, orderNumber: newFileNumber, goodsName: newGoodsName, registrationNumber: '', sellerName: newSellerName, commodityGroup: newCommodityGroup, mainCurrency: newMainCurrency, items: [], freightCost: 0, startDate: new Date().toISOString(), status: 'Active', stages: {}, createdAt: Date.now(), createdBy: currentUser.fullName, licenseData: { transactions: [] }, shippingDocuments: [] }; STAGES.forEach(stage => { newRecord.stages[stage] = { stage, isCompleted: false, description: '', costRial: 0, costCurrency: 0, currencyType: newMainCurrency, attachments: [], updatedAt: Date.now(), updatedBy: '' }; }); await saveTradeRecord(newRecord); await loadRecords(); setShowNewModal(false); setNewFileNumber(''); setNewGoodsName(''); setSelectedRecord(newRecord); setActiveTab('proforma'); setViewMode('details'); };
-    const handleDeleteRecord = async (id: string, e: React.MouseEvent) => { 
-        e.stopPropagation(); // Prevent card click
-        if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { 
-            await deleteTradeRecord(id); 
-            if (selectedRecord?.id === id) setSelectedRecord(null); 
-            loadRecords(); 
-        } 
-    };
-    
-    // UPDATED: Sync to state list to handle persistence on back
-    const handleUpdateProforma = async (field: keyof TradeRecord, value: string | number) => { 
-        if (!selectedRecord) return; 
-        const updatedRecord = { ...selectedRecord, [field]: value }; 
-        setSelectedRecord(updatedRecord);
-        await updateTradeRecord(updatedRecord); 
-        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-    };
-    
-    // ITEM MANAGEMENT
-    const handleAddItem = async () => { 
-        if (!selectedRecord || !newItem.name) return; 
-        
-        const weightVal = newItem.weightStr ? deformatNumberString(newItem.weightStr) : 0;
-        const unitPriceVal = newItem.unitPriceStr ? deformatNumberString(newItem.unitPriceStr) : 0;
-
-        const item: TradeItem = { 
-            id: editingItemId || generateUUID(), 
-            name: newItem.name, 
-            weight: weightVal, 
-            unitPrice: unitPriceVal, 
-            totalPrice: newItem.totalPrice || (weightVal * unitPriceVal), 
-            hsCode: newItem.hsCode 
-        }; 
-
-        let updatedItems = [];
-        if (editingItemId) {
-            updatedItems = selectedRecord.items.map(i => i.id === editingItemId ? item : i);
-        } else {
-            updatedItems = [...selectedRecord.items, item];
-        }
-
-        const updatedRecord = { ...selectedRecord, items: updatedItems }; 
-        await updateTradeRecord(updatedRecord); 
-        setSelectedRecord(updatedRecord); 
-        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-
-        setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' }); 
-        setEditingItemId(null);
-    };
-
-    const handleEditItem = (item: TradeItem) => {
-        setNewItem({
-            name: item.name,
-            weight: item.weight,
-            weightStr: formatNumberString(item.weight),
-            unitPrice: item.unitPrice,
-            unitPriceStr: formatNumberString(item.unitPrice),
-            totalPrice: item.totalPrice,
-            hsCode: item.hsCode || ''
-        });
-        setEditingItemId(item.id);
-    };
-
+    const handleDeleteRecord = async (id: string, e: React.MouseEvent) => { e.stopPropagation(); if (confirm("آیا از حذف این پرونده بازرگانی اطمینان دارید؟")) { await deleteTradeRecord(id); if (selectedRecord?.id === id) setSelectedRecord(null); loadRecords(); } };
+    const handleUpdateProforma = async (field: keyof TradeRecord, value: string | number) => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, [field]: value }; setSelectedRecord(updatedRecord); await updateTradeRecord(updatedRecord); setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r)); };
+    const handleAddItem = async () => { if (!selectedRecord || !newItem.name) return; const weightVal = newItem.weightStr ? deformatNumberString(newItem.weightStr) : 0; const unitPriceVal = newItem.unitPriceStr ? deformatNumberString(newItem.unitPriceStr) : 0; const item: TradeItem = { id: editingItemId || generateUUID(), name: newItem.name, weight: weightVal, unitPrice: unitPriceVal, totalPrice: newItem.totalPrice || (weightVal * unitPriceVal), hsCode: newItem.hsCode }; let updatedItems = []; if (editingItemId) { updatedItems = selectedRecord.items.map(i => i.id === editingItemId ? item : i); } else { updatedItems = [...selectedRecord.items, item]; } const updatedRecord = { ...selectedRecord, items: updatedItems }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r)); setNewItem({ name: '', weight: 0, unitPrice: 0, totalPrice: 0, hsCode: '', weightStr: '', unitPriceStr: '' }); setEditingItemId(null); };
+    const handleEditItem = (item: TradeItem) => { setNewItem({ name: item.name, weight: item.weight, weightStr: formatNumberString(item.weight), unitPrice: item.unitPrice, unitPriceStr: formatNumberString(item.unitPrice), totalPrice: item.totalPrice, hsCode: item.hsCode || '' }); setEditingItemId(item.id); };
     const handleRemoveItem = async (id: string) => { if (!selectedRecord) return; const updatedItems = selectedRecord.items.filter(i => i.id !== id); const updatedRecord = { ...selectedRecord, items: updatedItems }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
-    
     const handleAddLicenseTx = async () => { if (!selectedRecord || !newLicenseTx.amount) return; const tx: TradeTransaction = { id: generateUUID(), date: newLicenseTx.date || '', amount: Number(newLicenseTx.amount), bank: newLicenseTx.bank || '', description: newLicenseTx.description || '' }; const currentLicenseData = selectedRecord.licenseData || { transactions: [] }; const updatedTransactions = [...(currentLicenseData.transactions || []), tx]; const updatedRecord = { ...selectedRecord, licenseData: { ...currentLicenseData, transactions: updatedTransactions } }; const totalCost = updatedTransactions.reduce((acc, t) => acc + t.amount, 0); if (!updatedRecord.stages[TradeStage.LICENSES]) updatedRecord.stages[TradeStage.LICENSES] = getStageData(updatedRecord, TradeStage.LICENSES); updatedRecord.stages[TradeStage.LICENSES].costRial = totalCost; updatedRecord.stages[TradeStage.LICENSES].isCompleted = totalCost > 0; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setNewLicenseTx({ amount: 0, bank: '', date: '', description: 'هزینه ثبت سفارش' }); };
     const handleRemoveLicenseTx = async (id: string) => { if (!selectedRecord) return; const currentLicenseData = selectedRecord.licenseData || { transactions: [] }; const updatedTransactions = (currentLicenseData.transactions || []).filter(t => t.id !== id); const updatedRecord = { ...selectedRecord, licenseData: { ...currentLicenseData, transactions: updatedTransactions } }; const totalCost = updatedTransactions.reduce((acc, t) => acc + t.amount, 0); if (!updatedRecord.stages[TradeStage.LICENSES]) updatedRecord.stages[TradeStage.LICENSES] = getStageData(updatedRecord, TradeStage.LICENSES); updatedRecord.stages[TradeStage.LICENSES].costRial = totalCost; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
-    
-    // INSURANCE HANDLERS (Used by Child Component)
     const handleSaveInsurance = async () => { if (!selectedRecord) return; const updatedRecord = { ...selectedRecord, insuranceData: insuranceForm }; const totalCost = (Number(insuranceForm.cost) || 0) + (insuranceForm.endorsements || []).reduce((acc, e) => acc + e.amount, 0); if (!updatedRecord.stages[TradeStage.INSURANCE]) updatedRecord.stages[TradeStage.INSURANCE] = getStageData(updatedRecord, TradeStage.INSURANCE); updatedRecord.stages[TradeStage.INSURANCE].costRial = totalCost; updatedRecord.stages[TradeStage.INSURANCE].isCompleted = !!insuranceForm.policyNumber; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert("اطلاعات بیمه ذخیره شد."); };
     const handleAddEndorsement = () => { if (!newEndorsement.amount) return; const amount = endorsementType === 'increase' ? Number(newEndorsement.amount) : -Number(newEndorsement.amount); const endorsement: InsuranceEndorsement = { id: generateUUID(), date: newEndorsement.date || '', amount: amount, description: newEndorsement.description || '' }; const updatedEndorsements = [...(insuranceForm.endorsements || []), endorsement]; setInsuranceForm({ ...insuranceForm, endorsements: updatedEndorsements }); setNewEndorsement({ amount: 0, description: '', date: '' }); };
     const handleDeleteEndorsement = (id: string) => { setInsuranceForm({ ...insuranceForm, endorsements: insuranceForm.endorsements?.filter(e => e.id !== id) }); };
     
-    // ... (Handlers kept) ...
+    // ... skipping repetitive handlers ... (assume they exist)
     const handleAddInspectionCertificate = async () => { if (!selectedRecord || !newInspectionCertificate.amount) return; const cert: InspectionCertificate = { id: generateUUID(), part: newInspectionCertificate.part || 'Part', company: newInspectionCertificate.company || '', certificateNumber: newInspectionCertificate.certificateNumber || '', amount: Number(newInspectionCertificate.amount), description: '' }; const updatedCertificates = [...(inspectionForm.certificates || []), cert]; const updatedData = { ...inspectionForm, certificates: updatedCertificates }; setInspectionForm(updatedData); setNewInspectionCertificate({ part: '', company: '', certificateNumber: '', amount: 0 }); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; if (!updatedRecord.stages[TradeStage.INSPECTION]) updatedRecord.stages[TradeStage.INSPECTION] = getStageData(updatedRecord, TradeStage.INSPECTION); updatedRecord.stages[TradeStage.INSPECTION].isCompleted = updatedCertificates.length > 0; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleDeleteInspectionCertificate = async (id: string) => { if (!selectedRecord) return; const updatedCertificates = (inspectionForm.certificates || []).filter(c => c.id !== id); const updatedData = { ...inspectionForm, certificates: updatedCertificates }; setInspectionForm(updatedData); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleAddInspectionPayment = async () => { if (!selectedRecord || !newInspectionPayment.amount) return; const payment: InspectionPayment = { id: generateUUID(), part: newInspectionPayment.part || 'Part', amount: Number(newInspectionPayment.amount), date: newInspectionPayment.date || '', bank: newInspectionPayment.bank || '', description: '' }; const updatedPayments = [...(inspectionForm.payments || []), payment]; const updatedData = { ...inspectionForm, payments: updatedPayments }; setInspectionForm(updatedData); setNewInspectionPayment({ part: '', amount: 0, date: '', bank: '' }); const updatedRecord = { ...selectedRecord, inspectionData: updatedData }; if (!updatedRecord.stages[TradeStage.INSPECTION]) updatedRecord.stages[TradeStage.INSPECTION] = getStageData(updatedRecord, TradeStage.INSPECTION); updatedRecord.stages[TradeStage.INSPECTION].costRial = updatedPayments.reduce((acc, p) => acc + p.amount, 0); await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -395,115 +322,10 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
     const handleDeleteShippingPayment = async (id: string) => { if (!selectedRecord) return; const updatedPayments = (internalShippingForm.payments || []).filter(p => p.id !== id); const updatedData = { ...internalShippingForm, payments: updatedPayments }; setInternalShippingForm(updatedData); const updatedRecord = { ...selectedRecord, internalShippingData: updatedData }; if (!updatedRecord.stages[TradeStage.INTERNAL_SHIPPING]) updatedRecord.stages[TradeStage.INTERNAL_SHIPPING] = getStageData(updatedRecord, TradeStage.INTERNAL_SHIPPING); updatedRecord.stages[TradeStage.INTERNAL_SHIPPING].costRial = updatedPayments.reduce((acc, p) => acc + p.amount, 0); await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleAddAgentPayment = async () => { if (!selectedRecord || !newAgentPayment.amount || !newAgentPayment.agentName) return; const payment: AgentPayment = { id: generateUUID(), agentName: newAgentPayment.agentName, amount: Number(newAgentPayment.amount), bank: newAgentPayment.bank || '', date: newAgentPayment.date || '', part: newAgentPayment.part || '', description: newAgentPayment.description || '' }; const updatedPayments = [...(agentForm.payments || []), payment]; const updatedData = { ...agentForm, payments: updatedPayments }; setAgentForm(updatedData); setNewAgentPayment({ agentName: newAgentPayment.agentName, amount: 0, bank: '', date: '', part: '', description: '' }); const updatedRecord = { ...selectedRecord, agentData: updatedData }; if (!updatedRecord.stages[TradeStage.AGENT_FEES]) updatedRecord.stages[TradeStage.AGENT_FEES] = getStageData(updatedRecord, TradeStage.AGENT_FEES); updatedRecord.stages[TradeStage.AGENT_FEES].costRial = updatedPayments.reduce((acc, p) => acc + p.amount, 0); updatedRecord.stages[TradeStage.AGENT_FEES].isCompleted = updatedPayments.length > 0; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleDeleteAgentPayment = async (id: string) => { if (!selectedRecord) return; const updatedPayments = (agentForm.payments || []).filter(p => p.id !== id); const updatedData = { ...agentForm, payments: updatedPayments }; setAgentForm(updatedData); const updatedRecord = { ...selectedRecord, agentData: updatedData }; if (!updatedRecord.stages[TradeStage.AGENT_FEES]) updatedRecord.stages[TradeStage.AGENT_FEES] = getStageData(updatedRecord, TradeStage.AGENT_FEES); updatedRecord.stages[TradeStage.AGENT_FEES].costRial = updatedPayments.reduce((acc, p) => acc + p.amount, 0); await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
-    
-    // ... (Currency tranche logic remains same) ...
-    const handleAddCurrencyTranche = async () => { 
-        if (!selectedRecord || !newCurrencyTranche.amountStr || !newCurrencyTranche.rialAmountStr) return; // REQUIRE RIAL AMOUNT
-        
-        let updatedTranches = [...(currencyForm.tranches || [])];
-        
-        const rawAmount = parseFloat(newCurrencyTranche.amountStr);
-        const rawRialAmount = deformatNumberString(newCurrencyTranche.rialAmountStr);
-        const rawCurrencyFee = newCurrencyTranche.currencyFeeStr ? parseFloat(newCurrencyTranche.currencyFeeStr) : 0;
-        const rawReceived = newCurrencyTranche.receivedAmountStr ? parseFloat(newCurrencyTranche.receivedAmountStr) : 0;
-
-        const trancheData: any = { 
-            date: newCurrencyTranche.date || '', 
-            amount: rawAmount, 
-            currencyType: newCurrencyTranche.currencyType || selectedRecord.mainCurrency || 'EUR', 
-            brokerName: newCurrencyTranche.brokerName || '', 
-            exchangeName: newCurrencyTranche.exchangeName || '', 
-            rate: 0, 
-            rialAmount: rawRialAmount, 
-            currencyFee: rawCurrencyFee, 
-            isDelivered: newCurrencyTranche.isDelivered, 
-            deliveryDate: newCurrencyTranche.deliveryDate,
-            returnAmount: newCurrencyTranche.returnAmount ? deformatNumberString(newCurrencyTranche.returnAmount.toString()) : undefined,
-            returnDate: newCurrencyTranche.returnDate,
-            receivedAmount: rawReceived
-        }; 
-
-        if (editingTrancheId) {
-            updatedTranches = updatedTranches.map(t => t.id === editingTrancheId ? { ...t, ...trancheData } : t);
-        } else {
-            updatedTranches.push({ ...trancheData, id: generateUUID() });
-        }
-        
-        const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
-        const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0);
-        
-        const totalRialCost = updatedTranches.reduce((acc, t) => {
-            return acc + ((t.rialAmount || 0) - (t.returnAmount || 0));
-        }, 0);
-
-        const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
-        
-        setCurrencyForm(updatedForm); 
-        
-        const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; 
-        
-        if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
-        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased;
-        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost;
-
-        await updateTradeRecord(updatedRecord); 
-        setSelectedRecord(updatedRecord); 
-        
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' }); 
-        setEditingTrancheId(null);
-    };
-
-    const handleEditTranche = (tranche: any) => {
-        setNewCurrencyTranche({
-            amount: tranche.amount,
-            amountStr: tranche.amount.toString(),
-            currencyType: tranche.currencyType,
-            date: tranche.date,
-            exchangeName: tranche.exchangeName,
-            brokerName: tranche.brokerName,
-            isDelivered: tranche.isDelivered,
-            deliveryDate: tranche.deliveryDate,
-            rate: tranche.rate,
-            rialAmountStr: formatNumberString(tranche.rialAmount || 0),
-            currencyFeeStr: tranche.currencyFee ? tranche.currencyFee.toString() : '',
-            returnAmount: tranche.returnAmount ? formatNumberString(tranche.returnAmount) : '',
-            returnDate: tranche.returnDate,
-            receivedAmount: tranche.receivedAmount,
-            receivedAmountStr: tranche.receivedAmount ? tranche.receivedAmount.toString() : ''
-        });
-        setEditingTrancheId(tranche.id);
-    };
-
-    const handleCancelEditTranche = () => {
-        setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' });
-        setEditingTrancheId(null);
-    };
-
-    const handleRemoveTranche = async (id: string) => { 
-        if (!selectedRecord) return; 
-        if (!confirm('آیا از حذف این پارت مطمئن هستید؟')) return; 
-        
-        const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); 
-        const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); 
-        const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); 
-        
-        const totalRialCost = updatedTranches.reduce((acc, t) => {
-            return acc + ((t.rialAmount || 0) - (t.returnAmount || 0));
-        }, 0);
-
-        const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; 
-        setCurrencyForm(updatedForm); 
-        
-        const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; 
-        
-        if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE);
-        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased;
-        updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost;
-
-        await updateTradeRecord(updatedRecord); 
-        setSelectedRecord(updatedRecord); 
-    };
-
+    const handleAddCurrencyTranche = async () => { if (!selectedRecord || !newCurrencyTranche.amountStr || !newCurrencyTranche.rialAmountStr) return; let updatedTranches = [...(currencyForm.tranches || [])]; const rawAmount = parseFloat(newCurrencyTranche.amountStr); const rawRialAmount = deformatNumberString(newCurrencyTranche.rialAmountStr); const rawCurrencyFee = newCurrencyTranche.currencyFeeStr ? parseFloat(newCurrencyTranche.currencyFeeStr) : 0; const rawReceived = newCurrencyTranche.receivedAmountStr ? parseFloat(newCurrencyTranche.receivedAmountStr) : 0; const trancheData: any = { date: newCurrencyTranche.date || '', amount: rawAmount, currencyType: newCurrencyTranche.currencyType || selectedRecord.mainCurrency || 'EUR', brokerName: newCurrencyTranche.brokerName || '', exchangeName: newCurrencyTranche.exchangeName || '', rate: 0, rialAmount: rawRialAmount, currencyFee: rawCurrencyFee, isDelivered: newCurrencyTranche.isDelivered, deliveryDate: newCurrencyTranche.deliveryDate, returnAmount: newCurrencyTranche.returnAmount ? deformatNumberString(newCurrencyTranche.returnAmount.toString()) : undefined, returnDate: newCurrencyTranche.returnDate, receivedAmount: rawReceived }; if (editingTrancheId) { updatedTranches = updatedTranches.map(t => t.id === editingTrancheId ? { ...t, ...trancheData } : t); } else { updatedTranches.push({ ...trancheData, id: generateUUID() }); } const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); const totalRialCost = updatedTranches.reduce((acc, t) => { return acc + ((t.rialAmount || 0) - (t.returnAmount || 0)); }, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE); updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased; updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' }); setEditingTrancheId(null); };
+    const handleEditTranche = (tranche: any) => { setNewCurrencyTranche({ amount: tranche.amount, amountStr: tranche.amount.toString(), currencyType: tranche.currencyType, date: tranche.date, exchangeName: tranche.exchangeName, brokerName: tranche.brokerName, isDelivered: tranche.isDelivered, deliveryDate: tranche.deliveryDate, rate: tranche.rate, rialAmountStr: formatNumberString(tranche.rialAmount || 0), currencyFeeStr: tranche.currencyFee ? tranche.currencyFee.toString() : '', returnAmount: tranche.returnAmount ? formatNumberString(tranche.returnAmount) : '', returnDate: tranche.returnDate, receivedAmount: tranche.receivedAmount, receivedAmountStr: tranche.receivedAmount ? tranche.receivedAmount.toString() : '' }); setEditingTrancheId(tranche.id); };
+    const handleCancelEditTranche = () => { setNewCurrencyTranche({ amount: 0, currencyType: selectedRecord?.mainCurrency || 'EUR', date: '', exchangeName: '', brokerName: '', isDelivered: false, returnAmount: '', returnDate: '', receivedAmount: 0, amountStr: '', rialAmountStr: '', receivedAmountStr: '', currencyFeeStr: '' }); setEditingTrancheId(null); };
+    const handleRemoveTranche = async (id: string) => { if (!selectedRecord) return; if (!confirm('آیا از حذف این پارت مطمئن هستید؟')) return; const updatedTranches = (currencyForm.tranches || []).filter(t => t.id !== id); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); const totalRialCost = updatedTranches.reduce((acc, t) => { return acc + ((t.rialAmount || 0) - (t.returnAmount || 0)); }, 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; if (!updatedRecord.stages[TradeStage.CURRENCY_PURCHASE]) updatedRecord.stages[TradeStage.CURRENCY_PURCHASE] = getStageData(updatedRecord, TradeStage.CURRENCY_PURCHASE); updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costCurrency = totalPurchased; updatedRecord.stages[TradeStage.CURRENCY_PURCHASE].costRial = totalRialCost; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleToggleTrancheDelivery = async (id: string) => { if (!selectedRecord) return; const updatedTranches = (currencyForm.tranches || []).map(t => { if (t.id === id) return { ...t, isDelivered: !t.isDelivered }; return t; }); const totalPurchased = updatedTranches.reduce((acc, t) => acc + t.amount, 0); const totalDelivered = updatedTranches.reduce((acc, t) => acc + (t.receivedAmount || (t.isDelivered ? t.amount : 0)), 0); const updatedForm = { ...currencyForm, tranches: updatedTranches, purchasedAmount: totalPurchased, deliveredAmount: totalDelivered }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
     const handleSaveCurrencyGuarantee = async () => { if (!selectedRecord) return; const gCheck = { amount: deformatNumberString(currencyGuarantee.amount), bank: currencyGuarantee.bank, chequeNumber: currencyGuarantee.number, dueDate: currencyGuarantee.date, isDelivered: currencyGuarantee.isDelivered }; const updatedForm = { ...currencyForm, guaranteeCheque: gCheck }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); alert("اطلاعات چک ضمانت ارزی ذخیره شد."); };
     const handleToggleCurrencyGuaranteeDelivery = async () => { if (!selectedRecord || !selectedRecord.currencyPurchaseData?.guaranteeCheque) return; const currentStatus = selectedRecord.currencyPurchaseData.guaranteeCheque.isDelivered || false; setCurrencyGuarantee(prev => ({ ...prev, isDelivered: !currentStatus })); const updatedForm = { ...currencyForm, guaranteeCheque: { ...currencyForm.guaranteeCheque!, isDelivered: !currentStatus } }; setCurrencyForm(updatedForm); const updatedRecord = { ...selectedRecord, currencyPurchaseData: updatedForm }; await updateTradeRecord(updatedRecord); setSelectedRecord(updatedRecord); };
@@ -606,6 +428,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                 return <CompanyPerformanceReport records={records} />;
             case 'insurance_ledger':
                 return <InsuranceLedgerReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} settings={safeSettings} />; 
+            // NEW REPORT RENDER LOGIC
+            case 'guarantee':
+                return <GuaranteeReport records={records.filter(r => !reportFilterCompany || r.company === reportFilterCompany)} />;
             default:
                 return <div className="p-8 text-center text-gray-500">گزارش در حال تکمیل است...</div>;
         }
@@ -633,7 +458,9 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                         <button onClick={() => setActiveReport('general')} className={`p-2 rounded text-right text-sm ${activeReport === 'general' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📄 لیست کلی پرونده‌ها</button>
                         <button onClick={() => setActiveReport('allocation_queue')} className={`p-2 rounded text-right text-sm ${activeReport === 'allocation_queue' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>⏳ در صف تخصیص</button>
                         <button onClick={() => setActiveReport('currency')} className={`p-2 rounded text-right text-sm ${activeReport === 'currency' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>💰 وضعیت خرید ارز</button>
-                        <button onClick={() => setActiveReport('insurance_ledger')} className={`p-2 rounded text-right text-sm ${activeReport === 'insurance_ledger' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>🛡️ صورتحساب بیمه</button>
+                        {/* ADDED BUTTON */}
+                        <button onClick={() => setActiveReport('guarantee')} className={`p-2 rounded text-right text-sm ${activeReport === 'guarantee' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>🛡️ گزارش چک‌های تضمین</button>
+                        <button onClick={() => setActiveReport('insurance_ledger')} className={`p-2 rounded text-right text-sm ${activeReport === 'insurance_ledger' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📑 صورتحساب بیمه</button>
                         <button onClick={() => setActiveReport('company_performance')} className={`p-2 rounded text-right text-sm ${activeReport === 'company_performance' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50'}`}>📊 عملکرد شرکت‌ها</button>
                     </div>
                     <div className="mt-auto pt-4 md:pt-0">
@@ -650,6 +477,7 @@ const TradeModule: React.FC<TradeModuleProps> = ({ currentUser }) => {
                          activeReport === 'currency' ? 'گزارش وضعیت خرید ارز' : 
                          activeReport === 'company_performance' ? 'خلاصه عملکرد شرکت‌ها' : 
                          activeReport === 'insurance_ledger' ? 'صورتحساب و مانده بیمه' :
+                         activeReport === 'guarantee' ? 'گزارش جامع چک‌های تضمین' :
                          'گزارش'}
                     </h2>
                     {renderReportContent}
