@@ -156,7 +156,9 @@ app.post('/api/render-pdf', async (req, res) => {
         
         // Launch Puppeteer
         const browser = await puppeteer.launch({
-            headless: true, 
+            headless: true,
+            // Explicitly specify 'chrome' channel to ensure we use the installed binary
+            channel: 'chrome', 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
@@ -170,7 +172,6 @@ app.post('/api/render-pdf', async (req, res) => {
         // Set content strategy:
         // 1. Wait for DOM content (fast)
         // 2. Wait manual delay for Fonts/Tailwind CDN to apply (stable)
-        // This avoids 'networkidle0' timeouts if external resources hang
         await page.setContent(html, { 
             waitUntil: 'domcontentloaded', 
             timeout: 60000 
