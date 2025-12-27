@@ -53,7 +53,7 @@ const GuaranteeReport: React.FC<Props> = ({ records }) => {
             // B. Customs (Green Leaf) Guarantees
             if (r.greenLeafData?.guarantees) {
                 r.greenLeafData.guarantees.forEach((g, idx) => {
-                    // Only process if it has a cheque number
+                    // Only process if it has a cheque number or guarantee number
                     if (g.chequeNumber || g.guaranteeNumber) {
                         list.push({
                             id: `${r.id}_customs_${g.id}`,
@@ -101,10 +101,14 @@ const GuaranteeReport: React.FC<Props> = ({ records }) => {
     // 3. Totals
     const totalAmount = filteredData.reduce((sum, item) => sum + item.amount, 0);
 
-    // 4. Print Logic
+    // 4. Print Logic (Using Central System)
     const elementId = 'guarantee-report-print-area';
 
     const handlePrint = () => {
+        // Prepare page style for landscape
+        const style = document.getElementById('page-size-style');
+        if (style) style.innerHTML = '@page { size: A4 landscape; margin: 0; }';
+        
         setIsGeneratingPdf(true);
         setTimeout(() => {
             window.print();
@@ -169,19 +173,23 @@ const GuaranteeReport: React.FC<Props> = ({ records }) => {
             <div className="flex-1 overflow-auto flex justify-center bg-gray-50 p-4">
                 <div id={elementId} className="printable-content bg-white p-8 shadow-2xl relative text-black" 
                     style={{ 
-                        width: '297mm', // Landscape
+                        width: '290mm', // A4 Landscape
                         minHeight: '210mm', 
                         direction: 'rtl', 
                         padding: '10mm', 
-                        boxSizing: 'border-box' 
+                        boxSizing: 'border-box',
+                        margin: '0 auto' 
                     }}>
                     
                     {/* Report Header */}
                     <div className="border border-black mb-4">
                         <div className="bg-gray-200 font-black py-3 border-b border-black text-center text-lg">گزارش جامع چک‌های تضمین و ضمانت‌نامه‌ها</div>
-                        <div className="flex justify-between px-4 py-2 bg-gray-50 text-xs font-bold">
+                        <div className="flex justify-between px-4 py-2 bg-gray-50 text-xs font-bold border-b border-black">
                             <span>تاریخ گزارش: {new Date().toLocaleDateString('fa-IR')}</span>
                             <span>تعداد کل: {filteredData.length} فقره</span>
+                        </div>
+                         <div className="bg-yellow-50 text-center py-1 text-[10px] text-gray-600">
+                            * این گزارش شامل تمامی چک‌های تضمین (ارزی و گمرکی) ثبت شده در سیستم می‌باشد.
                         </div>
                     </div>
 
