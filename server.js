@@ -155,15 +155,17 @@ app.post('/api/render-pdf', async (req, res) => {
         const { html, landscape, format } = req.body;
         
         // Launch Puppeteer
+        // NOTE: We removed 'channel: chrome' to use the local cached version defined in .puppeteerrc.cjs
+        // This ensures compatibility when running as a Service.
         const browser = await puppeteer.launch({
             headless: true,
-            // Explicitly specify 'chrome' channel to ensure we use the installed binary
-            channel: 'chrome', 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Critical for Docker/Low memory envs
-                '--disable-gpu'
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-zygote',
+                '--single-process' // Helps in low-resource environments
             ]
         });
         
