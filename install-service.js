@@ -35,6 +35,10 @@ rl.question('Please enter the port number to run the server (default: 3000): ', 
   }
 
   // 4. Configure Service
+  // PUPPETEER FIX: Explicitly set the cache dir to be inside the project folder
+  // This ensures the service (running as Local System) can find the browser downloaded by the user
+  const puppeteerCache = path.join(__dirname, '.cache', 'puppeteer');
+
   const svc = new Service({
     name: 'PaymentSystem',
     description: 'Payment Order Management System Web Server',
@@ -43,6 +47,9 @@ rl.question('Please enter the port number to run the server (default: 3000): ', 
     env: [{
       name: "PORT",
       value: port
+    }, {
+      name: "PUPPETEER_CACHE_DIR",
+      value: puppeteerCache
     }]
   });
 

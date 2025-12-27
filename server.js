@@ -116,7 +116,7 @@ setTimeout(() => {
 // --- SMART NOTIFICATION LOGIC ---
 
 // Find a user phone by role
-const findUserPhoneBy role = (db, role) => {
+const findUserPhoneByRole = (db, role) => {
     const user = db.users.find(u => u.role === role && u.phoneNumber);
     return user ? user.phoneNumber : null;
 };
@@ -144,38 +144,51 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fa-IR').format(amount) + ' ریال';
 };
 
-// --- CHROME PATH FINDER (THE FIX) ---
+// --- CHROME PATH FINDER (ROBUST FIX) ---
 const findChromePath = () => {
-    // 1. Look inside project .cache (from npm install)
-    const projectCache = path.join(__dirname, '.cache', 'puppeteer');
-    console.log(">>> Searching for local Chrome in:", projectCache);
-    
-    // Recursive function to find chrome.exe in the cache folder structure
+    // Helper to recursively find chrome.exe
     const findExe = (dir) => {
         if (!fs.existsSync(dir)) return null;
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-            const fullPath = path.join(dir, file);
-            const stat = fs.statSync(fullPath);
-            if (stat.isDirectory()) {
-                const found = findExe(fullPath);
-                if (found) return found;
-            } else if (file === 'chrome.exe') {
-                return fullPath;
+        try {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                    const found = findExe(fullPath);
+                    if (found) return found;
+                } else if (file === 'chrome.exe' || file === 'chrome') {
+                    return fullPath;
+                }
             }
-        }
+        } catch (e) { return null; }
         return null;
     };
 
-    const localChrome = findExe(projectCache);
-    if (localChrome) {
-        console.log(">>> Using Local Chrome (Success):", localChrome);
-        return localChrome;
-    } else {
-        console.warn(">>> Local Chrome NOT FOUND in .cache folder.");
+    const pathsToCheck = [];
+
+    // 1. Environment Variable (Injected by Service)
+    if (process.env.PUPPETEER_CACHE_DIR) {
+        pathsToCheck.push(process.env.PUPPETEER_CACHE_DIR);
     }
 
-    // 2. Look for System Installed Chrome/Edge (Fallback)
+    // 2. Local Project Cache (Explicit)
+    pathsToCheck.push(path.join(__dirname, '.cache', 'puppeteer'));
+    
+    // 3. Current Working Directory Cache
+    pathsToCheck.push(path.join(process.cwd(), '.cache', 'puppeteer'));
+
+    console.log(">>> Searching for Chrome in locations:", pathsToCheck);
+
+    for (const cachePath of pathsToCheck) {
+        const exe = findExe(cachePath);
+        if (exe) {
+            console.log(">>> Found Local Chrome at:", exe);
+            return exe;
+        }
+    }
+
+    // 4. System Paths (Fallback)
     const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
     const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
     
@@ -194,7 +207,7 @@ const findChromePath = () => {
     }
 
     console.warn(">>> CRITICAL WARNING: Could not find any Chrome/Edge executable. PDF Generation will likely fail.");
-    return undefined; // Let Puppeteer try its default
+    return undefined;
 };
 
 // --- ROUTES ---
@@ -412,9 +425,9 @@ app.put('/api/exit-permits/:id', async (req, res) => {
             let msg = '';
 
             // CEO Approved -> Notify Factory Manager
-            if (newStatus === 'تایید مدیرعامل / در انتظار خروج (کارخانه)') {
+            if (newStatus === 'تایید مدیرعامل / در انتظار مدیر کارخانه') {
                 targetPhone = findUserPhoneByRole(db, 'factory_manager');
-                msg = `🏭 *مجوز خروج تایید شد*\nشماره: ${newPermit.permitNumber}\nراننده: ${newPermit.driverName || '-'}\nپلاک: ${newPermit.plateNumber || '-'}\n\nمجاز به خروج از درب کارخانه.`;
+                msg = `🏭 *مجوز خروج تایید شد*\nشماره: ${newPermit.permitNumber}\nراننده: ${newPermit.driverName || '-'}\nپلاک: ${newPermit.plateNumber || '-'}\n\nمجاز به بررسی توسط مدیر کارخانه.`;
             }
             // Exited -> Notify Sales Manager / Requester
             else if (newStatus === 'خارج شده (بایگانی)') {
@@ -603,7 +616,7 @@ app.get('/api/whatsapp/groups', async (req, res) => {
     }
 });
 
-// --- GEMINI AI ROUTE (FIXED FOR @google/genai) ---
+// --- GEMINI AI ROUTE ---
 app.post('/api/ai-request', async (req, res) => { 
     try { 
         const { message, audio, mimeType, username } = req.body;
@@ -628,15 +641,12 @@ app.post('/api/ai-request', async (req, res) => {
             parts.push({ text: message || "Hello" });
         }
 
-        // CORRECT NEW SYNTAX:
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: [{ role: 'user', parts }]
         });
 
-        // Use response.text directly (getter property, not function)
         const responseText = response.text;
-        
         res.json({ reply: responseText }); 
 
     } catch (e) { 
