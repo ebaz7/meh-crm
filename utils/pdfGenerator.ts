@@ -30,14 +30,13 @@ export const generatePdf = async ({
 
     try {
         // 1. Get HTML Content
-        // We clone to ensure we get current values of inputs/selects which innerHTML might miss
         const clone = originalElement.cloneNode(true) as HTMLElement;
         
-        // Remove no-print elements from clone
+        // Remove no-print elements
         const noPrints = clone.querySelectorAll('.no-print');
         noPrints.forEach(el => el.remove());
 
-        // Sync inputs values to attributes for proper rendering
+        // Sync inputs
         const inputs = clone.querySelectorAll('input, select, textarea');
         inputs.forEach((input: any) => {
             if (input.type === 'checkbox' || input.type === 'radio') {
@@ -47,14 +46,13 @@ export const generatePdf = async ({
                 if (selectedOption) selectedOption.setAttribute('selected', 'selected');
             } else {
                 input.setAttribute('value', input.value);
-                input.textContent = input.value; // For textarea
+                input.textContent = input.value; 
             }
         });
 
         const htmlContent = clone.outerHTML;
 
-        // 2. Prepare Full HTML Document for Puppeteer
-        // We inject the standard Tailwind CDN and local styles to ensure exact replication
+        // 2. Prepare Full HTML
         const fullHtml = `
             <!DOCTYPE html>
             <html lang="fa" dir="rtl">
@@ -75,9 +73,7 @@ export const generatePdf = async ({
                         width: 100%;
                         height: 100%;
                     }
-                    /* Ensure inputs look like text in print */
                     input, select, textarea { background: transparent; border: none; font-family: inherit; }
-                    /* Layout fixes */
                     .printable-content { margin: 0 auto; width: 100%; height: 100%; box-shadow: none !important; }
                 </style>
             </head>
@@ -100,7 +96,10 @@ export const generatePdf = async ({
             })
         });
 
-        if (!response.ok) throw new Error('Server PDF Generation Failed');
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Server Error: ${response.status}`);
+        }
 
         // 4. Download Blob
         const blob = await response.blob();
@@ -115,11 +114,9 @@ export const generatePdf = async ({
 
         if (onComplete) onComplete();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('PDF Generator Error:', error);
-        // Fallback to window.print if server fails (optional, but good UX)
-        // alert('تولید PDF سمت سرور با خطا مواجه شد. از چاپ مرورگر استفاده می‌شود.');
-        // window.print();
+        alert(`خطا در ایجاد PDF: ${error.message}`);
         if (onError) onError(error);
     }
 };

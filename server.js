@@ -154,22 +154,31 @@ app.post('/api/render-pdf', async (req, res) => {
     try {
         const { html, landscape, format } = req.body;
         
+        // Launch Puppeteer
+        // 'new' headless mode is recommended for newer versions, 'true' for older.
+        // We use 'true' (classic headless) to be safe across versions.
         const browser = await puppeteer.launch({
-            headless: 'new',
+            headless: true, 
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
         
         const page = await browser.newPage();
         
-        // Optimize for print
-        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+        // Set content
+        // Relaxed waitUntil to 'load' instead of 'networkidle0' to prevent timeouts on slow CDNs (fonts/tailwind)
+        await page.setContent(html, { 
+            waitUntil: ['load'], 
+            timeout: 60000 // Increased timeout to 60s
+        });
+        
+        // Emulate print media type to ensure CSS @media print is applied (if any) or defaults
         await page.emulateMediaType('print');
         
         const pdfBuffer = await page.pdf({
             format: format || 'A4',
             landscape: landscape || false,
             printBackground: true,
-            // CRITICAL FIX: Zero margins here. We handle padding in CSS/HTML.
+            // CRITICAL FIX: Zero margins here. We handle padding in CSS/HTML via 'printable-content'.
             // This prevents the browser from shrinking content to fit its own margins.
             margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
             preferCSSPageSize: true
@@ -186,7 +195,8 @@ app.post('/api/render-pdf', async (req, res) => {
 
     } catch (error) {
         console.error('PDF Generation Error:', error);
-        res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
+        // Send a clearer error message back
+        res.status(500).json({ error: 'Failed to generate PDF on server', details: error.message });
     }
 });
 
