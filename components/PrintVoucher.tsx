@@ -141,7 +141,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
               const orient = dynamicTemplate.orientation || 'portrait';
               style.innerHTML = `@page { size: ${size} ${orient}; margin: 0; }`;
           } else {
-              style.innerHTML = '@page { size: A4 portrait; margin: 0; }';
+              // Default Receipt is A5 Landscape
+              style.innerHTML = '@page { size: A5 landscape; margin: 0; }';
           }
       }
   }, [embed, printMode, dynamicTemplate]);
@@ -191,8 +192,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
           // Orientation fallback if needed
           opts.orientation = dynamicTemplate.width > dynamicTemplate.height ? 'landscape' : 'portrait';
       } else {
-          // Default Receipt
-          opts.format = 'A4';
+          // Default Receipt is A5 Landscape
+          opts.format = 'A5';
           opts.orientation = 'landscape';
       }
 
