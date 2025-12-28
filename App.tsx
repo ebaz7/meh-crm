@@ -268,7 +268,9 @@ function App() {
 
             {activeTab === 'warehouse' && <WarehouseModule currentUser={currentUser} settings={settings} initialTab={warehouseInitialTab} />}
             
-            {activeTab === 'trade' && <TradeModule currentUser={currentUser} />}
+            {/* PASSING SETTINGS PROP HERE */}
+            {activeTab === 'trade' && <TradeModule currentUser={currentUser} settings={settings} />}
+            
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'security' && <SecurityModule currentUser={currentUser} />}
