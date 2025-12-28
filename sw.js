@@ -7,7 +7,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force activation immediately
+  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -28,69 +28,83 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  return self.clients.claim(); // Take control of all clients immediately
+  return self.clients.claim(); 
 });
 
-// 1. Handle Messages from Client (React App)
-// This allows the app to trigger a "System Notification" via the Service Worker
+// 1. Handle Client Messages (In-App)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SEND_NOTIFICATION') {
     const title = event.data.title || 'پیام سیستم';
     const options = {
       body: event.data.body,
-      icon: '/pwa-192x192.png', // Ensure this icon exists in public folder
-      badge: '/pwa-192x192.png', // Small icon for status bar (Android)
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
-      vibrate: [200, 100, 200], // Vibration pattern
-      tag: 'payment-sys-tag', // Groups notifications so they don't stack infinitely
-      renotify: true, // Play sound/vibrate even if tag exists
-      requireInteraction: false, // Let it close automatically or stay based on OS preference
-      data: {
-        url: self.registration.scope // Url to open on click
-      }
+      vibrate: [200, 100, 200],
+      tag: 'payment-sys-tag',
+      renotify: true,
+      data: { url: self.registration.scope }
     };
-
-    // Show the notification via the Service Worker Registration
-    // This is the "Native" way that works on Android/iOS PWA
     self.registration.showNotification(title, options);
   }
 });
 
-// 2. Handle Notification Click
-// When user clicks the pop-up, open or focus the app
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close(); // Close the notification
+// 2. NEW: Handle Server Push (Background/Closed)
+self.addEventListener('push', (event) => {
+  let data = { title: 'اعلان جدید', body: 'شما یک پیام جدید دارید', url: '/' };
+  
+  if (event.data) {
+    try {
+        const json = event.data.json();
+        data = { ...data, ...json };
+    } catch (e) {
+        data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    dir: 'rtl',
+    lang: 'fa',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/'
+    }
+  };
 
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-      includeUncontrolled: true
-    }).then(function(clientList) {
-      // If a window is already open, focus it
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// 3. Handle Notification Click
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close(); 
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(clientList) {
+      // If a window is open, focus it
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
           return client.focus();
         }
       }
-      // If no window is open, open a new one
+      // Otherwise open a new one
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first strategy for API calls, Cache first for assets
-  if (event.request.url.includes('/api/')) {
-      return; 
-  }
-  
+  if (event.request.url.includes('/api/')) return;
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    caches.match(event.request).then((response) => response || fetch(event.request))
   );
 });
