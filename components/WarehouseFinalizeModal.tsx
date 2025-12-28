@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { ExitPermit, ExitPermitItem } from '../types';
-import { Save, X, Package, Calculator, ArrowRightCircle } from 'lucide-react';
+import { Save, X, Package, Calculator, ArrowRightCircle, Plus, Trash2 } from 'lucide-react';
+import { generateUUID } from '../constants';
 
 interface Props {
   permit: ExitPermit;
@@ -28,6 +29,27 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
     setItems(newItems);
   };
 
+  const handleAddItem = () => {
+    setItems([...items, {
+        id: generateUUID(),
+        goodsName: '',
+        cartonCount: 0, // Requested is 0 for new items added by warehouse
+        weight: 0,      // Requested is 0 for new items added by warehouse
+        deliveredCartonCount: 0,
+        deliveredWeight: 0
+    }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (items.length === 1) {
+        alert("حداقل یک ردیف کالا باید وجود داشته باشد.");
+        return;
+    }
+    const newItems = [...items];
+    newItems.splice(index, 1);
+    setItems(newItems);
+  };
+
   const totalRequestedCount = items.reduce((sum, i) => sum + (Number(i.cartonCount) || 0), 0);
   const totalDeliveredCount = items.reduce((sum, i) => sum + (Number(i.deliveredCartonCount) || 0), 0);
   
@@ -44,7 +66,7 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="bg-orange-50 p-4 border-b border-orange-100 flex justify-between items-center">
@@ -54,7 +76,7 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
             </div>
             <div>
               <h3 className="font-bold text-lg text-gray-800">تایید نهایی انبار (توزین خروج)</h3>
-              <p className="text-xs text-gray-500">لطفاً مقدار دقیق خروجی را وارد کنید. مقادیر درخواستی جهت مقایسه نمایش داده شده‌اند.</p>
+              <p className="text-xs text-gray-500">لطفاً مقدار دقیق خروجی را وارد کنید. می‌توانید کالای جدید نیز اضافه کنید.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors">
@@ -74,6 +96,7 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
                   <th className="p-3 w-28 bg-green-50 text-green-800">تعداد خروجی</th>
                   <th className="p-3 w-28 bg-blue-50 text-blue-800 border-l border-white">وزن درخواستی</th>
                   <th className="p-3 w-28 bg-green-50 text-green-800">وزن خروجی</th>
+                  <th className="p-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -120,18 +143,36 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
                         placeholder="0"
                       />
                     </td>
+                    
+                    {/* Action Column */}
+                    <td className="p-3 text-center">
+                        <button 
+                            onClick={() => handleRemoveItem(idx)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="حذف ردیف"
+                        >
+                            <Trash2 size={18}/>
+                        </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-gray-50 border-t border-gray-200">
                 <tr>
-                  <td colSpan={2} className="p-3 text-left pl-6 font-bold text-gray-600 flex items-center justify-end gap-2">
-                    <Calculator size={16}/> جمع کل:
+                  <td colSpan={2} className="p-3 text-left pl-6 font-bold text-gray-600 flex items-center justify-between">
+                    <button 
+                        onClick={handleAddItem}
+                        className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-100 font-bold transition-colors border border-blue-200"
+                    >
+                        <Plus size={14}/> افزودن کالای جدید
+                    </button>
+                    <span className="flex items-center gap-2"><Calculator size={16}/> جمع کل:</span>
                   </td>
                   <td className="p-3 font-bold text-gray-500 font-mono text-lg bg-blue-50/30 border-l border-gray-200">{totalRequestedCount}</td>
                   <td className="p-3 font-black text-green-700 font-mono text-lg bg-green-50/30 border-l border-gray-200">{totalDeliveredCount}</td>
                   <td className="p-3 font-bold text-gray-500 font-mono text-lg bg-blue-50/30 border-l border-gray-200">{totalRequestedWeight}</td>
                   <td className="p-3 font-black text-green-700 font-mono text-lg bg-green-50/30">{totalDeliveredWeight}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
