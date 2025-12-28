@@ -1,10 +1,13 @@
 
+
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ChatMessage, ChatGroup, GroupTask, UserRole } from '../types';
 import { getMessages, sendMessage, deleteMessage, getGroups, createGroup, deleteGroup, getTasks, createTask, updateTask, deleteTask, uploadFile, updateGroup, updateMessage } from '../services/storageService';
 import { getUsers } from '../services/authService';
-// REMOVED DIRECT IMPORT OF sendNotification to avoid double fire
-// import { sendNotification } from '../services/notificationService'; 
+import { sendNotification } from '../services/notificationService';
 import { generateUUID } from '../constants';
 import { Send, User as UserIcon, MessageSquare, Lock, Users, Plus, ListTodo, Paperclip, CheckSquare, Square, Download, X, Trash2, Eye, Reply, Info, Camera, Edit2, ArrowRight, Mic, Smile, StopCircle, Check, Phone, Video, PhoneIncoming } from 'lucide-react';
 
@@ -77,14 +80,14 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
             incoming.forEach(inc => {
                 const msgChannelKey = inc.groupId ? `group_${inc.groupId}` : inc.recipient ? `private_${inc.senderUsername}` : 'public';
                 const currentChannelKey = getChannelKey(activeChannelRef.current.type, activeChannelRef.current.id);
-                // Notification Logic: Only fire if different channel OR background
+                // Notification Logic
                 if (msgChannelKey !== currentChannelKey || document.hidden) { 
                     const title = `پیام جدید از ${inc.sender}`; 
+                    // Handle Call Invites in Notification
                     let body = inc.message || (inc.audioUrl ? 'پیام صوتی' : 'فایل ضمیمه'); 
                     if (body.startsWith('CALL_INVITE|')) body = '📞 تماس ورودی...';
                     
-                    // ONLY call onNotification (which calls addAppNotification in App.tsx)
-                    // Do NOT call sendNotification directly here
+                    sendNotification(title, body); 
                     onNotification(title, body); 
                 } else { 
                     updateLastRead(currentChannelKey); 
@@ -249,8 +252,6 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 md:h-[calc(100vh-140px)] h-[calc(100vh-180px)] flex overflow-hidden animate-fade-in relative">
-            {/* ... (Rest of JSX structure remains identical to previous version, only imports and logic above changed) ... */}
-            {/* Just ensuring the component renders correctly with the same UI structure */}
             {showGroupModal && (<div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"><h3 className="font-bold text-lg mb-4">ایجاد گروه جدید</h3><input className="w-full border rounded-lg p-2 mb-4" placeholder="نام گروه" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} /><div className="mb-4 max-h-48 overflow-y-auto border rounded-lg p-2"><label className="text-xs text-gray-500 block mb-2">انتخاب اعضا:</label>{users.map(u => (<div key={u.id} className="flex items-center gap-2 mb-2"><input type="checkbox" checked={selectedGroupMembers.includes(u.username)} onChange={e => { if (e.target.checked) setSelectedGroupMembers([...selectedGroupMembers, u.username]); else setSelectedGroupMembers(selectedGroupMembers.filter(m => m !== u.username)); }} /><span className="text-sm">{u.fullName}</span></div>))}</div><div className="flex gap-2 justify-end"><button onClick={() => setShowGroupModal(false)} className="px-4 py-2 text-sm text-gray-600">انصراف</button><button onClick={handleCreateGroup} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg">ایجاد</button></div></div></div>)}
             
             {showGroupInfoModal && activeGroup && (
