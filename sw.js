@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim(); 
 });
 
-// 1. Handle Messages from Client (React App) - Local Notifications
+// 1. Handle Messages from Client (In-App initiated)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SEND_NOTIFICATION') {
     const title = event.data.title || 'پیام سیستم';
@@ -53,7 +53,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// 2. Handle Server Push Events (Web Push) - Works even when app is closed!
+// 2. Handle Server Push Events (Web Push) - CRITICAL FOR CLOSED BROWSER NOTIFICATIONS
 self.addEventListener('push', (event) => {
   let data = { title: 'اعلان جدید', body: 'پیام جدیدی دریافت شد', url: '/' };
   
@@ -83,7 +83,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// 3. Handle Notification Click (Focus or Open App)
+// 3. Handle Notification Click
 self.addEventListener('notificationclick', function(event) {
   event.notification.close(); 
 
@@ -92,14 +92,14 @@ self.addEventListener('notificationclick', function(event) {
       type: "window",
       includeUncontrolled: true
     }).then(function(clientList) {
-      // Try to find existing window
+      // Try to focus existing window
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
           return client.focus();
         }
       }
-      // If no window is open, open a new one
+      // If no window open, open new one
       if (clients.openWindow) {
         return clients.openWindow(event.notification.data?.url || '/');
       }
@@ -111,7 +111,6 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) {
       return; 
   }
-  
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);

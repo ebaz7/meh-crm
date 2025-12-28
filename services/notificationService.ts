@@ -1,5 +1,6 @@
 
 import { apiCall } from "./apiService";
+import { getCurrentUser } from "./authService";
 
 const PREF_KEY = 'app_notification_pref';
 
@@ -52,6 +53,9 @@ export const subscribeUserToPush = async () => {
         const registration = await navigator.serviceWorker.ready;
         if (!registration) return;
 
+        const user = getCurrentUser();
+        if (!user) return; // Don't subscribe if not logged in
+
         // 1. Get Public Key from Server
         const response = await apiCall<{publicKey: string}>('/vapid-key');
         if (!response || !response.publicKey) return;
@@ -64,9 +68,12 @@ export const subscribeUserToPush = async () => {
             applicationServerKey: convertedVapidKey
         });
 
-        // 3. Send Subscription to Server
-        await apiCall('/subscribe', 'POST', subscription);
-        console.log(">>> Push Subscription Registered Successfully!");
+        // 3. Send Subscription AND UserID to Server
+        await apiCall('/subscribe', 'POST', { 
+            subscription: subscription,
+            userId: user.id 
+        });
+        console.log(">>> Push Subscription Sync Complete.");
 
     } catch (e) {
         console.error("Push Subscription Failed:", e);

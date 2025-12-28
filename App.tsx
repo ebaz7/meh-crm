@@ -18,7 +18,7 @@ import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
 import { Loader2, Bell, X } from 'lucide-react';
-import { sendNotification, isNotificationEnabledInApp, subscribeUserToPush } from './services/notificationService';
+import { sendNotification, isNotificationEnabledInApp } from './services/notificationService';
 import { generateUUID, parsePersianDate, formatCurrency } from './constants';
 import { apiCall } from './services/apiService';
 
@@ -135,14 +135,8 @@ function App() {
 
   const handleLogout = () => { setCurrentUser(null); isFirstLoad.current = true; if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current); };
 
-  // --- Initialize PUSH SUBSCRIPTION on load ---
   useEffect(() => {
     if (currentUser) {
-        // Subscribe to Web Push if permission granted
-        if (Notification.permission === 'granted') {
-            subscribeUserToPush();
-        }
-
         const resetIdleTimer = () => {
             if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
             idleTimeoutRef.current = setTimeout(() => { handleLogout(); alert("به دلیل عدم فعالیت به مدت ۱ ساعت، از سیستم خارج شدید."); }, IDLE_LIMIT);
@@ -156,6 +150,8 @@ function App() {
 
   // --- SOUND EFFECT ---
   const playNotificationSound = () => {
+      // Play sound regardless of preference to ensure user hears it if they are in app
+      // Browser policy might block this if no interaction, but we try anyway.
       try {
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); 
           audio.volume = 1.0;
