@@ -83,10 +83,19 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
     c.number.includes(contactSearch)
   ) || [];
 
-  const displayItems = permit.items && permit.items.length > 0 ? permit.items : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0 }];
+  const displayItems = permit.items && permit.items.length > 0 ? permit.items : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0, deliveredCartonCount: permit.cartonCount || 0, deliveredWeight: permit.weight || 0 }];
   const displayDestinations = permit.destinations && permit.destinations.length > 0 ? permit.destinations : [{ id: 'legacy', recipientName: permit.recipientName || '', address: permit.destinationAddress || '', phone: '' }];
-  const totalCartons = displayItems.reduce((acc, i) => acc + (Number(i.cartonCount) || 0), 0);
-  const totalWeight = displayItems.reduce((acc, i) => acc + (Number(i.weight) || 0), 0);
+  
+  // Calculate Totals (Requested)
+  const totalCartonsReq = displayItems.reduce((acc, i) => acc + (Number(i.cartonCount) || 0), 0);
+  const totalWeightReq = displayItems.reduce((acc, i) => acc + (Number(i.weight) || 0), 0);
+
+  // Calculate Totals (Delivered/Actual) - Only if they exist/differ
+  const totalCartonsDel = displayItems.reduce((acc, i) => acc + (Number(i.deliveredCartonCount ?? i.cartonCount) || 0), 0);
+  const totalWeightDel = displayItems.reduce((acc, i) => acc + (Number(i.deliveredWeight ?? i.weight) || 0), 0);
+
+  // Determine if we should show double columns (if status is past Warehouse approval or data exists)
+  const showDeliveryColumns = displayItems.some(i => i.deliveredCartonCount !== undefined);
 
   const content = (
       <div id={embed ? `print-permit-${permit.id}` : "print-area-exit"} 
@@ -127,9 +136,61 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
             </div>
             <div className="flex-1 space-y-8">
                 <div className="space-y-2"><h3 className="font-black text-lg flex items-center gap-2"><Package size={20}/> لیست اقلام و کالاها</h3>
-                    <table className="w-full text-sm border-collapse border-2 border-black">
-                        <thead><tr className="bg-gray-100 text-base"><th className="border-2 border-black p-3 w-12 text-center">#</th><th className="border-2 border-black p-3 text-right">شرح کالا / محصول</th><th className="border-2 border-black p-3 w-32 text-center">تعداد (کارتن)</th><th className="border-2 border-black p-3 w-32 text-center">وزن (KG)</th></tr></thead>
-                        <tbody>{displayItems.map((item, idx) => (<tr key={idx} className="text-lg"><td className="border-2 border-black p-3 text-center">{idx + 1}</td><td className="border-2 border-black p-3 font-bold">{item.goodsName}</td><td className="border-2 border-black p-3 text-center font-mono">{item.cartonCount}</td><td className="border-2 border-black p-3 text-center font-mono">{item.weight}</td></tr>))}<tr className="bg-gray-50 font-black text-xl"><td colSpan={2} className="border-2 border-black p-4 text-left pl-8 text-lg">جمع کل مقادیر:</td><td className="border-2 border-black p-4 text-center font-mono">{totalCartons}</td><td className="border-2 border-black p-4 text-center font-mono">{totalWeight}</td></tr></tbody>
+                    <table className="w-full text-sm border-collapse border-2 border-black text-center">
+                        <thead>
+                            <tr className="bg-gray-100 text-base">
+                                <th className="border-2 border-black p-3 w-12" rowSpan={2}>#</th>
+                                <th className="border-2 border-black p-3 text-right" rowSpan={2}>شرح کالا / محصول</th>
+                                <th className="border-2 border-black p-2" colSpan={showDeliveryColumns ? 2 : 1}>تعداد (کارتن)</th>
+                                <th className="border-2 border-black p-2" colSpan={showDeliveryColumns ? 2 : 1}>وزن (KG)</th>
+                            </tr>
+                            {showDeliveryColumns && (
+                                <tr className="bg-gray-50 text-xs">
+                                    <th className="border-2 border-black p-1 text-gray-500 w-24">درخواستی</th>
+                                    <th className="border-2 border-black p-1 w-24 bg-green-50 text-green-800">خروجی</th>
+                                    <th className="border-2 border-black p-1 text-gray-500 w-24">درخواستی</th>
+                                    <th className="border-2 border-black p-1 w-24 bg-green-50 text-green-800">خروجی</th>
+                                </tr>
+                            )}
+                        </thead>
+                        <tbody>
+                            {displayItems.map((item, idx) => (
+                                <tr key={idx} className="text-lg">
+                                    <td className="border-2 border-black p-3">{idx + 1}</td>
+                                    <td className="border-2 border-black p-3 font-bold text-right">{item.goodsName}</td>
+                                    
+                                    {showDeliveryColumns ? (
+                                        <>
+                                            <td className="border-2 border-black p-3 font-mono text-gray-400 bg-gray-50/50">{item.cartonCount}</td>
+                                            <td className="border-2 border-black p-3 font-mono font-bold bg-green-50/30">{item.deliveredCartonCount ?? item.cartonCount}</td>
+                                            <td className="border-2 border-black p-3 font-mono text-gray-400 bg-gray-50/50">{item.weight}</td>
+                                            <td className="border-2 border-black p-3 font-mono font-bold bg-green-50/30">{item.deliveredWeight ?? item.weight}</td>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <td className="border-2 border-black p-3 font-mono">{item.cartonCount}</td>
+                                            <td className="border-2 border-black p-3 font-mono">{item.weight}</td>
+                                        </>
+                                    )}
+                                </tr>
+                            ))}
+                            <tr className="bg-gray-50 font-black text-xl">
+                                <td colSpan={2} className="border-2 border-black p-4 text-left pl-8 text-lg">جمع کل مقادیر:</td>
+                                {showDeliveryColumns ? (
+                                    <>
+                                        <td className="border-2 border-black p-4 font-mono text-gray-400 text-sm">{totalCartonsReq}</td>
+                                        <td className="border-2 border-black p-4 font-mono">{totalCartonsDel}</td>
+                                        <td className="border-2 border-black p-4 font-mono text-gray-400 text-sm">{totalWeightReq}</td>
+                                        <td className="border-2 border-black p-4 font-mono">{totalWeightDel}</td>
+                                    </>
+                                ) : (
+                                    <>
+                                        <td className="border-2 border-black p-4 font-mono">{totalCartonsReq}</td>
+                                        <td className="border-2 border-black p-4 font-mono">{totalWeightReq}</td>
+                                    </>
+                                )}
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
                 <div className="space-y-2"><h3 className="font-black text-lg flex items-center gap-2"><MapPin size={20}/> مقاصد و گیرندگان</h3>

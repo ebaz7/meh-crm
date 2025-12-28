@@ -138,8 +138,10 @@ export interface PrintTemplate {
 export interface ExitPermitItem {
   id: string;
   goodsName: string;
-  cartonCount: number;
-  weight: number;
+  cartonCount: number; // Requested
+  weight: number; // Requested
+  deliveredCartonCount?: number; // Actual/Final from Warehouse
+  deliveredWeight?: number; // Actual/Final from Warehouse
 }
 
 export interface ExitPermitDestination {

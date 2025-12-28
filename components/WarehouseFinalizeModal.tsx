@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ExitPermit, ExitPermitItem } from '../types';
-import { Save, X, Package, Calculator } from 'lucide-react';
+import { Save, X, Package, Calculator, ArrowRightCircle } from 'lucide-react';
 
 interface Props {
   permit: ExitPermit;
@@ -10,11 +10,16 @@ interface Props {
 }
 
 const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm }) => {
-  // Initialize state with current items
+  // Initialize state. If delivered values exist (edit mode), use them. Otherwise default to requested values.
   const [items, setItems] = useState<ExitPermitItem[]>(
     permit.items && permit.items.length > 0 
-      ? permit.items.map(i => ({...i})) 
-      : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0 }]
+      ? permit.items.map(i => ({
+          ...i,
+          // Initialize delivered values with existing delivered OR fallback to requested values
+          deliveredCartonCount: i.deliveredCartonCount ?? i.cartonCount,
+          deliveredWeight: i.deliveredWeight ?? i.weight
+        })) 
+      : [{ id: 'legacy', goodsName: permit.goodsName || '', cartonCount: permit.cartonCount || 0, weight: permit.weight || 0, deliveredCartonCount: permit.cartonCount || 0, deliveredWeight: permit.weight || 0 }]
   );
 
   const handleUpdateItem = (index: number, field: keyof ExitPermitItem, value: string | number) => {
@@ -23,8 +28,11 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
     setItems(newItems);
   };
 
-  const totalWeight = items.reduce((sum, i) => sum + (Number(i.weight) || 0), 0);
-  const totalCount = items.reduce((sum, i) => sum + (Number(i.cartonCount) || 0), 0);
+  const totalRequestedCount = items.reduce((sum, i) => sum + (Number(i.cartonCount) || 0), 0);
+  const totalDeliveredCount = items.reduce((sum, i) => sum + (Number(i.deliveredCartonCount) || 0), 0);
+  
+  const totalRequestedWeight = items.reduce((sum, i) => sum + (Number(i.weight) || 0), 0);
+  const totalDeliveredWeight = items.reduce((sum, i) => sum + (Number(i.deliveredWeight) || 0), 0);
 
   const handleSave = () => {
     if (items.some(i => !i.goodsName)) {
@@ -36,7 +44,7 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="bg-orange-50 p-4 border-b border-orange-100 flex justify-between items-center">
@@ -46,7 +54,7 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
             </div>
             <div>
               <h3 className="font-bold text-lg text-gray-800">تایید نهایی انبار (توزین خروج)</h3>
-              <p className="text-xs text-gray-500">لطفاً وزن و تعداد دقیق بارگیری شده را وارد کنید</p>
+              <p className="text-xs text-gray-500">لطفاً مقدار دقیق خروجی را وارد کنید. مقادیر درخواستی جهت مقایسه نمایش داده شده‌اند.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors">
@@ -60,10 +68,12 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
             <table className="w-full text-sm text-center">
               <thead className="bg-gray-100 text-gray-700 font-bold">
                 <tr>
-                  <th className="p-3 w-12">#</th>
+                  <th className="p-3 w-10">#</th>
                   <th className="p-3 text-right">شرح کالا</th>
-                  <th className="p-3 w-32">تعداد (کارتن)</th>
-                  <th className="p-3 w-32">وزن (کیلوگرم)</th>
+                  <th className="p-3 w-28 bg-blue-50 text-blue-800 border-l border-white">تعداد درخواستی</th>
+                  <th className="p-3 w-28 bg-green-50 text-green-800">تعداد خروجی</th>
+                  <th className="p-3 w-28 bg-blue-50 text-blue-800 border-l border-white">وزن درخواستی</th>
+                  <th className="p-3 w-28 bg-green-50 text-green-800">وزن خروجی</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -78,21 +88,35 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
                         placeholder="نام کالا"
                       />
                     </td>
-                    <td className="p-3">
+                    
+                    {/* Requested Values (Read-Only) */}
+                    <td className="p-3 bg-blue-50/30 font-mono text-gray-500 border-l border-gray-100">
+                        {item.cartonCount}
+                    </td>
+
+                    {/* Delivered Values (Input) */}
+                    <td className="p-3 bg-green-50/30">
                       <input 
                         type="number"
-                        className="w-full border rounded-lg p-2 text-center font-mono font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={item.cartonCount}
-                        onChange={e => handleUpdateItem(idx, 'cartonCount', Number(e.target.value))}
+                        className="w-full border rounded-lg p-2 text-center font-mono font-bold text-green-700 focus:ring-2 focus:ring-green-500 outline-none bg-white"
+                        value={item.deliveredCartonCount}
+                        onChange={e => handleUpdateItem(idx, 'deliveredCartonCount', Number(e.target.value))}
                         placeholder="0"
                       />
                     </td>
-                    <td className="p-3">
+
+                    {/* Requested Weight (Read-Only) */}
+                    <td className="p-3 bg-blue-50/30 font-mono text-gray-500 border-l border-gray-100">
+                        {item.weight}
+                    </td>
+
+                    {/* Delivered Weight (Input) */}
+                    <td className="p-3 bg-green-50/30">
                       <input 
                         type="number"
-                        className="w-full border rounded-lg p-2 text-center font-mono font-bold text-green-600 focus:ring-2 focus:ring-green-500 outline-none"
-                        value={item.weight}
-                        onChange={e => handleUpdateItem(idx, 'weight', Number(e.target.value))}
+                        className="w-full border rounded-lg p-2 text-center font-mono font-bold text-green-700 focus:ring-2 focus:ring-green-500 outline-none bg-white"
+                        value={item.deliveredWeight}
+                        onChange={e => handleUpdateItem(idx, 'deliveredWeight', Number(e.target.value))}
                         placeholder="0"
                       />
                     </td>
@@ -104,8 +128,10 @@ const WarehouseFinalizeModal: React.FC<Props> = ({ permit, onClose, onConfirm })
                   <td colSpan={2} className="p-3 text-left pl-6 font-bold text-gray-600 flex items-center justify-end gap-2">
                     <Calculator size={16}/> جمع کل:
                   </td>
-                  <td className="p-3 font-black text-blue-700 font-mono text-lg">{totalCount}</td>
-                  <td className="p-3 font-black text-green-700 font-mono text-lg">{totalWeight}</td>
+                  <td className="p-3 font-bold text-gray-500 font-mono text-lg bg-blue-50/30 border-l border-gray-200">{totalRequestedCount}</td>
+                  <td className="p-3 font-black text-green-700 font-mono text-lg bg-green-50/30 border-l border-gray-200">{totalDeliveredCount}</td>
+                  <td className="p-3 font-bold text-gray-500 font-mono text-lg bg-blue-50/30 border-l border-gray-200">{totalRequestedWeight}</td>
+                  <td className="p-3 font-black text-green-700 font-mono text-lg bg-green-50/30">{totalDeliveredWeight}</td>
                 </tr>
               </tfoot>
             </table>
