@@ -13,7 +13,7 @@ import CreateExitPermit from './components/CreateExitPermit';
 import ManageExitPermits from './components/ManageExitPermits'; 
 import WarehouseModule from './components/WarehouseModule';
 import SecurityModule from './components/SecurityModule'; 
-import PrintVoucher from './components/PrintVoucher'; // Import for Background Processing
+import PrintVoucher from './components/PrintVoucher'; 
 import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
@@ -107,11 +107,18 @@ function App() {
                       message: caption, 
                       mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${order.trackingNumber}.png` } 
                   });
+                  
+                  // **ADD NOTIFICATION ON SUCCESS**
+                  // This triggers both In-App Bell and Browser Push
+                  addAppNotification('ارسال واتساپ', `پیام به ${targetUser.fullName} با موفقیت ارسال شد.`);
+                  
                   console.log(`Background Job Sent to ${targetUser.fullName}`);
               }
 
           } catch (e) {
               console.error("Background Job Failed", e);
+              // Notify failure too
+              addAppNotification('خطا در ارسال', 'ارسال پیام واتساپ با مشکل مواجه شد.');
           }
       }
 
@@ -155,7 +162,7 @@ function App() {
       // اگر تنظیمات روشن است، صدا هم پخش کن
       if (isNotificationEnabledInApp()) {
           try {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // صدای بیپ ملایم
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); 
               audio.volume = 0.5;
               audio.play().catch(e => console.log("Audio play failed (interaction needed):", e));
           } catch (e) { console.error("Sound error", e); }
@@ -164,14 +171,19 @@ function App() {
 
   // --- UNIFIED NOTIFICATION HANDLER ---
   const addAppNotification = (title: string, message: string) => { 
-      // 1. ALWAYS Add to In-App List (Bell Icon) - This is independent of system settings
+      // 1. ALWAYS Add to In-App List (Bell Icon)
       setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); 
       
       // 2. Play Sound (if allowed)
       playNotificationSound();
 
-      // 3. Trigger Browser Notification (The service checks permissions and preferences)
+      // 3. Trigger Browser Notification
       sendNotification(title, message);
+  };
+
+  // Function to remove a single notification
+  const removeNotification = (id: string) => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const loadData = async (silent = false) => {
@@ -262,7 +274,8 @@ function App() {
       onLogout={handleLogout} 
       notifications={notifications} 
       clearNotifications={() => setNotifications([])}
-      onAddNotification={addAppNotification} // Pass the unified handler
+      removeNotification={removeNotification} // Added prop
+      onAddNotification={addAppNotification}
     >
       
       {/* Hidden Render Area for Background Jobs */}
