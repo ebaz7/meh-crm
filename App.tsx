@@ -14,12 +14,11 @@ import ManageExitPermits from './components/ManageExitPermits';
 import WarehouseModule from './components/WarehouseModule';
 import SecurityModule from './components/SecurityModule'; 
 import PrintVoucher from './components/PrintVoucher'; 
-import NotificationController from './components/NotificationController'; // NEW IMPORT
-import { getOrders, getSettings } from './services/storageService';
+import NotificationController from './components/NotificationController'; 
+import { getOrders, getSettings, getMessages } from './services/storageService'; // Added getMessages
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
 import { Loader2, Bell, X } from 'lucide-react';
-import { sendNotification, isNotificationEnabledInApp } from './services/notificationService';
 import { generateUUID, parsePersianDate, formatCurrency } from './constants';
 import { apiCall } from './services/apiService';
 
@@ -34,11 +33,9 @@ function App() {
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState<any>(null); 
   const [exitPermitStatusFilter, setExitPermitStatusFilter] = useState<'pending' | null>(null);
 
-  // Toast Notification State
   const [toast, setToast] = useState<{show: boolean, title: string, message: string} | null>(null);
   const toastTimeoutRef = useRef<any>(null);
 
-  // Background Job Queue
   const [backgroundJobs, setBackgroundJobs] = useState<{order: PaymentOrder, type: 'create' | 'approve'}[]>([]);
   const processingJobRef = useRef(false);
 
@@ -46,22 +43,20 @@ function App() {
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_LIMIT = 60 * 60 * 1000; 
   const NOTIFICATION_CHECK_KEY = 'last_notification_check';
+  const lastChatMsgIdRef = useRef<string | null>(null); // For chat polling
 
   const safePushState = (state: any, title: string, url?: string) => { try { if (url) window.history.pushState(state, title, url); else window.history.pushState(state, title); } catch (e) { try { window.history.pushState(state, title); } catch(e2) {} } };
   const safeReplaceState = (state: any, title: string, url?: string) => { try { if (url) window.history.replaceState(state, title, url); else window.history.replaceState(state, title); } catch (e) { try { window.history.replaceState(state, title); } catch(e2) {} } };
   const setActiveTab = (tab: string, addToHistory = true) => { setActiveTabState(tab); if (addToHistory) safePushState({ tab }, '', `#${tab}`); };
 
-  // --- BACKGROUND JOB LISTENER ---
   useEffect(() => {
       const handleJob = (e: CustomEvent) => {
-          console.log("Job Received:", e.detail);
           setBackgroundJobs(prev => [...prev, e.detail]);
       };
       window.addEventListener('QUEUE_WHATSAPP_JOB' as any, handleJob);
       return () => window.removeEventListener('QUEUE_WHATSAPP_JOB' as any, handleJob);
   }, []);
 
-  // --- BACKGROUND JOB PROCESSOR ---
   useEffect(() => {
       if (backgroundJobs.length > 0 && !processingJobRef.current) {
           processNextJob();
@@ -72,20 +67,16 @@ function App() {
       processingJobRef.current = true;
       const job = backgroundJobs[0];
       const { order, type } = job;
-
       await new Promise(resolve => setTimeout(resolve, 1500));
-
       const element = document.getElementById(`bg-print-voucher-${order.id}`);
       if (element) {
           try {
               // @ts-ignore
               const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
               const base64 = canvas.toDataURL('image/png').split(',')[1];
-              
               const usersList = await getUsers();
               let targetUser: User | undefined;
               let caption = '';
-
               if (type === 'create') {
                   targetUser = usersList.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
                   caption = `📢 *درخواست پرداخت جدید*\nشماره: ${order.trackingNumber}\nمبلغ: ${formatCurrency(order.totalAmount)}\nدرخواست کننده: ${order.requester}\n\nلطفا بررسی نمایید.`;
@@ -101,7 +92,6 @@ function App() {
                       caption = `💰 *دستور پرداخت تایید نهایی شد*\nشماره: ${order.trackingNumber}\nلطفا پرداخت نمایید.`;
                   }
               }
-
               if (targetUser && targetUser.phoneNumber) {
                   await apiCall('/send-whatsapp', 'POST', { 
                       number: targetUser.phoneNumber, 
@@ -109,12 +99,8 @@ function App() {
                       mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${order.trackingNumber}.png` } 
                   });
               }
-
-          } catch (e) {
-              console.error("Background Job Failed", e);
-          }
+          } catch (e) { console.error("Background Job Failed", e); }
       }
-
       setBackgroundJobs(prev => prev.slice(1));
       processingJobRef.current = false;
   };
@@ -162,16 +148,23 @@ function App() {
       playNotificationSound();
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       setToast({ show: true, title, message });
-      toastTimeoutRef.current = setTimeout(() => setToast(null), 5000); 
-      // Note: We don't call sendNotification() here anymore because the backend handles the Push Notification logic.
-      // This function now just handles the "In-App" UI updates.
+      toastTimeoutRef.current = setTimeout(() => setToast(null), 5000);
+      
+      // Attempt Native Popup (Windows/Android)
+      if (Notification.permission === 'granted') {
+          try {
+              new Notification(title, { body: message, icon: '/pwa-192x192.png', dir: 'rtl', lang: 'fa' });
+          } catch(e) {}
+      }
   };
 
-  const closeToast = () => {
-      setToast(null);
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+  const removeNotification = (id: string) => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
+  const closeToast = () => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); };
+
+  // --- POLLING LOGIC FOR DATA & CHAT ---
   const loadData = async (silent = false) => {
     if (!currentUser) return;
     if (!silent) setLoading(true);
@@ -181,6 +174,33 @@ function App() {
         const lastCheck = parseInt(localStorage.getItem(NOTIFICATION_CHECK_KEY) || '0');
         checkForNotifications(ordersData, currentUser, lastCheck);
         if (isFirstLoad.current) { checkChequeAlerts(ordersData); }
+        
+        // --- CHAT POLLING ---
+        const messages = await getMessages();
+        if (messages && messages.length > 0) {
+            const lastMsg = messages[messages.length - 1];
+            // If new message exists and it's not sent by me and we haven't seen it yet
+            if (lastMsg.id !== lastChatMsgIdRef.current) {
+                if (lastChatMsgIdRef.current && lastMsg.senderUsername !== currentUser.username) {
+                    // Logic to check if message is for me (Public, Group I'm in, or Direct)
+                    // Simplified: We assume getMessages returns accessible messages.
+                    // Just check if I'm not the sender.
+                    
+                    const isForMe = 
+                        !lastMsg.recipient || // Public
+                        lastMsg.recipient === currentUser.username || // Direct
+                        (lastMsg.groupId && settingsData); // Group (assume if I see it, it's relevant, actual filter is in ChatRoom but we don't have group list here easily without overhead. For now notify on any new msg if not sender)
+
+                    if (isForMe) {
+                        const title = `پیام جدید از ${lastMsg.sender}`;
+                        const body = lastMsg.message || (lastMsg.audioUrl ? 'پیام صوتی' : 'فایل');
+                        addAppNotification(title, body);
+                    }
+                }
+                lastChatMsgIdRef.current = lastMsg.id;
+            }
+        }
+
         localStorage.setItem(NOTIFICATION_CHECK_KEY, Date.now().toString());
         setOrders(ordersData);
         isFirstLoad.current = false;
@@ -222,7 +242,7 @@ function App() {
      });
   };
 
-  useEffect(() => { if (currentUser) { loadData(false); const intervalId = setInterval(() => loadData(true), 15000); return () => clearInterval(intervalId); } }, [currentUser]);
+  useEffect(() => { if (currentUser) { loadData(false); const intervalId = setInterval(() => loadData(true), 3000); return () => clearInterval(intervalId); } }, [currentUser]);
 
   const handleOrderCreated = () => { loadData(); setManageOrdersInitialTab('current'); setDashboardStatusFilter(null); setActiveTab('manage'); };
   const handleLogin = (user: User) => { setCurrentUser(user); setActiveTab('dashboard'); };
@@ -260,13 +280,12 @@ function App() {
       onLogout={handleLogout} 
       notifications={notifications} 
       clearNotifications={() => setNotifications([])}
-      onAddNotification={addAppNotification} 
+      onAddNotification={addAppNotification}
+      onRemoveNotification={removeNotification}
     >
       
-      {/* Insert Notification Controller here - it's invisible */}
       <NotificationController />
 
-      {/* Toast Notification Component */}
       {toast && toast.show && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] bg-white border-l-4 border-blue-600 shadow-2xl rounded-lg p-4 flex items-start gap-4 min-w-[300px] max-w-sm animate-slide-down" onClick={closeToast}>
               <div className="bg-blue-100 p-2 rounded-full text-blue-600">
@@ -313,7 +332,7 @@ function App() {
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'security' && <SecurityModule currentUser={currentUser} />}
-            {activeTab === 'chat' && <ChatRoom currentUser={currentUser} onNotification={addAppNotification} />}
+            {activeTab === 'chat' && <ChatRoom currentUser={currentUser} onNotification={() => {}} />} {/* Removed redundant notification trigger from ChatRoom as App handles it globally now */}
         </>
       )}
     </Layout>

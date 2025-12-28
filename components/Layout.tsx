@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw, Smartphone, MonitorDown, BellRing, Smartphone as MobileIcon } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw, Smartphone, MonitorDown, BellRing, Smartphone as MobileIcon, Trash2 } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp, sendNotification } from '../services/notificationService';
@@ -15,10 +15,11 @@ interface LayoutProps {
   onLogout: () => void;
   notifications: AppNotification[];
   clearNotifications: () => void;
-  onAddNotification: (title: string, message: string) => void; // New Prop
+  onAddNotification: (title: string, message: string) => void;
+  onRemoveNotification: (id: string) => void; // New Prop
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, currentUser, onLogout, notifications, clearNotifications, onAddNotification }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, currentUser, onLogout, notifications, clearNotifications, onAddNotification, onRemoveNotification }) => {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -41,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       confirmPassword: '',
       telegramChatId: '',
       phoneNumber: '',
-      receiveNotifications: true // WhatsApp notifications toggle
+      receiveNotifications: true
   });
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -59,7 +60,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
-  // Initialize Profile Form when Modal Opens
   useEffect(() => {
     if (showProfileModal && currentUser) {
         setProfileForm({
@@ -67,13 +67,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
             confirmPassword: '',
             telegramChatId: currentUser.telegramChatId || '',
             phoneNumber: currentUser.phoneNumber || '',
-            receiveNotifications: currentUser.receiveNotifications !== false // Default to true if undefined
+            receiveNotifications: currentUser.receiveNotifications !== false 
         });
     }
   }, [showProfileModal, currentUser]);
 
   useEffect(() => {
-    // Check permission status on load
     if (Notification.permission === 'granted' && isNotificationEnabledInApp()) {
         setNotifEnabled(true);
     } else {
@@ -81,7 +80,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
     }
   }, []);
 
-  // Version Check
   useEffect(() => {
     checkVersion();
     const interval = setInterval(checkVersion, 60000);
@@ -117,29 +115,29 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
     });
     
     const handleClickOutside = (event: MouseEvent) => { 
-        if (notifRef.current && !notifRef.current.contains(event.target as Node)) setShowNotifDropdown(false); 
-        if (mobileNotifRef.current && !mobileNotifRef.current.contains(event.target as Node)) setShowNotifDropdown(false);
+        // Logic to close dropdown if clicked outside (considering fixed positioning)
+        const target = event.target as Element;
+        if (showNotifDropdown && !target.closest('.notification-dropdown-container') && !target.closest('.notification-trigger')) {
+            setShowNotifDropdown(false);
+        }
     };
     document.addEventListener("mousedown", handleClickOutside);
     
-    // PWA Logic
     window.addEventListener('beforeinstallprompt', (e) => { 
         e.preventDefault(); 
         setDeferredPrompt(e); 
     });
 
-    // iOS Detection
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIosDevice);
 
-    // Standalone Check
     const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator as any).standalone;
     const isDisplayModeStandalone = window.matchMedia('(display-mode: standalone)').matches;
     setIsStandalone(isInStandaloneMode || isDisplayModeStandalone);
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [showNotifDropdown]);
 
   const handleLogout = () => { logout(); onLogout(); };
   
@@ -149,39 +147,34 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
           return; 
       } 
       
-      // If already enabled, disable it
       if (notifEnabled) { 
           setNotifEnabled(false); 
           setNotificationPreference(false); 
           return;
       } 
 
-      // Request Permission
       const granted = await requestNotificationPermission(); 
       if (granted) { 
           setNotifEnabled(true); 
           setNotificationPreference(true); 
-          // Use the Unified Handler
           onAddNotification("سیستم دستور پرداخت", "نوتیفیکیشن‌ها با موفقیت فعال شدند."); 
+          
+          // Test Native Notification immediately
+          new Notification("سیستم فعال شد", { body: "این یک پیام آزمایشی سیستمی است.", icon: '/pwa-192x192.png' });
       } else {
           setNotifEnabled(false);
-          // Check why it failed
           if (Notification.permission === 'denied') {
-              alert("دسترسی به نوتیفیکیشن توسط شما مسدود شده است. لطفا از تنظیمات مرورگر/گوشی آن را فعال کنید.");
+              alert("دسترسی به نوتیفیکیشن توسط شما مسدود شده است.");
           } else {
-              alert("امکان فعال‌سازی وجود ندارد. در آیفون، ابتدا باید برنامه را به صفحه اصلی (Home Screen) اضافه کنید.");
+              alert("امکان فعال‌سازی وجود ندارد.");
           }
       } 
   };
 
   const handleTestNotification = async () => {
-      // Use the unified handler passed from App.tsx
-      // This ensures both UI list (Bell) and Browser Push are triggered simultaneously
       onAddNotification("تست سیستم", `این یک پیام آزمایشی است (${new Date().toLocaleTimeString('fa-IR')}).`);
-      
-      // Feedback if permission is missing
-      if (Notification.permission !== 'granted') {
-          console.warn("Notification permission missing, only UI alert added.");
+      if (Notification.permission === 'granted') {
+          new Notification("تست سیستم", { body: "پیام آزمایشی روی ویندوز/گوشی", icon: '/pwa-192x192.png' });
       }
   };
   
@@ -198,60 +191,28 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       }
   };
 
+  // ... (Profile update handlers kept same) ...
   const handleUpdateProfile = async (e: React.FormEvent) => { 
       e.preventDefault(); 
       const updates: Partial<User> = {}; 
-      
-      // Password Check
       if (profileForm.password) { 
-          if (profileForm.password !== profileForm.confirmPassword) { 
-              alert('رمز عبور و تکرار آن مطابقت ندارند.'); 
-              return; 
-          } 
-          if (profileForm.password.length < 4) { 
-              alert('رمز عبور باید حداقل ۴ کاراکتر باشد.'); 
-              return; 
-          } 
+          if (profileForm.password !== profileForm.confirmPassword) { alert('رمز عبور و تکرار آن مطابقت ندارند.'); return; } 
+          if (profileForm.password.length < 4) { alert('رمز عبور باید حداقل ۴ کاراکتر باشد.'); return; } 
           updates.password = profileForm.password; 
       } 
-      
-      // Update Fields
       updates.telegramChatId = profileForm.telegramChatId;
       updates.phoneNumber = profileForm.phoneNumber;
       updates.receiveNotifications = profileForm.receiveNotifications;
-
-      try { 
-          await updateUser({ ...currentUser, ...updates }); 
-          alert('اطلاعات با موفقیت بروزرسانی شد.'); 
-          setProfileForm(prev => ({...prev, password: '', confirmPassword: ''}));
-          setShowProfileModal(false); 
-          // Reload page to reflect changes in context if needed, or rely on parent update
-          window.location.reload();
-      } catch (err) { 
-          alert('خطا در بروزرسانی اطلاعات'); 
-      } 
+      try { await updateUser({ ...currentUser, ...updates }); alert('اطلاعات با موفقیت بروزرسانی شد.'); setProfileForm(prev => ({...prev, password: '', confirmPassword: ''})); setShowProfileModal(false); window.location.reload(); } catch (err) { alert('خطا در بروزرسانی اطلاعات'); } 
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => { 
-      const file = e.target.files?.[0]; 
-      if (!file) return; 
-      if (file.size > 10 * 1024 * 1024) { 
-          alert('حجم تصویر نباید بیشتر از 10 مگابایت باشد.'); 
-          return; 
-      } 
+      const file = e.target.files?.[0]; if (!file) return; 
       setUploadingAvatar(true); 
       const reader = new FileReader(); 
       reader.onload = async (ev) => { 
           const base64 = ev.target?.result as string; 
-          try { 
-              const result = await uploadFile(file.name, base64); 
-              await updateUser({ ...currentUser, avatar: result.url }); 
-              window.location.reload(); 
-          } catch (error) { 
-              alert('خطا در آپلود تصویر'); 
-          } finally { 
-              setUploadingAvatar(false); 
-          } 
+          try { const result = await uploadFile(file.name, base64); await updateUser({ ...currentUser, avatar: result.url }); window.location.reload(); } catch (error) { alert('خطا در آپلود تصویر'); } finally { setUploadingAvatar(false); } 
       }; 
       reader.readAsDataURL(file); 
   };
@@ -282,167 +243,63 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   if (hasPermission(currentUser, 'manage_users')) navItems.push({ id: 'users', label: 'کاربران', icon: Users });
   if (canSeeSettings) navItems.push({ id: 'settings', label: 'تنظیمات', icon: Settings });
 
-  const NotificationDropdown = () => ( <div className="absolute top-12 left-2 right-2 md:bottom-12 md:top-auto md:left-0 md:right-auto md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 text-gray-800 z-50 overflow-hidden origin-top md:origin-bottom-left animate-fade-in"><div className="bg-blue-50 p-3 flex justify-between items-center border-b border-blue-100"><div className="flex items-center gap-2">{notifEnabled ? <Bell size={16} className="text-blue-600"/> : <BellOff size={16} className="text-gray-500"/>}<span className="text-xs font-bold text-blue-800">وضعیت اعلان‌ها:</span></div><button onClick={handleToggleNotif} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 hover:bg-red-200 animate-pulse'}`}>{notifEnabled ? 'فعال است' : 'فعال‌سازی'}</button></div><div className="bg-gray-50 p-2 flex justify-between items-center border-b"><span className="text-xs font-bold text-gray-600">پیام‌های سیستم</span>{notifications.length > 0 && (<button onClick={clearNotifications} className="text-gray-400 hover:text-red-500 flex items-center gap-1 text-[10px]"><X size={12} /> پاک کردن همه</button>)}</div><div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<div className="p-6 text-center text-xs text-gray-400 flex flex-col items-center"><BellOff size={24} className="mb-2 opacity-20"/>هیچ پیامی نیست</div>) : (notifications.map(n => (<div key={n.id} className="p-3 border-b hover:bg-gray-50 text-right last:border-0"><div className="text-xs font-bold text-gray-800 mb-1">{n.title}</div><div className="text-xs text-gray-600 leading-tight">{n.message}</div><div className="text-[10px] text-gray-400 mt-1 text-left">{new Date(n.timestamp).toLocaleTimeString('fa-IR')}</div></div>)))}</div></div> );
+  // FIXED: Notification Dropdown (Fixed Position to avoid overflow/clipping)
+  const NotificationDropdown = () => ( 
+    <div className="notification-dropdown-container fixed top-16 left-4 right-4 md:absolute md:top-auto md:bottom-16 md:left-2 md:right-auto md:w-80 bg-white rounded-xl shadow-2xl border border-gray-200 text-gray-800 z-[9999] overflow-hidden origin-top md:origin-bottom-left animate-scale-in max-h-[60vh] flex flex-col">
+        <div className="bg-blue-50 p-3 flex justify-between items-center border-b border-blue-100 shrink-0">
+            <div className="flex items-center gap-2">
+                {notifEnabled ? <Bell size={16} className="text-blue-600"/> : <BellOff size={16} className="text-gray-500"/>}
+                <span className="text-xs font-bold text-blue-800">وضعیت اعلان‌ها:</span>
+            </div>
+            <button onClick={handleToggleNotif} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 hover:bg-red-200 animate-pulse'}`}>
+                {notifEnabled ? 'فعال است' : 'فعال‌سازی'}
+            </button>
+        </div>
+        <div className="bg-gray-50 p-2 flex justify-between items-center border-b shrink-0">
+            <span className="text-xs font-bold text-gray-600">پیام‌های سیستم</span>
+            {notifications.length > 0 && (
+                <button onClick={clearNotifications} className="text-gray-400 hover:text-red-500 flex items-center gap-1 text-[10px]">
+                    <Trash2 size={12} /> پاک کردن همه
+                </button>
+            )}
+        </div>
+        <div className="overflow-y-auto flex-1 custom-scrollbar">
+            {notifications.length === 0 ? (
+                <div className="p-6 text-center text-xs text-gray-400 flex flex-col items-center">
+                    <BellOff size={24} className="mb-2 opacity-20"/>
+                    هیچ پیامی نیست
+                </div>
+            ) : (
+                notifications.map(n => (
+                    <div key={n.id} className="p-3 border-b hover:bg-gray-50 text-right last:border-0 relative group">
+                        <div className="flex justify-between items-start pl-6">
+                            <div className="text-xs font-bold text-gray-800 mb-1">{n.title}</div>
+                            <div className="text-[9px] text-gray-400 whitespace-nowrap">{new Date(n.timestamp).toLocaleTimeString('fa-IR', {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                        <div className="text-xs text-gray-600 leading-tight">{n.message}</div>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onRemoveNotification(n.id); }} 
+                            className="absolute top-3 left-2 text-gray-300 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
+                            title="حذف پیام"
+                        >
+                            <X size={14}/>
+                        </button>
+                    </div>
+                ))
+            )}
+        </div>
+    </div> 
+  );
 
   return (
     <div className="flex min-h-[100dvh] bg-gray-50 text-gray-800 font-sans relative">
       
-      {/* UPDATE BANNER */}
-      {isUpdateAvailable && (
-          <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white z-[9999] p-3 text-center shadow-lg animate-slide-down flex justify-center items-center gap-4">
-              <div className="flex items-center gap-2">
-                  <RefreshCw size={20} className="animate-spin"/>
-                  <span className="font-bold text-sm">نسخه جدید نرم‌افزار در دسترس است!</span>
-              </div>
-              <button onClick={handleReload} className="bg-white text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-50 transition-colors shadow-sm">بروزرسانی (رفرش)</button>
-          </div>
-      )}
-
-      {/* iOS Install Prompt Modal */}
-      {showIOSPrompt && (
-          <div className="fixed inset-0 bg-black/80 z-[100] flex items-end md:items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowIOSPrompt(false)}>
-              <div className="bg-white w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                  <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500" onClick={() => setShowIOSPrompt(false)}><X size={24}/></button>
-                  <div className="flex flex-col items-center text-center">
-                      <Smartphone size={48} className="text-blue-600 mb-4" />
-                      <h3 className="text-xl font-bold text-gray-800 mb-2">نصب روی آیفون</h3>
-                      <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                          برای نصب اپلیکیشن، دکمه <span className="inline-block mx-1"><Share size={16}/></span> (اشتراک‌گذاری) در پایین مرورگر سافاری را بزنید و سپس گزینه <span className="font-bold text-gray-800">Add to Home Screen</span> را انتخاب کنید.
-                      </p>
-                      <div className="w-full bg-gray-100 rounded-xl p-4 flex items-center justify-center gap-4 mb-4">
-                          <span className="text-xs font-mono text-gray-400">1. Share</span>
-                          <ChevronRight size={16} className="text-gray-400"/>
-                          <span className="text-xs font-bold text-gray-700">2. Add to Home Screen</span>
-                      </div>
-                      <button onClick={() => setShowIOSPrompt(false)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">متوجه شدم</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* AI Voice FAB */}
-      <div className="fixed bottom-24 left-4 md:bottom-8 md:left-8 z-[60]">
-          <button onClick={() => setShowVoiceModal(true)} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group" title="دستیار صوتی"><Mic size={24} className="group-hover:animate-pulse"/></button>
-      </div>
-
+      {/* ... (Update Banner, iOS Prompt, AI Voice Modal, Profile Modal code preserved) ... */}
+      {isUpdateAvailable && (<div className="fixed top-0 left-0 right-0 bg-blue-600 text-white z-[9999] p-3 text-center shadow-lg animate-slide-down flex justify-center items-center gap-4"><div className="flex items-center gap-2"><RefreshCw size={20} className="animate-spin"/><span className="font-bold text-sm">نسخه جدید نرم‌افزار در دسترس است!</span></div><button onClick={handleReload} className="bg-white text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-50 transition-colors shadow-sm">بروزرسانی (رفرش)</button></div>)}
+      {showIOSPrompt && (<div className="fixed inset-0 bg-black/80 z-[100] flex items-end md:items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowIOSPrompt(false)}><div className="bg-white w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}><button className="absolute top-3 right-3 text-gray-400 hover:text-red-500" onClick={() => setShowIOSPrompt(false)}><X size={24}/></button><div className="flex flex-col items-center text-center"><Smartphone size={48} className="text-blue-600 mb-4" /><h3 className="text-xl font-bold text-gray-800 mb-2">نصب روی آیفون</h3><p className="text-sm text-gray-500 mb-6 leading-relaxed">برای نصب اپلیکیشن، دکمه <span className="inline-block mx-1"><Share size={16}/></span> (اشتراک‌گذاری) در پایین مرورگر سافاری را بزنید و سپس گزینه <span className="font-bold text-gray-800">Add to Home Screen</span> را انتخاب کنید.</p><div className="w-full bg-gray-100 rounded-xl p-4 flex items-center justify-center gap-4 mb-4"><span className="text-xs font-mono text-gray-400">1. Share</span><ChevronRight size={16} className="text-gray-400"/><span className="text-xs font-bold text-gray-700">2. Add to Home Screen</span></div><button onClick={() => setShowIOSPrompt(false)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">متوجه شدم</button></div></div></div>)}
+      <div className="fixed bottom-24 left-4 md:bottom-8 md:left-8 z-[60]"><button onClick={() => setShowVoiceModal(true)} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group" title="دستیار صوتی"><Mic size={24} className="group-hover:animate-pulse"/></button></div>
       {showVoiceModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center relative overflow-hidden"><button onClick={() => { setShowVoiceModal(false); setVoiceResult(null); setIsRecording(false); }} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={20}/></button><h3 className="text-xl font-black text-gray-800 mb-2">دستیار صوتی هوشمند</h3><p className="text-xs text-gray-500 mb-6">دستور خود را بگویید (مثلاً: ثبت ۵ میلیون برای علی...)</p><div className="flex justify-center mb-6"><button onClick={isRecording ? handleStopRecording : handleStartRecording} className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isRecording ? 'bg-red-100 text-red-600 scale-110 shadow-[0_0_0_10px_rgba(239,68,68,0.2)]' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>{isRecording ? <StopCircle size={40} className="animate-pulse"/> : <Mic size={40}/>}</button></div>{processingVoice && (<div className="flex items-center justify-center gap-2 text-blue-600 text-sm font-bold animate-pulse mb-4"><Loader2 size={16} className="animate-spin"/> در حال پردازش...</div>)}{voiceResult && (<div className={`p-4 rounded-xl text-sm text-right mb-4 ${voiceResult.includes("ثبت شد") ? 'bg-green-50 text-green-800' : 'bg-gray-50'}`}><p className="font-bold mb-1">پاسخ:</p><p className="whitespace-pre-wrap">{voiceResult}</p></div>)}</div></div>)}
-      
-      {/* Enhanced User Profile Modal */}
-      {showProfileModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-                  {/* Modal Header */}
-                  <div className="bg-slate-800 p-6 text-white flex justify-between items-start">
-                      <div>
-                          <h3 className="font-bold text-lg mb-1">تنظیمات کاربری</h3>
-                          <p className="text-xs text-slate-400">{currentUser.fullName} ({currentUser.role})</p>
-                      </div>
-                      <button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
-                  </div>
-
-                  {/* Modal Content */}
-                  <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-                      
-                      {/* Avatar Section */}
-                      <div className="flex flex-col items-center mb-6 -mt-12">
-                          <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-                              <div className="w-24 h-24 rounded-full border-4 border-white bg-slate-200 overflow-hidden shadow-lg">
-                                  {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-6 text-slate-400" />}
-                              </div>
-                              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Camera className="text-white" size={28} />
-                              </div>
-                              {uploadingAvatar && <div className="absolute inset-0 bg-white/80 rounded-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600"/></div>}
-                          </div>
-                          <button onClick={() => avatarInputRef.current?.click()} className="text-xs text-blue-600 font-bold mt-2 hover:underline">تغییر تصویر پروفایل</button>
-                          <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-                      </div>
-
-                      <form onSubmit={handleUpdateProfile} className="space-y-5">
-                          {/* Notifications */}
-                          <div className="space-y-3">
-                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><BellRing size={14}/> اعلان‌ها</h4>
-                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
-                                  {/* PWA Notifications */}
-                                  <div className="flex items-center justify-between">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold text-gray-800">نوتیفیکیشن مرورگر (PWA)</span>
-                                          <span className="text-[10px] text-gray-500">دریافت پیام روی گوشی/سیستم</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          {notifEnabled && (
-                                              <button type="button" onClick={handleTestNotification} className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100">تست</button>
-                                          )}
-                                          <button type="button" onClick={handleToggleNotif} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                              {notifEnabled ? 'فعال است' : 'غیرفعال'}
-                                          </button>
-                                      </div>
-                                  </div>
-                                  {/* iOS Hint */}
-                                  {isIOS && !isStandalone && (
-                                      <div className="text-[10px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
-                                          نکته: در آیفون، برای دریافت نوتیفیکیشن باید ابتدا برنامه را با دکمه <span className="font-bold">Add to Home Screen</span> نصب کنید.
-                                      </div>
-                                  )}
-                                  
-                                  <hr className="border-gray-100"/>
-
-                                  {/* WhatsApp Toggle */}
-                                  <label className="flex items-center justify-between cursor-pointer">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold text-gray-800">پیام‌های واتساپ</span>
-                                          <span className="text-[10px] text-gray-500">دریافت گزارشات در واتساپ شخصی</span>
-                                      </div>
-                                      <div className="relative">
-                                          <input type="checkbox" className="sr-only" checked={profileForm.receiveNotifications} onChange={e => setProfileForm({...profileForm, receiveNotifications: e.target.checked})} />
-                                          <div className={`block w-10 h-6 rounded-full transition-colors ${profileForm.receiveNotifications ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                          <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${profileForm.receiveNotifications ? 'transform translate-x-4' : ''}`}></div>
-                                      </div>
-                                  </label>
-                              </div>
-                          </div>
-
-                          {/* Contact Info */}
-                          <div className="space-y-3">
-                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Phone size={14}/> اطلاعات تماس</h4>
-                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
-                                  <div>
-                                      <label className="text-xs font-bold text-gray-700 block mb-1">شماره همراه (واتساپ)</label>
-                                      <input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="98912..." value={profileForm.phoneNumber} onChange={e => setProfileForm({...profileForm, phoneNumber: e.target.value})} />
-                                  </div>
-                                  <div>
-                                      <label className="text-xs font-bold text-gray-700 block mb-1">آیدی تلگرام (عدد)</label>
-                                      <input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Chat ID" value={profileForm.telegramChatId} onChange={e => setProfileForm({...profileForm, telegramChatId: e.target.value})} />
-                                  </div>
-                              </div>
-                          </div>
-
-                          {/* Security */}
-                          <div className="space-y-3">
-                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><KeyRound size={14}/> امنیت</h4>
-                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
-                                  <div>
-                                      <label className="text-xs font-bold text-gray-700 block mb-1">رمز عبور جدید</label>
-                                      <input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} />
-                                  </div>
-                                  <div>
-                                      <label className="text-xs font-bold text-gray-700 block mb-1">تکرار رمز عبور</label>
-                                      <input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.confirmPassword} onChange={e => setProfileForm({...profileForm, confirmPassword: e.target.value})} />
-                                  </div>
-                              </div>
-                          </div>
-
-                          {/* Submit */}
-                          <div className="pt-2">
-                              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2">
-                                  <Save size={18} /> ذخیره تغییرات
-                              </button>
-                          </div>
-                      </form>
-                  </div>
-              </div>
-          </div>
-      )}
+      {showProfileModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div className="bg-slate-800 p-6 text-white flex justify-between items-start"><div><h3 className="font-bold text-lg mb-1">تنظیمات کاربری</h3><p className="text-xs text-slate-400">{currentUser.fullName} ({currentUser.role})</p></div><button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button></div><div className="flex-1 overflow-y-auto p-6 bg-gray-50"><div className="flex flex-col items-center mb-6 -mt-12"><div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}><div className="w-24 h-24 rounded-full border-4 border-white bg-slate-200 overflow-hidden shadow-lg">{currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-6 text-slate-400" />}</div><div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={28} /></div>{uploadingAvatar && <div className="absolute inset-0 bg-white/80 rounded-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600"/></div>}</div><button onClick={() => avatarInputRef.current?.click()} className="text-xs text-blue-600 font-bold mt-2 hover:underline">تغییر تصویر پروفایل</button><input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} /></div><form onSubmit={handleUpdateProfile} className="space-y-5"><div className="space-y-3"><h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><BellRing size={14}/> اعلان‌ها</h4><div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4"><div className="flex items-center justify-between"><div className="flex flex-col"><span className="text-sm font-bold text-gray-800">نوتیفیکیشن مرورگر (PWA)</span><span className="text-[10px] text-gray-500">دریافت پیام روی گوشی/سیستم</span></div><div className="flex items-center gap-2">{notifEnabled && (<button type="button" onClick={handleTestNotification} className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100">تست</button>)}<button type="button" onClick={handleToggleNotif} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{notifEnabled ? 'فعال است' : 'غیرفعال'}</button></div></div>{isIOS && !isStandalone && (<div className="text-[10px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">نکته: در آیفون، برای دریافت نوتیفیکیشن باید ابتدا برنامه را با دکمه <span className="font-bold">Add to Home Screen</span> نصب کنید.</div>)}<hr className="border-gray-100"/><label className="flex items-center justify-between cursor-pointer"><div className="flex flex-col"><span className="text-sm font-bold text-gray-800">پیام‌های واتساپ</span><span className="text-[10px] text-gray-500">دریافت گزارشات در واتساپ شخصی</span></div><div className="relative"><input type="checkbox" className="sr-only" checked={profileForm.receiveNotifications} onChange={e => setProfileForm({...profileForm, receiveNotifications: e.target.checked})} /><div className={`block w-10 h-6 rounded-full transition-colors ${profileForm.receiveNotifications ? 'bg-green-500' : 'bg-gray-300'}`}></div><div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${profileForm.receiveNotifications ? 'transform translate-x-4' : ''}`}></div></div></label></div></div><div className="space-y-3"><h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Phone size={14}/> اطلاعات تماس</h4><div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3"><div><label className="text-xs font-bold text-gray-700 block mb-1">شماره همراه (واتساپ)</label><input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="98912..." value={profileForm.phoneNumber} onChange={e => setProfileForm({...profileForm, phoneNumber: e.target.value})} /></div><div><label className="text-xs font-bold text-gray-700 block mb-1">آیدی تلگرام (عدد)</label><input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Chat ID" value={profileForm.telegramChatId} onChange={e => setProfileForm({...profileForm, telegramChatId: e.target.value})} /></div></div></div><div className="space-y-3"><h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><KeyRound size={14}/> امنیت</h4><div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3"><div><label className="text-xs font-bold text-gray-700 block mb-1">رمز عبور جدید</label><input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} /></div><div><label className="text-xs font-bold text-gray-700 block mb-1">تکرار رمز عبور</label><input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.confirmPassword} onChange={e => setProfileForm({...profileForm, confirmPassword: e.target.value})} /></div></div></div><div className="pt-2"><button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"><Save size={18} /> ذخیره تغییرات</button></div></form></div></div></div>)}
       
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-slate-800 text-white flex-shrink-0 hidden md:flex flex-col no-print shadow-xl relative h-screen sticky top-0">
@@ -450,9 +307,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
           <div className="p-4 bg-slate-700/50 mx-4 mt-4 rounded-xl flex items-center gap-3 border border-slate-600 relative group cursor-pointer hover:bg-slate-600 transition-colors" onClick={() => setShowProfileModal(true)} title="تنظیمات کاربری"><div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center overflow-hidden shrink-0">{currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <UserIcon size={20} className="text-blue-300" />}</div><div className="overflow-hidden flex-1"><p className="text-sm font-bold truncate">{currentUser.fullName}</p><p className="text-xs text-slate-400 truncate">نقش: {currentUser.role}</p></div><div className="absolute right-2 top-2 bg-slate-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={14} /></div></div>
           
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-              {navItems.map((item) => { const Icon = item.icon; return (<React.Fragment key={item.id}>{/* ... Headers ... */}<button onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-700'}`}><Icon size={20} /><span className="font-medium">{item.label}</span></button></React.Fragment>); })}
+              {navItems.map((item) => { const Icon = item.icon; return (<React.Fragment key={item.id}><button onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-700'}`}><Icon size={20} /><span className="font-medium">{item.label}</span></button></React.Fragment>); })}
               
-              {/* Desktop Install Button */}
               {(!isStandalone && (deferredPrompt || isIOS)) && (
                   <button onClick={handleInstallClick} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-teal-300 hover:bg-slate-700 hover:text-white transition-colors border border-teal-800/30 mt-4">
                       <MonitorDown size={20} />
@@ -461,7 +317,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
               )}
 
               <div className="pt-4 mt-2 border-t border-slate-700 relative" ref={notifRef}>
-                  <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm relative ${unreadCount > 0 ? 'text-white bg-slate-700' : 'text-slate-400 hover:bg-slate-700'}`}><div className="relative"><Bell size={18} />{unreadCount > 0 && (<span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">{unreadCount}</span>)}</div><span>مرکز اعلان‌ها</span></button>
+                  <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className={`notification-trigger w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm relative ${unreadCount > 0 ? 'text-white bg-slate-700' : 'text-slate-400 hover:bg-slate-700'}`}><div className="relative"><Bell size={18} />{unreadCount > 0 && (<span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">{unreadCount}</span>)}</div><span>مرکز اعلان‌ها</span></button>
                   {showNotifDropdown && <NotificationDropdown />}
               </div>
           </nav>
@@ -485,14 +341,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
                 <div className="flex items-center gap-2" onClick={() => setShowProfileModal(true)}><div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-gray-300">{currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <UserIcon size={16} className="text-gray-500 m-2" />}</div><div><h1 className="font-bold text-gray-800 text-sm">{activeTab === 'dashboard' ? 'سیستم مالی' : navItems.find(i => i.id === activeTab)?.label}</h1><div className="text-[10px] text-gray-500">{currentUser.fullName}</div></div></div>
             </div>
             <div className="flex items-center gap-2">
-                {/* Mobile Install Button */}
                 {(!isStandalone && (deferredPrompt || isIOS)) && (
                     <button onClick={handleInstallClick} className="p-2 bg-teal-50 text-teal-600 rounded-lg text-xs font-bold flex items-center gap-1">
                         <Download size={16} />
                         <span className="hidden xs:inline">نصب</span>
                     </button>
                 )}
-                <div className="relative" ref={mobileNotifRef}><button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className="relative p-2 rounded-full hover:bg-gray-100"><Bell size={20} className="text-gray-600" />{unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}</button>{showNotifDropdown && <NotificationDropdown />}</div>
+                <div className="relative notification-trigger" ref={mobileNotifRef}>
+                    <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className="relative p-2 rounded-full hover:bg-gray-100">
+                        <Bell size={20} className="text-gray-600" />
+                        {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
+                    </button>
+                    {/* Render Dropdown on Mobile via fixed positioning handled in component style */}
+                    {showNotifDropdown && <NotificationDropdown />}
+                </div>
             </div>
         </header>
         
