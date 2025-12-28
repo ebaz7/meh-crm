@@ -1,7 +1,7 @@
 
 const PREF_KEY = 'app_notification_pref';
 
-// بررسی اینکه آیا کاربر دکمه نوتیفیکیشن را در تنظیمات روشن کرده است یا خیر
+// Check if user enabled notifications in the app settings
 export const isNotificationEnabledInApp = (): boolean => {
     return localStorage.getItem(PREF_KEY) !== 'false';
 };
@@ -16,10 +16,20 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       return false;
   }
 
-  // درخواست مجوز
   try {
       const permission = await Notification.requestPermission();
-      return permission === "granted";
+      
+      // Additional check for iOS PWA
+      // iOS requires the app to be installed (Added to Home Screen) for notifications to work
+      if (permission === 'granted') {
+          return true;
+      } else if (permission === 'denied') {
+          console.warn("Permission denied by user.");
+          return false;
+      } else {
+          // Default/Prompt state
+          return false;
+      }
   } catch (e) {
       console.error("Permission request error:", e);
       return false;
@@ -27,51 +37,52 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
+  // 1. User Preference Check
   if (!isNotificationEnabledInApp()) {
-      console.log("System notification is disabled by user preference.");
       return;
   }
 
-  // 2. اگر مجوز مرورگر داده نشده، کاری نکن
+  // 2. Browser Permission Check
   if (Notification.permission !== "granted") {
       console.log("System notification permission not granted.");
       return;
   }
 
-  const options: any = {
-      body: body,
-      icon: '/pwa-192x192.png', // مطمئن شوید این فایل وجود دارد
-      badge: '/pwa-192x192.png',
-      dir: 'rtl',
-      lang: 'fa',
-      tag: 'payment-sys-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
-      renotify: true,
-      requireInteraction: true, // پیام بماند تا کاربر ببندد
-      data: { url: window.location.href }
-  };
-
   try {
-      // روش اول: سرویس ورکر (برای موبایل و PWA عالی است)
+      // 3. Service Worker Strategy (The Robust Way)
+      // We try to find the active service worker registration and use it to show the notification.
+      // This is required for Android/iOS PWA to show "native" style notifications.
       if ('serviceWorker' in navigator) {
           const registration = await navigator.serviceWorker.ready;
-          if (registration) {
-              await registration.showNotification(title, options);
+          
+          if (registration && registration.active) {
+              // Send a message to SW to trigger the notification
+              // We do this instead of direct showNotification here to ensure it runs in the SW context
+              // which is more reliable for background/minimized states.
+              registration.active.postMessage({
+                  type: 'SEND_NOTIFICATION',
+                  title: title,
+                  body: body
+              });
               return;
           }
       }
-  } catch (e) {
-      console.warn("SW Notification failed, trying fallback...", e);
-  }
 
-  // روش دوم: روش سنتی (برای دسکتاپ اگر سرویس ورکر در دسترس نباشد)
-  try {
-      const notification = new Notification(title, options);
-      notification.onclick = function() {
+      // 4. Fallback Strategy (Desktop Legacy)
+      // If SW is not ready or fails, try the main thread notification
+      const notification = new Notification(title, {
+          body: body,
+          icon: '/pwa-192x192.png',
+          dir: 'rtl',
+          lang: 'fa'
+      });
+      
+      notification.onclick = () => {
           window.focus();
           notification.close();
       };
+
   } catch (e) {
-      console.error("Notification API failed:", e);
+      console.error("Notification failed:", e);
   }
 };
