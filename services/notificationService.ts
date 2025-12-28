@@ -1,6 +1,7 @@
 
 const PREF_KEY = 'app_notification_pref';
 
+// بررسی اینکه آیا کاربر دکمه نوتیفیکیشن را در تنظیمات روشن کرده است یا خیر
 export const isNotificationEnabledInApp = (): boolean => {
     return localStorage.getItem(PREF_KEY) !== 'false';
 };
@@ -11,50 +12,59 @@ export const setNotificationPreference = (enabled: boolean) => {
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
   if (!("Notification" in window)) {
-      alert("مرورگر پشتیبانی نمی‌کند.");
+      alert("مرورگر شما از نوتیفیکیشن پشتیبانی نمی‌کند.");
       return false;
   }
+
+  // درخواست مجوز
   try {
       const permission = await Notification.requestPermission();
       return permission === "granted";
   } catch (e) {
-      console.error(e);
+      console.error("Permission request error:", e);
       return false;
   }
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  // 1. بررسی تنظیمات داخلی برنامه
-  if (!isNotificationEnabledInApp()) return;
+  // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
+  if (!isNotificationEnabledInApp()) {
+      console.log("System notification is disabled by user preference.");
+      return;
+  }
 
-  // 2. بررسی مجوز مرورگر
-  if (Notification.permission !== "granted") return;
+  // 2. اگر مجوز مرورگر داده نشده، کاری نکن
+  if (Notification.permission !== "granted") {
+      console.log("System notification permission not granted.");
+      return;
+  }
 
   const options: any = {
       body: body,
-      icon: '/pwa-192x192.png',
+      icon: '/pwa-192x192.png', // مطمئن شوید این فایل وجود دارد
       badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
-      tag: 'app-notif-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
+      tag: 'payment-sys-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
       renotify: true,
-      requireInteraction: false // روی موبایل چند ثانیه بعد می‌رود
+      requireInteraction: true, // پیام بماند تا کاربر ببندد
+      data: { url: window.location.href }
   };
 
   try {
-      // تلاش اول: استفاده از Service Worker (برای موبایل و اندروید ضروری است)
+      // روش اول: سرویس ورکر (برای موبایل و PWA عالی است)
       if ('serviceWorker' in navigator) {
           const registration = await navigator.serviceWorker.ready;
           if (registration) {
               await registration.showNotification(title, options);
-              return; 
+              return;
           }
       }
   } catch (e) {
-      console.warn("SW notification failed, trying standard...", e);
+      console.warn("SW Notification failed, trying fallback...", e);
   }
 
-  // تلاش دوم: استفاده از روش استاندارد (Fallback برای دسکتاپ)
+  // روش دوم: روش سنتی (برای دسکتاپ)
   try {
       new Notification(title, options);
   } catch (e) {
