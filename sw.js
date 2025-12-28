@@ -48,15 +48,18 @@ self.addEventListener('notificationclick', function(event) {
   
   event.waitUntil(
     clients.matchAll({
-      type: "window"
+      type: "window",
+      includeUncontrolled: true
     }).then(function(clientList) {
       // If a window is already open, focus it
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
-        if (client.url && 'focus' in client)
-          return client.focus();
+        // If the client is open but not focused, focus it
+        if ('focus' in client) {
+            return client.focus();
+        }
       }
-      // If no window is open, open one (optional, uncomment if needed)
+      // If no window is open, open one
       if (clients.openWindow)
         return clients.openWindow('/');
     })
@@ -66,8 +69,14 @@ self.addEventListener('notificationclick', function(event) {
 // Placeholder for future Push Notifications (Background Sync)
 self.addEventListener('push', function(event) {
   if (event.data) {
-    const data = event.data.json();
-    const title = data.title || 'پیام جدید';
+    let data;
+    try {
+        data = event.data.json();
+    } catch(e) {
+        data = { title: 'پیام جدید', body: event.data.text() };
+    }
+    
+    const title = data.title || 'پیام سیستم';
     const options = {
       body: data.body,
       icon: '/pwa-192x192.png',
@@ -76,7 +85,8 @@ self.addEventListener('push', function(event) {
       data: {
         dateOfArrival: Date.now(),
         primaryKey: 1
-      }
+      },
+      tag: 'push-notification-' + Date.now()
     };
     event.waitUntil(
       self.registration.showNotification(title, options)

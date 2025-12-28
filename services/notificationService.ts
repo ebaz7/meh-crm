@@ -64,9 +64,13 @@ export const sendNotification = async (title: string, body: string) => {
       console.warn("SW Notification failed, trying fallback...", e);
   }
 
-  // روش دوم: روش سنتی (برای دسکتاپ)
+  // روش دوم: روش سنتی (برای دسکتاپ اگر سرویس ورکر در دسترس نباشد)
   try {
-      new Notification(title, options);
+      const notification = new Notification(title, options);
+      notification.onclick = function() {
+          window.focus();
+          notification.close();
+      };
   } catch (e) {
       console.error("Notification API failed:", e);
   }

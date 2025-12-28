@@ -170,7 +170,8 @@ function App() {
       // 2. Play Sound (if allowed)
       playNotificationSound();
 
-      // 3. Trigger Browser Notification (The service checks permissions and preferences)
+      // 3. Trigger Browser Notification (System Level)
+      // This function handles permission checking internally
       sendNotification(title, message);
   };
 
@@ -208,14 +209,22 @@ function App() {
   };
 
   const checkForNotifications = (newList: PaymentOrder[], user: User, lastCheckTime: number) => {
+     // If first load, don't spam notifications from history, only check very recent ones or skip
+     // However, logic here relies on updatedAt > lastCheckTime
      const newEvents = newList.filter(o => o.updatedAt && o.updatedAt > lastCheckTime);
+     
      newEvents.forEach(newItem => {
         const status = newItem.status;
         const isAdmin = user.role === UserRole.ADMIN;
+        
+        // Don't notify if user made the change themselves (except admin debug)
+        // Note: In a real app we'd track 'updatedBy', here we assume role logic covers most
+        
         if (isAdmin) {
              const isAdminSelfChange = (status === OrderStatus.PENDING && newItem.requester === user.fullName); 
              if (!isAdminSelfChange) { addAppNotification(`تغییر وضعیت (${newItem.trackingNumber})`, `وضعیت جدید: ${status}`); }
         }
+        
         if (status === OrderStatus.PENDING && user.role === UserRole.FINANCIAL) { addAppNotification('درخواست پرداخت جدید', `شماره: ${newItem.trackingNumber} | درخواست کننده: ${newItem.requester}`); }
         else if (status === OrderStatus.APPROVED_FINANCE && user.role === UserRole.MANAGER) { addAppNotification('تایید مالی شد', `درخواست ${newItem.trackingNumber} منتظر تایید مدیریت است.`); }
         else if (status === OrderStatus.APPROVED_MANAGER && user.role === UserRole.CEO) { addAppNotification('تایید مدیریت شد', `درخواست ${newItem.trackingNumber} منتظر تایید نهایی شماست.`); }
