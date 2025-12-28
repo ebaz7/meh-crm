@@ -4,11 +4,13 @@ import { apiCall } from '../services/apiService';
 type PdfFormat = 'A4' | 'A5' | 'A3';
 type PdfOrientation = 'portrait' | 'landscape';
 
-interface PdfOptions {
+export interface PdfOptions {
     elementId: string;
     filename: string;
     format?: PdfFormat;
     orientation?: PdfOrientation;
+    width?: string;
+    height?: string;
     onComplete?: () => void;
     onError?: (error: any) => void;
 }
@@ -18,6 +20,8 @@ export const generatePdf = async ({
     filename,
     format = 'A4',
     orientation = 'portrait',
+    width,
+    height,
     onComplete,
     onError
 }: PdfOptions) => {
@@ -92,7 +96,9 @@ export const generatePdf = async ({
             body: JSON.stringify({
                 html: fullHtml,
                 landscape: orientation === 'landscape',
-                format: format
+                format: format,
+                width: width,
+                height: height
             })
         });
 

@@ -218,7 +218,7 @@ app.get('/api/version', (req, res) => res.json({ version: SERVER_BUILD_ID }));
 // --- NEW: PDF GENERATION ENDPOINT ---
 app.post('/api/render-pdf', async (req, res) => {
     try {
-        const { html, landscape, format } = req.body;
+        const { html, landscape, format, width, height } = req.body;
         
         // RESOLVE EXECUTABLE PATH
         const executablePath = findChromePath();
@@ -252,13 +252,21 @@ app.post('/api/render-pdf', async (req, res) => {
         
         await page.emulateMediaType('print');
         
-        const pdfBuffer = await page.pdf({
-            format: format || 'A4',
-            landscape: landscape || false,
+        const pdfOptions = {
             printBackground: true,
             margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
             preferCSSPageSize: true
-        });
+        };
+
+        if (width && height) {
+            pdfOptions.width = width;
+            pdfOptions.height = height;
+        } else {
+            pdfOptions.format = format || 'A4';
+            pdfOptions.landscape = landscape || false;
+        }
+        
+        const pdfBuffer = await page.pdf(pdfOptions);
 
         await browser.close();
 

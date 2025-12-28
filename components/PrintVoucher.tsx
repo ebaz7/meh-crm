@@ -135,6 +135,8 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
       const style = document.getElementById('page-size-style');
       if (style && !embed) { 
           if (printMode === 'bank_form' && dynamicTemplate) {
+              // Prefer pageSize if available, otherwise assume A4 or use width/height via CSS
+              // But for screen display, we just need general viewport
               const size = dynamicTemplate.pageSize || 'A4';
               const orient = dynamicTemplate.orientation || 'portrait';
               style.innerHTML = `@page { size: ${size} ${orient}; margin: 0; }`;
@@ -173,14 +175,28 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
   const handleDownloadPDF = async () => {
       setProcessing(true);
       const isBankForm = printMode === 'bank_form' && !!dynamicTemplate;
-      await generatePdf({
+      
+      let opts: any = {
           elementId: printAreaId,
           filename: `Voucher_${order.trackingNumber}.pdf`,
-          format: isBankForm ? (dynamicTemplate.pageSize || 'A4') : 'A4',
-          orientation: isBankForm ? (dynamicTemplate.orientation || 'portrait') : 'landscape',
           onComplete: () => setProcessing(false),
           onError: () => { alert('خطا در ایجاد PDF'); setProcessing(false); }
-      });
+      };
+
+      if (isBankForm && dynamicTemplate) {
+          // Use explicit dimensions for bank forms to ensure exact match
+          // We convert mm to string for the API
+          opts.width = `${dynamicTemplate.width}mm`;
+          opts.height = `${dynamicTemplate.height}mm`;
+          // Orientation fallback if needed
+          opts.orientation = dynamicTemplate.width > dynamicTemplate.height ? 'landscape' : 'portrait';
+      } else {
+          // Default Receipt
+          opts.format = 'A4';
+          opts.orientation = 'landscape';
+      }
+
+      await generatePdf(opts);
   };
 
   const handleSendToWhatsApp = async (targetNumber: string) => {

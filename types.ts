@@ -129,8 +129,8 @@ export interface PrintTemplate {
     name: string; // e.g., "Refah Bank Satna"
     width: number; // mm (210 for A4)
     height: number; // mm (297 for A4)
-    pageSize: 'A4' | 'A5'; // NEW
-    orientation: 'portrait' | 'landscape'; // NEW
+    pageSize?: 'A4' | 'A5'; // NEW (Optional for legacy compat)
+    orientation?: 'portrait' | 'landscape'; // NEW (Optional for legacy compat)
     backgroundImage?: string; // Base64 of the form
     fields: PrintField[];
 }
