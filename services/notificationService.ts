@@ -1,8 +1,8 @@
 
 const PREF_KEY = 'app_notification_pref';
 
-// بررسی اینکه آیا کاربر دکمه نوتیفیکیشن را در تنظیمات روشن کرده است یا خیر
 export const isNotificationEnabledInApp = (): boolean => {
+    // پیش‌فرض را true می‌گذاریم مگر اینکه کاربر صراحتاً خاموش کرده باشد
     return localStorage.getItem(PREF_KEY) !== 'false';
 };
 
@@ -27,44 +27,41 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
-  if (!isNotificationEnabledInApp()) {
-      console.log("System notification is disabled by user preference.");
-      return;
-  }
+  // 1. بررسی تنظیمات داخلی
+  if (!isNotificationEnabledInApp()) return;
 
-  // 2. اگر مجوز مرورگر داده نشده، کاری نکن
+  // 2. بررسی مجوز مرورگر
   if (Notification.permission !== "granted") {
-      console.log("System notification permission not granted.");
+      // اگر مجوز نداریم، تلاشی نمی‌کنیم تا خطا ندهد
       return;
   }
 
   const options: any = {
       body: body,
-      icon: '/pwa-192x192.png', // مطمئن شوید این فایل وجود دارد
+      icon: '/pwa-192x192.png', 
       badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
-      tag: 'payment-sys-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
+      tag: 'payment-sys-' + Date.now(), // تگ یکتا برای اینکه پیام‌های جدید روی قبلی نیفتند
       renotify: true,
-      requireInteraction: true, // پیام بماند تا کاربر ببندد
-      data: { url: window.location.href }
+      requireInteraction: false, // روی موبایل زود برود که مزاحم نشود
+      vibrate: [200, 100, 200]
   };
 
   try {
-      // روش اول: سرویس ورکر (برای موبایل و PWA عالی است)
+      // **حیاتی برای موبایل**: استفاده از Service Worker اگر موجود باشد
       if ('serviceWorker' in navigator) {
           const registration = await navigator.serviceWorker.ready;
           if (registration) {
               await registration.showNotification(title, options);
-              return;
+              return; 
           }
       }
   } catch (e) {
-      console.warn("SW Notification failed, trying fallback...", e);
+      console.warn("SW Notification failed, falling back to standard API...", e);
   }
 
-  // روش دوم: روش سنتی (برای دسکتاپ)
+  // روش استاندارد (برای دسکتاپ اگر SW کار نکرد)
   try {
       new Notification(title, options);
   } catch (e) {
