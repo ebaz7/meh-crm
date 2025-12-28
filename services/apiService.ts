@@ -2,7 +2,23 @@
 import { PaymentOrder, User, UserRole, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, WarehouseItem, WarehouseTransaction } from '../types';
 import { INITIAL_ORDERS } from '../constants';
 
-const API_BASE_URL = '/api';
+// *** تنظیمات اتصال به سرور (مهم برای اندروید) ***
+// آدرس کامل سایت خود را در خط زیر وارد کنید (همراه با http یا https)
+// مثال: 'https://payment.mycompany.com' یا 'http://my-server.ir:3000'
+const SERVER_HOST = 'https://example.com'; // <--- دامنه واقعی خود را اینجا جایگزین کنید
+
+// تشخیص اینکه آیا برنامه روی گوشی (Native) اجرا می‌شود یا مرورگر
+// در اندروید (Capacitor)، پروتکل معمولاً file: یا localhost خاص است
+const isNativeApp = window.location.protocol === 'file:' || (window as any).Capacitor?.isNativePlatform();
+
+// اگر روی گوشی هستیم، باید آدرس کامل سرور را بدهیم.
+// اگر روی مرورگر هستیم، از مسیر نسبی (/api) استفاده می‌کنیم تا پروکسی Vite یا وب‌سرور مدیریت کند.
+const API_BASE_URL = isNativeApp 
+    ? `${SERVER_HOST}/api` 
+    : '/api';
+
+console.log("Environment:", isNativeApp ? "Native App" : "Web Browser");
+console.log("API URL Set to:", API_BASE_URL);
 
 const MOCK_USERS: User[] = [
     { id: '1', username: 'admin', password: '123', fullName: 'مدیر سیستم', role: UserRole.ADMIN, canManageTrade: true }
@@ -60,6 +76,12 @@ export const apiCall = async <T>(endpoint: string, method: string = 'GET', body?
         throw new Error(`Server Error: ${response.status}`);
     } catch (error) {
         console.warn(`API Fallback (Mock) triggered for: ${endpoint}`, error);
+        
+        // اگر روی گوشی هستیم و خطا داد، یعنی اینترنت قطع است یا آدرس سرور اشتباه است
+        if (isNativeApp) {
+            console.error("Connection Failed. Check SERVER_HOST in apiService.ts or Internet Connection.");
+        }
+
         await delay(500);
         
         // --- AUTH ---

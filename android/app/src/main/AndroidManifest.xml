@@ -1,0 +1,10 @@
+
+<!-- 
+NOTE TO USER: 
+This file is generated AFTER you run 'npx cap add android'.
+Once generated, ensure these permissions are inside the <manifest> tag:
+
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+-->
