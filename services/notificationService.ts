@@ -18,16 +18,12 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 
   try {
       const permission = await Notification.requestPermission();
-      
-      // Additional check for iOS PWA
-      // iOS requires the app to be installed (Added to Home Screen) for notifications to work
       if (permission === 'granted') {
+          // Trigger the controller logic indirectly by page reload or state change if needed, 
+          // but usually this function is called from Settings which will trigger the controller hook on next mount.
+          window.location.reload(); 
           return true;
-      } else if (permission === 'denied') {
-          console.warn("Permission denied by user.");
-          return false;
       } else {
-          // Default/Prompt state
           return false;
       }
   } catch (e) {
@@ -36,53 +32,10 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   }
 };
 
+// Deprecated in favor of Backend Push, but kept for Fallback
 export const sendNotification = async (title: string, body: string) => {
-  // 1. User Preference Check
-  if (!isNotificationEnabledInApp()) {
-      return;
-  }
-
-  // 2. Browser Permission Check
-  if (Notification.permission !== "granted") {
-      console.log("System notification permission not granted.");
-      return;
-  }
-
-  try {
-      // 3. Service Worker Strategy (The Robust Way)
-      // We try to find the active service worker registration and use it to show the notification.
-      // This is required for Android/iOS PWA to show "native" style notifications.
-      if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.ready;
-          
-          if (registration && registration.active) {
-              // Send a message to SW to trigger the notification
-              // We do this instead of direct showNotification here to ensure it runs in the SW context
-              // which is more reliable for background/minimized states.
-              registration.active.postMessage({
-                  type: 'SEND_NOTIFICATION',
-                  title: title,
-                  body: body
-              });
-              return;
-          }
-      }
-
-      // 4. Fallback Strategy (Desktop Legacy)
-      // If SW is not ready or fails, try the main thread notification
-      const notification = new Notification(title, {
-          body: body,
-          icon: '/pwa-192x192.png',
-          dir: 'rtl',
-          lang: 'fa'
-      });
-      
-      notification.onclick = () => {
-          window.focus();
-          notification.close();
-      };
-
-  } catch (e) {
-      console.error("Notification failed:", e);
+  // Legacy local notification (only works if tab is open)
+  if (isNotificationEnabledInApp() && Notification.permission === "granted") {
+      new Notification(title, { body, icon: '/pwa-192x192.png', dir: 'rtl', lang: 'fa' });
   }
 };

@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'payment-sys-v2-robust';
+const CACHE_NAME = 'payment-sys-v3-push';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,12 +7,9 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force activation immediately
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
   );
 });
 
@@ -28,48 +25,48 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  return self.clients.claim(); // Take control of all clients immediately
+  return self.clients.claim();
 });
 
-// 1. Handle Messages from Client (React App)
-// This allows the app to trigger a "System Notification" via the Service Worker
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SEND_NOTIFICATION') {
-    const title = event.data.title || 'پیام سیستم';
+// *** CORE PUSH NOTIFICATION LOGIC ***
+// This event fires even if the tab is CLOSED (as long as the browser process is running in background)
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const title = data.title || 'پیام سیستم';
     const options = {
-      body: event.data.body,
-      icon: '/pwa-192x192.png', // Ensure this icon exists in public folder
-      badge: '/pwa-192x192.png', // Small icon for status bar (Android)
+      body: data.body,
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
-      vibrate: [200, 100, 200], // Vibration pattern
-      tag: 'payment-sys-tag', // Groups notifications so they don't stack infinitely
-      renotify: true, // Play sound/vibrate even if tag exists
-      requireInteraction: false, // Let it close automatically or stay based on OS preference
+      vibrate: [100, 50, 100],
       data: {
-        url: self.registration.scope // Url to open on click
-      }
+        url: data.url || '/'
+      },
+      actions: [
+        { action: 'open', title: 'مشاهده' }
+      ],
+      requireInteraction: true // Keeps notification visible until user interacts
     };
 
-    // Show the notification via the Service Worker Registration
-    // This is the "Native" way that works on Android/iOS PWA
-    self.registration.showNotification(title, options);
+    event.waitUntil(
+      self.registration.showNotification(title, options)
+    );
+  } catch (err) {
+    console.error('Push processing error:', err);
   }
 });
 
-// 2. Handle Notification Click
-// When user clicks the pop-up, open or focus the app
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close(); // Close the notification
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
 
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-      includeUncontrolled: true
-    }).then(function(clientList) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       // If a window is already open, focus it
-      for (var i = 0; i < clientList.length; i++) {
-        var client = clientList[i];
+      for (const client of clientList) {
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
           return client.focus();
         }
@@ -78,19 +75,6 @@ self.addEventListener('notificationclick', function(event) {
       if (clients.openWindow) {
         return clients.openWindow('/');
       }
-    })
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  // Network first strategy for API calls, Cache first for assets
-  if (event.request.url.includes('/api/')) {
-      return; 
-  }
-  
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
     })
   );
 });

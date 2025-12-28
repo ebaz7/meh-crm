@@ -14,6 +14,7 @@ import ManageExitPermits from './components/ManageExitPermits';
 import WarehouseModule from './components/WarehouseModule';
 import SecurityModule from './components/SecurityModule'; 
 import PrintVoucher from './components/PrintVoucher'; 
+import NotificationController from './components/NotificationController'; // NEW IMPORT
 import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
@@ -148,32 +149,22 @@ function App() {
     }
   }, [currentUser]);
 
-  // --- SOUND EFFECT ---
   const playNotificationSound = () => {
-      // Play sound regardless of preference to ensure user hears it if they are in app
-      // Browser policy might block this if no interaction, but we try anyway.
       try {
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); 
           audio.volume = 1.0;
-          audio.play().catch(e => console.log("Audio play blocked by browser policy (interaction needed)"));
+          audio.play().catch(e => console.log("Audio blocked"));
       } catch (e) { }
   };
 
-  // --- UNIFIED NOTIFICATION HANDLER ---
   const addAppNotification = (title: string, message: string) => { 
-      // 1. In-App List (Bell Icon)
       setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); 
-      
-      // 2. Sound
       playNotificationSound();
-
-      // 3. Show Toast (Floating Alert) - Guaranteed Visibility
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       setToast({ show: true, title, message });
-      toastTimeoutRef.current = setTimeout(() => setToast(null), 5000); // Hide after 5s
-
-      // 4. Browser Notification (System Push via Service Worker)
-      sendNotification(title, message);
+      toastTimeoutRef.current = setTimeout(() => setToast(null), 5000); 
+      // Note: We don't call sendNotification() here anymore because the backend handles the Push Notification logic.
+      // This function now just handles the "In-App" UI updates.
   };
 
   const closeToast = () => {
@@ -216,16 +207,13 @@ function App() {
 
   const checkForNotifications = (newList: PaymentOrder[], user: User, lastCheckTime: number) => {
      const newEvents = newList.filter(o => o.updatedAt && o.updatedAt > lastCheckTime);
-     
      newEvents.forEach(newItem => {
         const status = newItem.status;
         const isAdmin = user.role === UserRole.ADMIN;
-        
         if (isAdmin) {
              const isAdminSelfChange = (status === OrderStatus.PENDING && newItem.requester === user.fullName); 
              if (!isAdminSelfChange) { addAppNotification(`تغییر وضعیت (${newItem.trackingNumber})`, `وضعیت جدید: ${status}`); }
         }
-        
         if (status === OrderStatus.PENDING && user.role === UserRole.FINANCIAL) { addAppNotification('درخواست پرداخت جدید', `شماره: ${newItem.trackingNumber} | درخواست کننده: ${newItem.requester}`); }
         else if (status === OrderStatus.APPROVED_FINANCE && user.role === UserRole.MANAGER) { addAppNotification('تایید مالی شد', `درخواست ${newItem.trackingNumber} منتظر تایید مدیریت است.`); }
         else if (status === OrderStatus.APPROVED_MANAGER && user.role === UserRole.CEO) { addAppNotification('تایید مدیریت شد', `درخواست ${newItem.trackingNumber} منتظر تایید نهایی شماست.`); }
@@ -275,6 +263,9 @@ function App() {
       onAddNotification={addAppNotification} 
     >
       
+      {/* Insert Notification Controller here - it's invisible */}
+      <NotificationController />
+
       {/* Toast Notification Component */}
       {toast && toast.show && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] bg-white border-l-4 border-blue-600 shadow-2xl rounded-lg p-4 flex items-start gap-4 min-w-[300px] max-w-sm animate-slide-down" onClick={closeToast}>
