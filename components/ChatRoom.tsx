@@ -1,13 +1,8 @@
 
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ChatMessage, ChatGroup, GroupTask, UserRole } from '../types';
 import { getMessages, sendMessage, deleteMessage, getGroups, createGroup, deleteGroup, getTasks, createTask, updateTask, deleteTask, uploadFile, updateGroup, updateMessage } from '../services/storageService';
 import { getUsers } from '../services/authService';
-import { sendNotification } from '../services/notificationService';
 import { generateUUID } from '../constants';
 import { Send, User as UserIcon, MessageSquare, Lock, Users, Plus, ListTodo, Paperclip, CheckSquare, Square, Download, X, Trash2, Eye, Reply, Info, Camera, Edit2, ArrowRight, Mic, Smile, StopCircle, Check, Phone, Video, PhoneIncoming } from 'lucide-react';
 
@@ -37,8 +32,11 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showTagList, setShowTagList] = useState(false);
+    
+    // Notification References
     const lastMsgCountRef = useRef(0);
     const [lastReadMap, setLastReadMap] = useState<Record<string, number>>({});
+    
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,39 +63,80 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
 
 
     useEffect(() => { try { const stored = localStorage.getItem(LAST_READ_KEY); if (stored) setLastReadMap(JSON.parse(stored)); } catch (e) { console.error("Failed to load read history"); } }, []);
-    useEffect(() => { activeChannelRef.current = activeChannel; const key = getChannelKey(activeChannel.type, activeChannel.id); updateLastRead(key); setReplyingTo(null); setEditingMessageId(null); setInputText(''); }, [activeChannel, activeTab]);
-    const updateLastRead = (key: string) => { setLastReadMap(prev => { const next = { ...prev, [key]: Date.now() }; localStorage.setItem(LAST_READ_KEY, JSON.stringify(next)); return next; }); };
+    
+    useEffect(() => { 
+        activeChannelRef.current = activeChannel; 
+        const key = getChannelKey(activeChannel.type, activeChannel.id); 
+        updateLastRead(key); 
+        setReplyingTo(null); 
+        setEditingMessageId(null); 
+        setInputText(''); 
+    }, [activeChannel, activeTab]);
+
+    const updateLastRead = (key: string) => { 
+        setLastReadMap(prev => { 
+            const next = { ...prev, [key]: Date.now() }; 
+            localStorage.setItem(LAST_READ_KEY, JSON.stringify(next)); 
+            return next; 
+        }); 
+    };
+    
     const getChannelKey = (type: 'public' | 'private' | 'group', id: string | null) => { if (type === 'public') return 'public'; return `${type}_${id}`; };
 
     const loadData = async () => {
-        const msgs = await getMessages();
-        const prevCount = lastMsgCountRef.current;
-        setMessages(msgs);
-        if (prevCount === 0 && msgs.length > 0) lastMsgCountRef.current = msgs.length;
-        if (prevCount > 0 && prevCount < msgs.length) {
-            const newMsgs = msgs.slice(prevCount);
-            const incoming = newMsgs.filter(m => m.senderUsername !== currentUser.username);
-            incoming.forEach(inc => {
-                const msgChannelKey = inc.groupId ? `group_${inc.groupId}` : inc.recipient ? `private_${inc.senderUsername}` : 'public';
-                const currentChannelKey = getChannelKey(activeChannelRef.current.type, activeChannelRef.current.id);
-                // Notification Logic
-                if (msgChannelKey !== currentChannelKey || document.hidden) { 
-                    const title = `پیام جدید از ${inc.sender}`; 
-                    // Handle Call Invites in Notification
-                    let body = inc.message || (inc.audioUrl ? 'پیام صوتی' : 'فایل ضمیمه'); 
-                    if (body.startsWith('CALL_INVITE|')) body = '📞 تماس ورودی...';
+        try {
+            const msgs = await getMessages();
+            const prevCount = lastMsgCountRef.current;
+            
+            // If data is valid array
+            if (Array.isArray(msgs)) {
+                setMessages(msgs);
+                
+                // NOTIFICATION LOGIC
+                // Only notify if we have MORE messages than before AND it's not the initial 0->N load
+                // (prevCount > 0 prevents notification bomb on page refresh)
+                if (prevCount > 0 && msgs.length > prevCount) {
+                    // Get only the NEW messages
+                    const newMsgs = msgs.slice(prevCount);
                     
-                    sendNotification(title, body); 
-                    onNotification(title, body); 
-                } else { 
-                    updateLastRead(currentChannelKey); 
+                    // Filter: Only messages NOT sent by me
+                    const incoming = newMsgs.filter(m => m.senderUsername !== currentUser.username);
+                    
+                    incoming.forEach(inc => {
+                        // Determine which channel this message belongs to
+                        const msgChannelKey = inc.groupId ? `group_${inc.groupId}` : inc.recipient ? `private_${inc.senderUsername}` : 'public';
+                        const currentChannelKey = getChannelKey(activeChannelRef.current.type, activeChannelRef.current.id);
+                        
+                        // Notify if:
+                        // 1. User is in a DIFFERENT channel
+                        // 2. OR User is in the SAME channel but window is hidden/minimized (document.hidden)
+                        // 3. OR it's a private message (always notify private unless strictly focused)
+                        
+                        const shouldNotify = (msgChannelKey !== currentChannelKey) || document.hidden;
+
+                        if (shouldNotify) { 
+                            const title = `پیام جدید از ${inc.sender}`; 
+                            let body = inc.message || (inc.audioUrl ? 'پیام صوتی' : 'فایل ضمیمه'); 
+                            if (body.startsWith('CALL_INVITE|')) body = '📞 تماس ورودی...';
+                            
+                            // Trigger the unified App Notification
+                            onNotification(title, body); 
+                        } else { 
+                            // If user is looking at this channel, update read receipt silently
+                            updateLastRead(currentChannelKey); 
+                        }
+                    });
                 }
-            });
+                // Update Ref
+                lastMsgCountRef.current = msgs.length;
+            }
+
+            const usrList = await getUsers(); setUsers(usrList.filter(u => u.username !== currentUser.username));
+            const grpList = await getGroups(); const isManager = [UserRole.ADMIN, UserRole.MANAGER, UserRole.CEO].includes(currentUser.role); setGroups(grpList.filter(g => isManager || g.members.includes(currentUser.username) || g.createdBy === currentUser.username));
+            const tskList = await getTasks(); setTasks(tskList);
+        } catch (e) {
+            console.error("Chat load error", e);
         }
-        lastMsgCountRef.current = msgs.length;
-        const usrList = await getUsers(); setUsers(usrList.filter(u => u.username !== currentUser.username));
-        const grpList = await getGroups(); const isManager = [UserRole.ADMIN, UserRole.MANAGER, UserRole.CEO].includes(currentUser.role); setGroups(grpList.filter(g => isManager || g.members.includes(currentUser.username) || g.createdBy === currentUser.username));
-        const tskList = await getTasks(); setTasks(tskList);
     };
 
     useEffect(() => { loadData(); const interval = setInterval(loadData, 3000); return () => clearInterval(interval); }, []);

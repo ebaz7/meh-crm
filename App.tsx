@@ -13,11 +13,11 @@ import CreateExitPermit from './components/CreateExitPermit';
 import ManageExitPermits from './components/ManageExitPermits'; 
 import WarehouseModule from './components/WarehouseModule';
 import SecurityModule from './components/SecurityModule'; 
-import PrintVoucher from './components/PrintVoucher'; // Import for Background Processing
+import PrintVoucher from './components/PrintVoucher'; 
 import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Bell, X } from 'lucide-react';
 import { sendNotification, isNotificationEnabledInApp } from './services/notificationService';
 import { generateUUID, parsePersianDate, formatCurrency } from './constants';
 import { apiCall } from './services/apiService';
@@ -32,6 +32,10 @@ function App() {
   const [manageOrdersInitialTab, setManageOrdersInitialTab] = useState<'current' | 'archive'>('current');
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState<any>(null); 
   const [exitPermitStatusFilter, setExitPermitStatusFilter] = useState<'pending' | null>(null);
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{show: boolean, title: string, message: string} | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
 
   // Background Job Queue
   const [backgroundJobs, setBackgroundJobs] = useState<{order: PaymentOrder, type: 'create' | 'approve'}[]>([]);
@@ -68,13 +72,11 @@ function App() {
       const job = backgroundJobs[0];
       const { order, type } = job;
 
-      // 1. Wait for DOM to render hidden component
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       const element = document.getElementById(`bg-print-voucher-${order.id}`);
       if (element) {
           try {
-              // 2. Generate Image
               // @ts-ignore
               const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
               const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -84,11 +86,9 @@ function App() {
               let caption = '';
 
               if (type === 'create') {
-                  // Send to Financial Manager
                   targetUser = usersList.find(u => u.role === UserRole.FINANCIAL && u.phoneNumber);
                   caption = `📢 *درخواست پرداخت جدید*\nشماره: ${order.trackingNumber}\nمبلغ: ${formatCurrency(order.totalAmount)}\nدرخواست کننده: ${order.requester}\n\nلطفا بررسی نمایید.`;
               } else if (type === 'approve') {
-                  // Determine next approver based on new status
                   if (order.status === OrderStatus.APPROVED_FINANCE) {
                       targetUser = usersList.find(u => u.role === UserRole.MANAGER && u.phoneNumber);
                       caption = `✅ *تایید مالی انجام شد*\nشماره: ${order.trackingNumber}\nمنتظر تایید مدیریت.`;
@@ -107,7 +107,6 @@ function App() {
                       message: caption, 
                       mediaData: { data: base64, mimeType: 'image/png', filename: `Order_${order.trackingNumber}.png` } 
                   });
-                  console.log(`Background Job Sent to ${targetUser.fullName}`);
               }
 
           } catch (e) {
@@ -115,7 +114,6 @@ function App() {
           }
       }
 
-      // Remove job from queue
       setBackgroundJobs(prev => prev.slice(1));
       processingJobRef.current = false;
   };
@@ -152,27 +150,35 @@ function App() {
 
   // --- SOUND EFFECT ---
   const playNotificationSound = () => {
-      // اگر تنظیمات روشن است، صدا هم پخش کن
-      if (isNotificationEnabledInApp()) {
-          try {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // صدای بیپ ملایم
-              audio.volume = 0.5;
-              audio.play().catch(e => console.log("Audio play failed (interaction needed):", e));
-          } catch (e) { console.error("Sound error", e); }
-      }
+      // Play sound regardless of preference to ensure user hears it if they are in app
+      // Browser policy might block this if no interaction, but we try anyway.
+      try {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); 
+          audio.volume = 1.0;
+          audio.play().catch(e => console.log("Audio play blocked by browser policy (interaction needed)"));
+      } catch (e) { }
   };
 
   // --- UNIFIED NOTIFICATION HANDLER ---
   const addAppNotification = (title: string, message: string) => { 
-      // 1. ALWAYS Add to In-App List (Bell Icon) - This is independent of system settings
+      // 1. In-App List (Bell Icon)
       setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); 
       
-      // 2. Play Sound (if allowed)
+      // 2. Sound
       playNotificationSound();
 
-      // 3. Trigger Browser Notification (System Level)
-      // This function handles permission checking internally
+      // 3. Show Toast (Floating Alert) - Guaranteed Visibility
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      setToast({ show: true, title, message });
+      toastTimeoutRef.current = setTimeout(() => setToast(null), 5000); // Hide after 5s
+
+      // 4. Browser Notification (System Push via Service Worker)
       sendNotification(title, message);
+  };
+
+  const closeToast = () => {
+      setToast(null);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
   };
 
   const loadData = async (silent = false) => {
@@ -205,20 +211,15 @@ function App() {
               }
           });
       });
-      if (alertCount > 0) { addAppNotification('هشدار سررسید چک', `${alertCount} چک در ۲ روز آینده سررسید می‌شوند. لطفا داشبورد را بررسی کنید.`); }
+      if (alertCount > 0) { addAppNotification('هشدار سررسید چک', `${alertCount} چک در ۲ روز آینده سررسید می‌شوند.`); }
   };
 
   const checkForNotifications = (newList: PaymentOrder[], user: User, lastCheckTime: number) => {
-     // If first load, don't spam notifications from history, only check very recent ones or skip
-     // However, logic here relies on updatedAt > lastCheckTime
      const newEvents = newList.filter(o => o.updatedAt && o.updatedAt > lastCheckTime);
      
      newEvents.forEach(newItem => {
         const status = newItem.status;
         const isAdmin = user.role === UserRole.ADMIN;
-        
-        // Don't notify if user made the change themselves (except admin debug)
-        // Note: In a real app we'd track 'updatedBy', here we assume role logic covers most
         
         if (isAdmin) {
              const isAdminSelfChange = (status === OrderStatus.PENDING && newItem.requester === user.fullName); 
@@ -271,10 +272,25 @@ function App() {
       onLogout={handleLogout} 
       notifications={notifications} 
       clearNotifications={() => setNotifications([])}
-      onAddNotification={addAppNotification} // Pass the unified handler
+      onAddNotification={addAppNotification} 
     >
       
-      {/* Hidden Render Area for Background Jobs */}
+      {/* Toast Notification Component */}
+      {toast && toast.show && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] bg-white border-l-4 border-blue-600 shadow-2xl rounded-lg p-4 flex items-start gap-4 min-w-[300px] max-w-sm animate-slide-down" onClick={closeToast}>
+              <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                  <Bell size={20} className="animate-pulse" />
+              </div>
+              <div className="flex-1">
+                  <h4 className="font-bold text-gray-800 text-sm mb-1">{toast.title}</h4>
+                  <p className="text-xs text-gray-600 leading-relaxed">{toast.message}</p>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); closeToast(); }} className="text-gray-400 hover:text-red-500">
+                  <X size={16} />
+              </button>
+          </div>
+      )}
+
       {backgroundJobs.length > 0 && (
           <div className="hidden-print-export" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
               <div id={`bg-print-voucher-${backgroundJobs[0].order.id}`}>
@@ -298,15 +314,10 @@ function App() {
                 />
             }
             {activeTab === 'create' && <CreateOrder onSuccess={handleOrderCreated} currentUser={currentUser} />}
-            
             {activeTab === 'manage' && <ManageOrders orders={orders} refreshData={() => loadData(true)} currentUser={currentUser} initialTab={manageOrdersInitialTab} settings={settings} statusFilter={dashboardStatusFilter} />}
-            
             {activeTab === 'create-exit' && <CreateExitPermit onSuccess={() => setActiveTab('manage-exit')} currentUser={currentUser} />}
-            
             {activeTab === 'manage-exit' && <ManageExitPermits currentUser={currentUser} settings={settings} statusFilter={exitPermitStatusFilter} />}
-
             {activeTab === 'warehouse' && <WarehouseModule currentUser={currentUser} settings={settings} initialTab={warehouseInitialTab} />}
-            
             {activeTab === 'trade' && <TradeModule currentUser={currentUser} />}
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
