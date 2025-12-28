@@ -15,9 +15,10 @@ interface LayoutProps {
   onLogout: () => void;
   notifications: AppNotification[];
   clearNotifications: () => void;
+  onAddNotification: (title: string, message: string) => void; // New Prop
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, currentUser, onLogout, notifications, clearNotifications }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, currentUser, onLogout, notifications, clearNotifications, onAddNotification }) => {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -160,7 +161,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       if (granted) { 
           setNotifEnabled(true); 
           setNotificationPreference(true); 
-          sendNotification("سیستم دستور پرداخت", "نوتیفیکیشن‌ها با موفقیت فعال شدند."); 
+          // Use the Unified Handler
+          onAddNotification("سیستم دستور پرداخت", "نوتیفیکیشن‌ها با موفقیت فعال شدند."); 
       } else {
           setNotifEnabled(false);
           // Check why it failed
@@ -173,14 +175,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   };
 
   const handleTestNotification = async () => {
-      try {
-          if (Notification.permission !== 'granted') {
-              alert('مجوز نوتیفیکیشن داده نشده است.');
-              return;
-          }
-          await sendNotification("تست سیستم", "این یک پیام آزمایشی است.");
-      } catch (e: any) {
-          alert('خطا در ارسال پیام: ' + e.message);
+      // Use the unified handler passed from App.tsx
+      // This ensures both UI list (Bell) and Browser Push are triggered simultaneously
+      onAddNotification("تست سیستم", `این یک پیام آزمایشی است (${new Date().toLocaleTimeString('fa-IR')}).`);
+      
+      // Feedback if permission is missing
+      if (Notification.permission !== 'granted') {
+          console.warn("Notification permission missing, only UI alert added.");
       }
   };
   

@@ -150,7 +150,14 @@ function App() {
     }
   }, [currentUser]);
 
-  const addAppNotification = (title: string, message: string) => { setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); };
+  // Unified Notification Handler
+  const addAppNotification = (title: string, message: string) => { 
+      // 1. Add to In-App List (Bell Icon)
+      setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); 
+      
+      // 2. Trigger Browser Notification
+      sendNotification(title, message);
+  };
 
   const loadData = async (silent = false) => {
     if (!currentUser) return;
@@ -233,7 +240,15 @@ function App() {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); if(t!=='warehouse') setWarehouseInitialTab('dashboard'); if(t!=='manage-exit') setExitPermitStatusFilter(null); if(t!=='manage') setDashboardStatusFilter(null); }} currentUser={currentUser} onLogout={handleLogout} notifications={notifications} clearNotifications={() => setNotifications([])}>
+    <Layout 
+      activeTab={activeTab} 
+      setActiveTab={(t) => { setActiveTab(t); if(t!=='warehouse') setWarehouseInitialTab('dashboard'); if(t!=='manage-exit') setExitPermitStatusFilter(null); if(t!=='manage') setDashboardStatusFilter(null); }} 
+      currentUser={currentUser} 
+      onLogout={handleLogout} 
+      notifications={notifications} 
+      clearNotifications={() => setNotifications([])}
+      onAddNotification={addAppNotification} // Pass the unified handler
+    >
       
       {/* Hidden Render Area for Background Jobs */}
       {backgroundJobs.length > 0 && (
