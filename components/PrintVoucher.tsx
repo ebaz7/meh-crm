@@ -186,15 +186,14 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
 
       if (isBankForm && dynamicTemplate) {
           // Use explicit dimensions for bank forms to ensure exact match
-          // We convert mm to string for the API
           opts.width = `${dynamicTemplate.width}mm`;
           opts.height = `${dynamicTemplate.height}mm`;
-          // Orientation fallback if needed
-          opts.orientation = dynamicTemplate.width > dynamicTemplate.height ? 'landscape' : 'portrait';
       } else {
-          // Default Receipt is A5 Landscape
-          opts.format = 'A5';
-          opts.orientation = 'landscape';
+          // SMART DETECTION: Do not set format!
+          // The CSS injected by useEffect (@page { size: A5 landscape }) 
+          // will guide the PDF generator.
+          // opts.format = 'A5'; // REMOVED
+          // opts.orientation = 'landscape'; // REMOVED
       }
 
       await generatePdf(opts);
@@ -458,6 +457,7 @@ const PrintVoucher: React.FC<PrintVoucherProps> = ({ order, onClose, settings, o
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-start p-4 animate-fade-in safe-pb">
       <div className="w-full max-w-4xl mx-auto z-[210] no-print mb-4 shrink-0">
          <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col gap-3 w-full border border-gray-200">
+             {/* ... Header and Action Buttons (Same as before) ... */}
              <div className="flex items-center justify-between border-b pb-2 mb-1">
                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
                      {isRevocationProcess ? <span className="text-red-600 flex items-center gap-1 animate-pulse"><AlertTriangle size={16}/> چرخه ابطال</span> : 'جزئیات و عملیات'}

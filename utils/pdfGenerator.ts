@@ -18,7 +18,7 @@ export interface PdfOptions {
 export const generatePdf = async ({
     elementId,
     filename,
-    format = 'A4',
+    format, // No default to allow Smart Detection via CSS
     orientation = 'portrait',
     width,
     height,
@@ -88,18 +88,21 @@ export const generatePdf = async ({
         `;
 
         // 3. Send to Backend
+        const body: any = {
+            html: fullHtml,
+            landscape: orientation === 'landscape',
+            width,
+            height
+        };
+        
+        if (format) body.format = format;
+
         const response = await fetch('/api/render-pdf', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                html: fullHtml,
-                landscape: orientation === 'landscape',
-                format: format,
-                width: width,
-                height: height
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
