@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw, Smartphone, MonitorDown } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw, Smartphone, MonitorDown, BellRing, Smartphone as MobileIcon } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
 import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
@@ -33,10 +33,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
 
   // Profile/Password Modal State
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [telegramChatId, setTelegramChatId] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  
+  // Local Profile Form State
+  const [profileForm, setProfileForm] = useState({
+      password: '',
+      confirmPassword: '',
+      telegramChatId: '',
+      phoneNumber: '',
+      receiveNotifications: true // WhatsApp notifications toggle
+  });
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,10 +58,22 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
+  // Initialize Profile Form when Modal Opens
   useEffect(() => {
-    setTelegramChatId(currentUser.telegramChatId || '');
-    setPhoneNumber(currentUser.phoneNumber || '');
-  }, [currentUser]);
+    if (showProfileModal && currentUser) {
+        setProfileForm({
+            password: '',
+            confirmPassword: '',
+            telegramChatId: currentUser.telegramChatId || '',
+            phoneNumber: currentUser.phoneNumber || '',
+            receiveNotifications: currentUser.receiveNotifications !== false // Default to true if undefined
+        });
+    }
+  }, [showProfileModal, currentUser]);
+
+  useEffect(() => {
+    setNotifEnabled(isNotificationEnabledInApp());
+  }, []);
 
   // Version Check
   useEffect(() => {
@@ -91,7 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
             if (link) { link.href = iconUrl; } else { const newLink = document.createElement('link'); newLink.rel = 'apple-touch-icon'; newLink.href = iconUrl; document.head.appendChild(newLink); }
         }
     });
-    setNotifEnabled(isNotificationEnabledInApp());
+    
     const handleClickOutside = (event: MouseEvent) => { 
         if (notifRef.current && !notifRef.current.contains(event.target as Node)) setShowNotifDropdown(false); 
         if (mobileNotifRef.current && !mobileNotifRef.current.contains(event.target as Node)) setShowNotifDropdown(false);
@@ -118,7 +136,26 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   }, []);
 
   const handleLogout = () => { logout(); onLogout(); };
-  const handleToggleNotif = async () => { if (!isSecure) { alert("⚠️ مرورگرها اجازه فعال‌سازی نوتیفیکیشن در شبکه غیرامن (HTTP) را نمی‌دهند."); return; } if (notifEnabled) { setNotifEnabled(false); setNotificationPreference(false); } else { const granted = await requestNotificationPermission(); if (granted) { setNotifEnabled(true); setNotificationPreference(true); new Notification("سیستم دستور پرداخت", { body: "نوتیفیکیشن‌ها فعال شدند.", dir: 'rtl' }); } } };
+  
+  const handleToggleNotif = async () => { 
+      if (!isSecure) { 
+          alert("⚠️ مرورگرها اجازه فعال‌سازی نوتیفیکیشن در شبکه غیرامن (HTTP) را نمی‌دهند."); 
+          return; 
+      } 
+      if (notifEnabled) { 
+          setNotifEnabled(false); 
+          setNotificationPreference(false); 
+      } else { 
+          const granted = await requestNotificationPermission(); 
+          if (granted) { 
+              setNotifEnabled(true); 
+              setNotificationPreference(true); 
+              new Notification("سیستم دستور پرداخت", { body: "نوتیفیکیشن‌ها فعال شدند.", dir: 'rtl' }); 
+          } else {
+              alert("دسترسی به نوتیفیکیشن توسط مرورگر مسدود شده است.");
+          }
+      } 
+  };
   
   const handleInstallClick = () => { 
       if (isIOS) {
@@ -133,8 +170,63 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); const updates: Partial<User> = {}; if (newPassword) { if (newPassword !== confirmPassword) { alert('رمز عبور و تکرار آن مطابقت ندارند.'); return; } if (newPassword.length < 4) { alert('رمز عبور باید حداقل ۴ کاراکتر باشد.'); return; } updates.password = newPassword; } if (telegramChatId !== currentUser.telegramChatId) { updates.telegramChatId = telegramChatId; } if (phoneNumber !== currentUser.phoneNumber) { updates.phoneNumber = phoneNumber; } try { if (Object.keys(updates).length > 0) { await updateUser({ ...currentUser, ...updates }); alert('اطلاعات با موفقیت بروزرسانی شد.'); setNewPassword(''); setConfirmPassword(''); } setShowProfileModal(false); } catch (err) { alert('خطا در بروزرسانی اطلاعات'); } };
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 10 * 1024 * 1024) { alert('حجم تصویر نباید بیشتر از 10 مگابایت باشد.'); return; } setUploadingAvatar(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const result = await uploadFile(file.name, base64); await updateUser({ ...currentUser, avatar: result.url }); window.location.reload(); } catch (error) { alert('خطا در آپلود تصویر'); } finally { setUploadingAvatar(false); } }; reader.readAsDataURL(file); };
+  const handleUpdateProfile = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      const updates: Partial<User> = {}; 
+      
+      // Password Check
+      if (profileForm.password) { 
+          if (profileForm.password !== profileForm.confirmPassword) { 
+              alert('رمز عبور و تکرار آن مطابقت ندارند.'); 
+              return; 
+          } 
+          if (profileForm.password.length < 4) { 
+              alert('رمز عبور باید حداقل ۴ کاراکتر باشد.'); 
+              return; 
+          } 
+          updates.password = profileForm.password; 
+      } 
+      
+      // Update Fields
+      updates.telegramChatId = profileForm.telegramChatId;
+      updates.phoneNumber = profileForm.phoneNumber;
+      updates.receiveNotifications = profileForm.receiveNotifications;
+
+      try { 
+          await updateUser({ ...currentUser, ...updates }); 
+          alert('اطلاعات با موفقیت بروزرسانی شد.'); 
+          setProfileForm(prev => ({...prev, password: '', confirmPassword: ''}));
+          setShowProfileModal(false); 
+          // Reload page to reflect changes in context if needed, or rely on parent update
+          window.location.reload();
+      } catch (err) { 
+          alert('خطا در بروزرسانی اطلاعات'); 
+      } 
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0]; 
+      if (!file) return; 
+      if (file.size > 10 * 1024 * 1024) { 
+          alert('حجم تصویر نباید بیشتر از 10 مگابایت باشد.'); 
+          return; 
+      } 
+      setUploadingAvatar(true); 
+      const reader = new FileReader(); 
+      reader.onload = async (ev) => { 
+          const base64 = ev.target?.result as string; 
+          try { 
+              const result = await uploadFile(file.name, base64); 
+              await updateUser({ ...currentUser, avatar: result.url }); 
+              window.location.reload(); 
+          } catch (error) { 
+              alert('خطا در آپلود تصویر'); 
+          } finally { 
+              setUploadingAvatar(false); 
+          } 
+      }; 
+      reader.readAsDataURL(file); 
+  };
 
   const handleStartRecording = async () => { /* ... Voice Logic ... */ };
   const handleStopRecording = () => { /* ... Voice Logic ... */ };
@@ -206,7 +298,112 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       </div>
 
       {showVoiceModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center relative overflow-hidden"><button onClick={() => { setShowVoiceModal(false); setVoiceResult(null); setIsRecording(false); }} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={20}/></button><h3 className="text-xl font-black text-gray-800 mb-2">دستیار صوتی هوشمند</h3><p className="text-xs text-gray-500 mb-6">دستور خود را بگویید (مثلاً: ثبت ۵ میلیون برای علی...)</p><div className="flex justify-center mb-6"><button onClick={isRecording ? handleStopRecording : handleStartRecording} className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isRecording ? 'bg-red-100 text-red-600 scale-110 shadow-[0_0_0_10px_rgba(239,68,68,0.2)]' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>{isRecording ? <StopCircle size={40} className="animate-pulse"/> : <Mic size={40}/>}</button></div>{processingVoice && (<div className="flex items-center justify-center gap-2 text-blue-600 text-sm font-bold animate-pulse mb-4"><Loader2 size={16} className="animate-spin"/> در حال پردازش...</div>)}{voiceResult && (<div className={`p-4 rounded-xl text-sm text-right mb-4 ${voiceResult.includes("ثبت شد") ? 'bg-green-50 text-green-800' : 'bg-gray-50'}`}><p className="font-bold mb-1">پاسخ:</p><p className="whitespace-pre-wrap">{voiceResult}</p></div>)}</div></div>)}
-      {showProfileModal && (<div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">تنظیمات کاربری</h3><button onClick={() => setShowProfileModal(false)}><X size={20} className="text-gray-400"/></button></div><form onSubmit={handleUpdateProfile} className="space-y-4 pt-2"><div><label className="text-sm block mb-1">رمز عبور جدید</label><input type="password" className="w-full border rounded-lg p-2 text-left dir-ltr" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></div><div className="flex justify-end pt-2"><button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">ذخیره</button></div></form></div></div>)}
+      
+      {/* Enhanced User Profile Modal */}
+      {showProfileModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Modal Header */}
+                  <div className="bg-slate-800 p-6 text-white flex justify-between items-start">
+                      <div>
+                          <h3 className="font-bold text-lg mb-1">تنظیمات کاربری</h3>
+                          <p className="text-xs text-slate-400">{currentUser.fullName} ({currentUser.role})</p>
+                      </div>
+                      <button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                      
+                      {/* Avatar Section */}
+                      <div className="flex flex-col items-center mb-6 -mt-12">
+                          <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+                              <div className="w-24 h-24 rounded-full border-4 border-white bg-slate-200 overflow-hidden shadow-lg">
+                                  {currentUser.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-6 text-slate-400" />}
+                              </div>
+                              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Camera className="text-white" size={28} />
+                              </div>
+                              {uploadingAvatar && <div className="absolute inset-0 bg-white/80 rounded-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600"/></div>}
+                          </div>
+                          <button onClick={() => avatarInputRef.current?.click()} className="text-xs text-blue-600 font-bold mt-2 hover:underline">تغییر تصویر پروفایل</button>
+                          <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
+                      </div>
+
+                      <form onSubmit={handleUpdateProfile} className="space-y-5">
+                          {/* Contact Info */}
+                          <div className="space-y-3">
+                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Phone size={14}/> اطلاعات تماس</h4>
+                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
+                                  <div>
+                                      <label className="text-xs font-bold text-gray-700 block mb-1">شماره همراه (واتساپ)</label>
+                                      <input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="98912..." value={profileForm.phoneNumber} onChange={e => setProfileForm({...profileForm, phoneNumber: e.target.value})} />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-gray-700 block mb-1">آیدی تلگرام (عدد)</label>
+                                      <input className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Chat ID" value={profileForm.telegramChatId} onChange={e => setProfileForm({...profileForm, telegramChatId: e.target.value})} />
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* Security */}
+                          <div className="space-y-3">
+                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><KeyRound size={14}/> امنیت</h4>
+                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
+                                  <div>
+                                      <label className="text-xs font-bold text-gray-700 block mb-1">رمز عبور جدید</label>
+                                      <input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-gray-700 block mb-1">تکرار رمز عبور</label>
+                                      <input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.confirmPassword} onChange={e => setProfileForm({...profileForm, confirmPassword: e.target.value})} />
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* Notifications */}
+                          <div className="space-y-3">
+                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><BellRing size={14}/> اعلان‌ها</h4>
+                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
+                                  {/* PWA Notifications */}
+                                  <div className="flex items-center justify-between">
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold text-gray-800">نوتیفیکیشن مرورگر (PWA)</span>
+                                          <span className="text-[10px] text-gray-500">دریافت پیام روی گوشی/سیستم</span>
+                                      </div>
+                                      <button type="button" onClick={handleToggleNotif} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                          {notifEnabled ? 'فعال است' : 'غیرفعال'}
+                                      </button>
+                                  </div>
+                                  
+                                  <hr className="border-gray-100"/>
+
+                                  {/* WhatsApp Toggle */}
+                                  <label className="flex items-center justify-between cursor-pointer">
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold text-gray-800">پیام‌های واتساپ</span>
+                                          <span className="text-[10px] text-gray-500">دریافت گزارشات در واتساپ شخصی</span>
+                                      </div>
+                                      <div className="relative">
+                                          <input type="checkbox" className="sr-only" checked={profileForm.receiveNotifications} onChange={e => setProfileForm({...profileForm, receiveNotifications: e.target.checked})} />
+                                          <div className={`block w-10 h-6 rounded-full transition-colors ${profileForm.receiveNotifications ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                          <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${profileForm.receiveNotifications ? 'transform translate-x-4' : ''}`}></div>
+                                      </div>
+                                  </label>
+                              </div>
+                          </div>
+
+                          {/* Submit */}
+                          <div className="pt-2">
+                              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2">
+                                  <Save size={18} /> ذخیره تغییرات
+                              </button>
+                          </div>
+                      </form>
+                  </div>
+              </div>
+          </div>
+      )}
       
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-slate-800 text-white flex-shrink-0 hidden md:flex flex-col no-print shadow-xl relative h-screen sticky top-0">
