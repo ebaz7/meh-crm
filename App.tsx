@@ -268,7 +268,7 @@ function App() {
 
             {activeTab === 'warehouse' && <WarehouseModule currentUser={currentUser} settings={settings} initialTab={warehouseInitialTab} />}
             
-            {activeTab === 'trade' && <TradeModule currentUser={currentUser} settings={settings} />}
+            {activeTab === 'trade' && <TradeModule currentUser={currentUser} />}
             {activeTab === 'users' && <ManageUsers />}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'security' && <SecurityModule currentUser={currentUser} />}
