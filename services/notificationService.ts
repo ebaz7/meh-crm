@@ -16,84 +16,62 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       return false;
   }
 
-  // اگر پروتکل امن نیست و لوکال هاست هم نیست، هشدار بده
-  if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      alert("⚠️ توجه: مرورگرها اجازه نمایش نوتیفیکیشن روی آدرس‌های غیرامن (HTTP) را نمی‌دهند. لطفاً از HTTPS یا localhost استفاده کنید.");
-      return false;
-  }
-
+  // درخواست مجوز
   try {
-      // درخواست مجوز
       const permission = await Notification.requestPermission();
-      console.log("Notification permission result:", permission);
       return permission === "granted";
   } catch (e) {
       console.error("Permission request error:", e);
-      // تلاش دوم برای مرورگرهای قدیمی
-      return new Promise((resolve) => {
-          Notification.requestPermission((perm) => {
-              resolve(perm === "granted");
-          });
-      });
+      return false;
   }
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  // 1. اگر کاربر کلاً دکمه را خاموش کرده
+  // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
   if (!isNotificationEnabledInApp()) {
-      console.log("Notif disabled by user pref.");
+      console.log("System notification is disabled by user preference.");
       return;
   }
 
-  // 2. اگر مجوز نداریم
+  // 2. اگر مجوز مرورگر داده نشده، کاری نکن
   if (Notification.permission !== "granted") {
-      console.warn("Notif permission not granted:", Notification.permission);
+      console.log("System notification permission not granted.");
       return;
   }
 
   const options: any = {
       body: body,
-      icon: '/pwa-192x192.png',
+      icon: '/pwa-192x192.png', // مطمئن شوید این فایل وجود دارد
       badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
       tag: 'payment-sys-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
       renotify: true,
-      requireInteraction: false, // بستن خودکار بعد از چند ثانیه
-      silent: false
+      requireInteraction: true, // پیام بماند تا کاربر ببندد
+      data: { url: window.location.href }
   };
 
   try {
-      // تلاش اول: روش استاندارد (سریعترین روش برای دسکتاپ و تست)
-      const notification = new Notification(title, options);
-      
-      // پخش صدا به صورت دستی اگر مرورگر اجازه داد
-      try {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.volume = 0.5;
-          audio.play().catch(() => {}); // خطا را نادیده بگیر (نیاز به تعامل کاربر)
-      } catch (e) {}
+      // روش اول: سرویس ورکر (برای موبایل و PWA عالی است)
+      if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          if (registration) {
+              await registration.showNotification(title, options);
+              return;
+          }
+      }
+  } catch (e) {
+      console.warn("SW Notification failed, trying fallback...", e);
+  }
 
+  // روش دوم: روش سنتی (برای دسکتاپ اگر سرویس ورکر در دسترس نباشد)
+  try {
+      const notification = new Notification(title, options);
       notification.onclick = function() {
           window.focus();
           notification.close();
       };
-      
-      console.log("Notification sent via Standard API.");
   } catch (e) {
-      console.warn("Standard Notification failed, trying Service Worker...", e);
-      
-      // تلاش دوم: سرویس ورکر (برای موبایل و PWA)
-      if ('serviceWorker' in navigator) {
-          try {
-              const registration = await navigator.serviceWorker.ready;
-              if (registration) {
-                  await registration.showNotification(title, options);
-                  console.log("Notification sent via Service Worker.");
-              }
-          } catch (swError) {
-              console.error("SW Notification failed:", swError);
-          }
-      }
+      console.error("Notification API failed:", e);
   }
 };
