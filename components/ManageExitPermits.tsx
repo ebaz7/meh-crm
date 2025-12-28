@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings } from '../types';
-import { getExitPermits, updateExitPermitStatus, deleteExitPermit } from '../services/storageService';
+import { ExitPermit, ExitPermitStatus, User, UserRole, SystemSettings, ExitPermitItem } from '../types';
+import { getExitPermits, updateExitPermitStatus, deleteExitPermit, editExitPermit } from '../services/storageService';
 import { getRolePermissions, getUsers } from '../services/authService'; 
 import { formatDate } from '../constants';
 import { Eye, Trash2, Search, CheckCircle, Truck, XCircle, Edit, Clock, Loader2, PackageCheck, RefreshCw, Share2, CheckCheck, AlertTriangle } from 'lucide-react';
 import PrintExitPermit from './PrintExitPermit';
 import EditExitPermitModal from './EditExitPermitModal';
+import WarehouseFinalizeModal from './WarehouseFinalizeModal'; // IMPORT NEW MODAL
 import { apiCall } from '../services/apiService'; 
 
 interface Props {
@@ -29,6 +30,9 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
 
   const [permitForAutoSend, setPermitForAutoSend] = useState<ExitPermit | null>(null);
   const [autoSendWatermark, setAutoSendWatermark] = useState<'DELETED' | 'EDITED' | null>(null);
+  
+  // Warehouse Finalize State
+  const [warehouseFinalizePermit, setWarehouseFinalizePermit] = useState<ExitPermit | null>(null);
   
   // Calculate permissions with fallbacks to ensure buttons show even if settings lag
   const permissions = getRolePermissions(currentUser.role, settings || null);
@@ -126,8 +130,50 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       return false;
   };
 
+  // --- WAREHOUSE FINALIZATION HANDLER ---
+  const handleWarehouseConfirm = async (updatedItems: ExitPermitItem[]) => {
+      if (!warehouseFinalizePermit) return;
+      const id = warehouseFinalizePermit.id;
+      
+      // Calculate totals for legacy fields (optional but good for consistency)
+      const totalWeight = updatedItems.reduce((acc, i) => acc + (Number(i.weight) || 0), 0);
+      const totalCartons = updatedItems.reduce((acc, i) => acc + (Number(i.cartonCount) || 0), 0);
+      
+      const updatedPermitData = {
+          items: updatedItems,
+          weight: totalWeight,
+          cartonCount: totalCartons
+      };
+
+      try {
+          // 1. Update Database with new items FIRST
+          // We use editExitPermit to save the data changes
+          await editExitPermit({ 
+              ...warehouseFinalizePermit, 
+              ...updatedPermitData,
+              status: warehouseFinalizePermit.status // Keep status for now, handleApproveAction will change it
+          });
+          
+          setWarehouseFinalizePermit(null);
+          
+          // 2. Proceed to standard Approval Flow, passing the new data to be used in the image generation
+          // This ensures the image sent to Security contains the updated weights
+          handleApproveAction(id, ExitPermitStatus.PENDING_WAREHOUSE, updatedPermitData);
+
+      } catch (e) {
+          alert('خطا در ثبت اطلاعات انبار');
+      }
+  };
+
   // --- APPROVAL FLOW HANDLER ---
-  const handleApproveAction = async (id: string, currentStatus: ExitPermitStatus) => {
+  const handleApproveAction = async (id: string, currentStatus: ExitPermitStatus, dataOverride?: any) => {
+      // Intercept Warehouse Approval to show Modal first
+      if (currentStatus === ExitPermitStatus.PENDING_WAREHOUSE && !dataOverride) {
+          const p = permits.find(x => x.id === id);
+          if (p) setWarehouseFinalizePermit(p);
+          return;
+      }
+
       let nextStatus = currentStatus;
       let extra: any = {};
 
@@ -150,7 +196,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
       const permitToApprove = permits.find(p => p.id === id);
       if (!permitToApprove) return;
 
-      if(window.confirm('آیا تایید می‌کنید؟')) {
+      if(dataOverride || window.confirm('آیا تایید می‌کنید؟')) {
           setIsProcessingId(id); // LOCK UI
           setAutoSendWatermark(null); // No watermark for approvals
           try {
@@ -158,7 +204,8 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
               await updateExitPermitStatus(id, nextStatus, currentUser, extra);
               
               // 2. Prepare Mock Object for Rendering
-              const updatedPermitMock = { ...permitToApprove, status: nextStatus, ...extra };
+              // Merge dataOverride (e.g. updated items from warehouse) into the mock object
+              const updatedPermitMock = { ...permitToApprove, ...dataOverride, status: nextStatus, ...extra };
               
               // Simulate Signatures for the generated image
               if (nextStatus === ExitPermitStatus.PENDING_FACTORY) updatedPermitMock.approverCeo = currentUser.fullName;
@@ -239,7 +286,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                       }
                       // CASE C: Warehouse Approved -> Goes to Security
                       else if (nextStatus === ExitPermitStatus.PENDING_SECURITY) {
-                          const caption = generateFullCaption(updatedPermitMock, "📦 *تایید سرپرست انبار انجام شد* (ارسال به انتظامات)");
+                          const caption = generateFullCaption(updatedPermitMock, "📦 *تایید انبار و توزین نهایی انجام شد* (ارسال به انتظامات)");
                           const securityUsers = users.filter(u => (u.role === UserRole.SECURITY_GUARD || u.role === UserRole.SECURITY_HEAD) && u.phoneNumber);
                           for (const sec of securityUsers) {
                             try { await apiCall('/send-whatsapp', 'POST', { number: sec.phoneNumber!, message: caption, mediaData: { data: base64, mimeType: 'image/png' } }); } catch (err) {}
@@ -474,6 +521,16 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                 <PrintExitPermit permit={permitForAutoSend} onClose={()=>{}} embed settings={settings} watermark={autoSendWatermark} />
             </div>
         )}
+
+        {/* WAREHOUSE FINALIZE MODAL */}
+        {warehouseFinalizePermit && (
+            <WarehouseFinalizeModal 
+                permit={warehouseFinalizePermit} 
+                onClose={() => setWarehouseFinalizePermit(null)} 
+                onConfirm={handleWarehouseConfirm} 
+            />
+        )}
+
         <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Truck size={24} className="text-orange-600"/> کارتابل خروج بار</h2>
             <div className="flex justify-between items-center gap-2">
@@ -528,7 +585,7 @@ const ManageExitPermits: React.FC<Props> = ({ currentUser, settings, statusFilte
                                                 </div>
                                             )}
                                             {p.status !== ExitPermitStatus.PENDING_SECURITY && p.status !== ExitPermitStatus.EXITED && canApprove(p) && (
-                                                <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title="تایید مرحله بعدی"><CheckCircle size={16}/></button>
+                                                <button onClick={() => handleApproveAction(p.id, p.status)} className="bg-green-100 text-green-600 p-2 rounded-lg hover:bg-green-200" title={p.status === ExitPermitStatus.PENDING_WAREHOUSE ? "تایید نهایی انبار" : "تایید مرحله بعدی"}><CheckCircle size={16}/></button>
                                             )}
                                         </>
                                     )}
