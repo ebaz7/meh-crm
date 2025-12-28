@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LayoutDashboard, PlusCircle, ListChecks, FileText, Users, LogOut, User as UserIcon, Settings, Bell, BellOff, MessageSquare, X, Check, Container, KeyRound, Save, Upload, Camera, Download, Share, ChevronRight, Home, Send, BrainCircuit, Mic, StopCircle, Loader2, Truck, ClipboardList, Package, Printer, CheckSquare, ShieldCheck, Shield, Phone, RefreshCw, Smartphone, MonitorDown, BellRing, Smartphone as MobileIcon } from 'lucide-react';
 import { User, UserRole, AppNotification, SystemSettings } from '../types';
 import { logout, hasPermission, getRolePermissions, updateUser } from '../services/authService';
-import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp } from '../services/notificationService';
+import { requestNotificationPermission, setNotificationPreference, isNotificationEnabledInApp, sendNotification } from '../services/notificationService';
 import { getSettings, uploadFile } from '../services/storageService';
 import { apiCall } from '../services/apiService';
 
@@ -72,7 +72,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   }, [showProfileModal, currentUser]);
 
   useEffect(() => {
-    setNotifEnabled(isNotificationEnabledInApp());
+    // Check permission status on load
+    if (Notification.permission === 'granted' && isNotificationEnabledInApp()) {
+        setNotifEnabled(true);
+    } else {
+        setNotifEnabled(false);
+    }
   }, []);
 
   // Version Check
@@ -142,19 +147,33 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
           alert("⚠️ مرورگرها اجازه فعال‌سازی نوتیفیکیشن در شبکه غیرامن (HTTP) را نمی‌دهند."); 
           return; 
       } 
+      
+      // If already enabled, disable it
       if (notifEnabled) { 
           setNotifEnabled(false); 
           setNotificationPreference(false); 
-      } else { 
-          const granted = await requestNotificationPermission(); 
-          if (granted) { 
-              setNotifEnabled(true); 
-              setNotificationPreference(true); 
-              new Notification("سیستم دستور پرداخت", { body: "نوتیفیکیشن‌ها فعال شدند.", dir: 'rtl' }); 
+          return;
+      } 
+
+      // Request Permission
+      const granted = await requestNotificationPermission(); 
+      if (granted) { 
+          setNotifEnabled(true); 
+          setNotificationPreference(true); 
+          sendNotification("سیستم دستور پرداخت", "نوتیفیکیشن‌ها با موفقیت فعال شدند."); 
+      } else {
+          setNotifEnabled(false);
+          // Check why it failed
+          if (Notification.permission === 'denied') {
+              alert("دسترسی به نوتیفیکیشن توسط شما مسدود شده است. لطفا از تنظیمات مرورگر/گوشی آن را فعال کنید.");
           } else {
-              alert("دسترسی به نوتیفیکیشن توسط مرورگر مسدود شده است.");
+              alert("امکان فعال‌سازی وجود ندارد. در آیفون، ابتدا باید برنامه را به صفحه اصلی (Home Screen) اضافه کنید.");
           }
       } 
+  };
+
+  const handleTestNotification = () => {
+      sendNotification("تست سیستم", "این یک پیام آزمایشی است.");
   };
   
   const handleInstallClick = () => { 
@@ -331,6 +350,49 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
                       </div>
 
                       <form onSubmit={handleUpdateProfile} className="space-y-5">
+                          {/* Notifications */}
+                          <div className="space-y-3">
+                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><BellRing size={14}/> اعلان‌ها</h4>
+                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
+                                  {/* PWA Notifications */}
+                                  <div className="flex items-center justify-between">
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold text-gray-800">نوتیفیکیشن مرورگر (PWA)</span>
+                                          <span className="text-[10px] text-gray-500">دریافت پیام روی گوشی/سیستم</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          {notifEnabled && (
+                                              <button type="button" onClick={handleTestNotification} className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100">تست</button>
+                                          )}
+                                          <button type="button" onClick={handleToggleNotif} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                              {notifEnabled ? 'فعال است' : 'غیرفعال'}
+                                          </button>
+                                      </div>
+                                  </div>
+                                  {/* iOS Hint */}
+                                  {isIOS && !isStandalone && (
+                                      <div className="text-[10px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                                          نکته: در آیفون، برای دریافت نوتیفیکیشن باید ابتدا برنامه را با دکمه <span className="font-bold">Add to Home Screen</span> نصب کنید.
+                                      </div>
+                                  )}
+                                  
+                                  <hr className="border-gray-100"/>
+
+                                  {/* WhatsApp Toggle */}
+                                  <label className="flex items-center justify-between cursor-pointer">
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold text-gray-800">پیام‌های واتساپ</span>
+                                          <span className="text-[10px] text-gray-500">دریافت گزارشات در واتساپ شخصی</span>
+                                      </div>
+                                      <div className="relative">
+                                          <input type="checkbox" className="sr-only" checked={profileForm.receiveNotifications} onChange={e => setProfileForm({...profileForm, receiveNotifications: e.target.checked})} />
+                                          <div className={`block w-10 h-6 rounded-full transition-colors ${profileForm.receiveNotifications ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                          <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${profileForm.receiveNotifications ? 'transform translate-x-4' : ''}`}></div>
+                                      </div>
+                                  </label>
+                              </div>
+                          </div>
+
                           {/* Contact Info */}
                           <div className="space-y-3">
                               <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Phone size={14}/> اطلاعات تماس</h4>
@@ -358,38 +420,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
                                       <label className="text-xs font-bold text-gray-700 block mb-1">تکرار رمز عبور</label>
                                       <input type="password" className="w-full border rounded-lg p-2.5 text-sm dir-ltr text-left focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******" value={profileForm.confirmPassword} onChange={e => setProfileForm({...profileForm, confirmPassword: e.target.value})} />
                                   </div>
-                              </div>
-                          </div>
-
-                          {/* Notifications */}
-                          <div className="space-y-3">
-                              <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><BellRing size={14}/> اعلان‌ها</h4>
-                              <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-4">
-                                  {/* PWA Notifications */}
-                                  <div className="flex items-center justify-between">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold text-gray-800">نوتیفیکیشن مرورگر (PWA)</span>
-                                          <span className="text-[10px] text-gray-500">دریافت پیام روی گوشی/سیستم</span>
-                                      </div>
-                                      <button type="button" onClick={handleToggleNotif} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${notifEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                          {notifEnabled ? 'فعال است' : 'غیرفعال'}
-                                      </button>
-                                  </div>
-                                  
-                                  <hr className="border-gray-100"/>
-
-                                  {/* WhatsApp Toggle */}
-                                  <label className="flex items-center justify-between cursor-pointer">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold text-gray-800">پیام‌های واتساپ</span>
-                                          <span className="text-[10px] text-gray-500">دریافت گزارشات در واتساپ شخصی</span>
-                                      </div>
-                                      <div className="relative">
-                                          <input type="checkbox" className="sr-only" checked={profileForm.receiveNotifications} onChange={e => setProfileForm({...profileForm, receiveNotifications: e.target.checked})} />
-                                          <div className={`block w-10 h-6 rounded-full transition-colors ${profileForm.receiveNotifications ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                          <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${profileForm.receiveNotifications ? 'transform translate-x-4' : ''}`}></div>
-                                      </div>
-                                  </label>
                               </div>
                           </div>
 
