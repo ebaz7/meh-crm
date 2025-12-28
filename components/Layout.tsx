@@ -175,14 +175,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
   };
 
   const handleTestNotification = async () => {
-      // Use the unified handler passed from App.tsx
-      // This ensures both UI list (Bell) and Browser Push are triggered simultaneously
+      // 1. Force Enable if not granted
+      if (Notification.permission !== 'granted') {
+          const granted = await requestNotificationPermission();
+          if (granted) {
+              setNotifEnabled(true);
+              setNotificationPreference(true);
+          } else {
+              alert("مجوز نوتیفیکیشن داده نشد. لطفا تنظیمات مرورگر را چک کنید.");
+              return;
+          }
+      }
+
+      // 2. Send via App Handler (Updates UI List)
       onAddNotification("تست سیستم", `این یک پیام آزمایشی است (${new Date().toLocaleTimeString('fa-IR')}).`);
       
-      // Feedback if permission is missing
-      if (Notification.permission !== 'granted') {
-          console.warn("Notification permission missing, only UI alert added.");
-      }
+      // 3. Force Direct Browser Send (To bypass any potential internal logic issues for test)
+      // This ensures the popup shows even if the app logic thinks it shouldn't
+      sendNotification("تست سیستم (مستقیم)", "اگر این را می‌بینید، نوتیفیکیشن مرورگر فعال است.");
   };
   
   const handleInstallClick = () => { 

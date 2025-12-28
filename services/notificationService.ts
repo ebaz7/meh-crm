@@ -19,6 +19,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   // درخواست مجوز
   try {
       const permission = await Notification.requestPermission();
+      console.log("Notification permission result:", permission);
       return permission === "granted";
   } catch (e) {
       console.error("Permission request error:", e);
@@ -29,13 +30,13 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 export const sendNotification = async (title: string, body: string) => {
   // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
   if (!isNotificationEnabledInApp()) {
-      console.log("System notification is disabled by user preference.");
+      console.log("System notification skipped: User disabled in app settings.");
       return;
   }
 
   // 2. اگر مجوز مرورگر داده نشده، کاری نکن
   if (Notification.permission !== "granted") {
-      console.log("System notification permission not granted.");
+      console.warn(`System notification failed: Permission is '${Notification.permission}'. Please enable in browser settings.`);
       return;
   }
 
@@ -57,6 +58,7 @@ export const sendNotification = async (title: string, body: string) => {
           const registration = await navigator.serviceWorker.ready;
           if (registration) {
               await registration.showNotification(title, options);
+              console.log("Notification sent via Service Worker.");
               return;
           }
       }
@@ -71,7 +73,10 @@ export const sendNotification = async (title: string, body: string) => {
           window.focus();
           notification.close();
       };
+      console.log("Notification sent via Standard API.");
   } catch (e) {
       console.error("Notification API failed:", e);
+      // Fallback alert if crucial
+      // alert(`${title}\n${body}`); 
   }
 };

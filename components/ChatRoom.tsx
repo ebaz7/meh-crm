@@ -1,13 +1,8 @@
 
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ChatMessage, ChatGroup, GroupTask, UserRole } from '../types';
 import { getMessages, sendMessage, deleteMessage, getGroups, createGroup, deleteGroup, getTasks, createTask, updateTask, deleteTask, uploadFile, updateGroup, updateMessage } from '../services/storageService';
 import { getUsers } from '../services/authService';
-import { sendNotification } from '../services/notificationService';
 import { generateUUID } from '../constants';
 import { Send, User as UserIcon, MessageSquare, Lock, Users, Plus, ListTodo, Paperclip, CheckSquare, Square, Download, X, Trash2, Eye, Reply, Info, Camera, Edit2, ArrowRight, Mic, Smile, StopCircle, Check, Phone, Video, PhoneIncoming } from 'lucide-react';
 
@@ -80,16 +75,18 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
             incoming.forEach(inc => {
                 const msgChannelKey = inc.groupId ? `group_${inc.groupId}` : inc.recipient ? `private_${inc.senderUsername}` : 'public';
                 const currentChannelKey = getChannelKey(activeChannelRef.current.type, activeChannelRef.current.id);
-                // Notification Logic
+                
+                // --- NOTIFICATION LOGIC ---
+                // Notify if user is NOT looking at this channel, OR if the window is hidden/minimized
                 if (msgChannelKey !== currentChannelKey || document.hidden) { 
-                    const title = `پیام جدید از ${inc.sender}`; 
-                    // Handle Call Invites in Notification
+                    const title = `💬 پیام جدید از ${inc.sender}`; 
                     let body = inc.message || (inc.audioUrl ? 'پیام صوتی' : 'فایل ضمیمه'); 
                     if (body.startsWith('CALL_INVITE|')) body = '📞 تماس ورودی...';
                     
-                    sendNotification(title, body); 
+                    // Call UNIFIED handler (triggers Bell + System Notification)
                     onNotification(title, body); 
                 } else { 
+                    // If looking at it, mark read
                     updateLastRead(currentChannelKey); 
                 }
             });
