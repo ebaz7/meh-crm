@@ -68,7 +68,7 @@ setTimeout(() => { try { initWhatsApp(WAUTH_DIR); } catch(e) { console.error("WA
 // Initialize Push Server
 initPushServer();
 
-// --- PUSH ROUTES ---
+// --- PUSH NOTIFICATION ROUTES ---
 app.get('/api/push/vapid-key', (req, res) => {
     res.json({ publicKey: getPublicKey() });
 });
@@ -121,7 +121,7 @@ app.post('/api/orders', (req, res) => {
     // PUSH: Notify Financial
     sendPushNotification({ type: 'ROLE', value: 'financial' }, { 
         title: 'دستور پرداخت جدید', 
-        body: `شماره: ${item.trackingNumber} | مبلغ: ${item.totalAmount.toLocaleString()}`,
+        body: `شماره: ${item.trackingNumber} | مبلغ: ${item.totalAmount.toLocaleString()} | درخواست: ${item.requester}`,
         url: '/#manage'
     });
 
@@ -139,10 +139,18 @@ app.put('/api/orders/:id', async (req, res) => {
         // PUSH LOGIC
         const newStatus = db.orders[idx].status;
         const tracking = db.orders[idx].trackingNumber;
+        const reqUser = db.orders[idx].requester;
+
         if (oldStatus !== newStatus) {
-            if (newStatus.includes('مالی')) sendPushNotification({ type: 'ROLE', value: 'manager' }, { title: 'تایید مالی', body: `دستور ${tracking} منتظر تایید مدیریت` });
-            else if (newStatus.includes('مدیریت')) sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'تایید مدیریت', body: `دستور ${tracking} منتظر تایید نهایی` });
-            else if (newStatus.includes('نهایی')) sendPushNotification({ type: 'ROLE', value: 'financial' }, { title: 'تایید نهایی', body: `دستور ${tracking} تایید شد. پرداخت کنید.` });
+            if (newStatus.includes('مالی')) sendPushNotification({ type: 'ROLE', value: 'manager' }, { title: 'تایید مالی', body: `دستور ${tracking} منتظر تایید مدیریت`, url: '/#manage' });
+            else if (newStatus.includes('مدیریت')) sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'تایید مدیریت', body: `دستور ${tracking} منتظر تایید نهایی`, url: '/#manage' });
+            else if (newStatus.includes('نهایی')) {
+                sendPushNotification({ type: 'ROLE', value: 'financial' }, { title: 'تایید نهایی', body: `دستور ${tracking} تایید شد. پرداخت کنید.`, url: '/#manage' });
+                sendPushNotification({ type: 'USERNAME', value: reqUser }, { title: 'درخواست تایید شد', body: `دستور ${tracking} شما تایید نهایی شد.`, url: '/#manage' });
+            }
+            else if (newStatus === 'رد شده') {
+                sendPushNotification({ type: 'USERNAME', value: reqUser }, { title: 'درخواست رد شد', body: `دستور ${tracking} رد شد.`, url: '/#manage' });
+            }
         }
         res.json(db.orders);
     } else res.sendStatus(404);
@@ -161,7 +169,7 @@ app.post('/api/exit-permits', (req, res) => {
     saveDb(db);
     
     // PUSH: Notify CEO
-    sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'درخواست خروج جدید', body: `مجوز شماره ${item.permitNumber}`, url: '/#manage-exit' });
+    sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'درخواست خروج جدید', body: `مجوز شماره ${item.permitNumber} | گیرنده: ${item.recipientName}`, url: '/#manage-exit' });
 
     res.json(db.exitPermits);
 });
@@ -169,12 +177,19 @@ app.put('/api/exit-permits/:id', async (req, res) => {
     const db = getDb();
     const idx = db.exitPermits.findIndex(x => x.id === req.params.id);
     if(idx !== -1) {
+        const oldStatus = db.exitPermits[idx].status;
         db.exitPermits[idx] = { ...db.exitPermits[idx], ...req.body, updatedAt: Date.now() };
         saveDb(db);
-        // PUSH: Notify Factory Manager or Security based on status... (Simplified)
-        if (db.exitPermits[idx].status.includes('کارخانه')) {
-             sendPushNotification({ type: 'ROLE', value: 'factory_manager' }, { title: 'مجوز خروج تایید شد', body: `شماره ${db.exitPermits[idx].permitNumber} منتظر تایید کارخانه` });
+        
+        // PUSH logic for Exit Permits
+        const newStatus = db.exitPermits[idx].status;
+        const num = db.exitPermits[idx].permitNumber;
+        if (oldStatus !== newStatus) {
+             if (newStatus.includes('کارخانه')) sendPushNotification({ type: 'ROLE', value: 'factory_manager' }, { title: 'مجوز خروج تایید شد', body: `شماره ${num} منتظر تایید کارخانه`, url: '/#manage-exit' });
+             else if (newStatus.includes('انبار')) sendPushNotification({ type: 'ROLE', value: 'warehouse_keeper' }, { title: 'مجوز خروج تایید شد', body: `شماره ${num} منتظر تایید انبار`, url: '/#manage-exit' });
+             else if (newStatus.includes('انتظامات')) sendPushNotification({ type: 'ROLE', value: 'security_head' }, { title: 'مجوز خروج (نهایی)', body: `شماره ${num} آماده خروج`, url: '/#security' });
         }
+
         res.json(db.exitPermits);
     } else res.sendStatus(404);
 });
@@ -202,7 +217,7 @@ app.post('/api/warehouse/transactions', async (req, res) => {
         tx.status = 'PENDING';
         
         // PUSH: Notify CEO
-        sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'صدور بیجک جدید', body: `شماره ${tx.number} برای ${tx.company}`, url: '/#warehouse' });
+        sendPushNotification({ type: 'ROLE', value: 'ceo' }, { title: 'صدور بیجک جدید', body: `شماره ${tx.number} برای ${tx.company} | گیرنده: ${tx.recipientName}`, url: '/#warehouse' });
     }
     db.warehouseTransactions.unshift(tx);
     saveDb(db);
@@ -223,7 +238,7 @@ app.post('/api/chat', (req, res) => {
     if (m.recipient) {
         sendPushNotification({ type: 'USERNAME', value: m.recipient }, { 
             title: `پیام جدید از ${m.sender}`, 
-            body: m.message ? (m.message.substring(0, 30) + '...') : 'فایل/صدا',
+            body: m.message ? (m.message.substring(0, 40) + '...') : 'فایل/صدا',
             url: '/#chat'
         });
     } else if (m.groupId) {
