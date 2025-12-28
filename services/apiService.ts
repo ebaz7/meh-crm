@@ -2,22 +2,22 @@
 import { PaymentOrder, User, UserRole, SystemSettings, ChatMessage, ChatGroup, GroupTask, TradeRecord, WarehouseItem, WarehouseTransaction } from '../types';
 import { INITIAL_ORDERS } from '../constants';
 
-// *** تنظیمات اتصال به سرور (مهم برای اندروید) ***
-// آدرس کامل سایت خود را در خط زیر وارد کنید (همراه با http یا https)
-// مثال: 'https://panel.my-website.com'
-const SERVER_HOST = 'https://example.com'; // <--- آدرس سایت خود را اینجا بنویسید
+// *** تنظیمات اتصال به سرور (قابل تغییر از داخل برنامه) ***
+
+export const getServerHost = () => {
+    return localStorage.getItem('app_server_host') || 'https://example.com';
+};
+
+export const setServerHost = (url: string) => {
+    // Remove trailing slash if present
+    const cleanUrl = url.replace(/\/$/, '');
+    localStorage.setItem('app_server_host', cleanUrl);
+};
 
 // تشخیص اینکه آیا برنامه روی گوشی (Native) اجرا می‌شود یا مرورگر
 const isNativeApp = window.location.protocol === 'file:' || (window as any).Capacitor?.isNativePlatform();
 
-// اگر روی گوشی هستیم، باید آدرس کامل سرور را بدهیم.
-// اگر روی مرورگر هستیم، از مسیر نسبی (/api) استفاده می‌کنیم تا پروکسی Vite یا وب‌سرور مدیریت کند.
-const API_BASE_URL = isNativeApp 
-    ? `${SERVER_HOST}/api` 
-    : '/api';
-
 console.log("Environment:", isNativeApp ? "Native App" : "Web Browser");
-console.log("API URL Set to:", API_BASE_URL);
 
 const MOCK_USERS: User[] = [
     { id: '1', username: 'admin', password: '123', fullName: 'مدیر سیستم', role: UserRole.ADMIN, canManageTrade: true }
@@ -55,7 +55,14 @@ export const apiCall = async <T>(endpoint: string, method: string = 'GET', body?
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000); 
 
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        // Dynamic Base URL calculation
+        // If Native: Use the stored Server Host + /api
+        // If Web: Use relative /api (Proxy handles it)
+        const baseUrl = isNativeApp 
+            ? `${getServerHost()}/api` 
+            : '/api';
+
+        const response = await fetch(`${baseUrl}${endpoint}`, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: body ? JSON.stringify(body) : undefined,
@@ -77,7 +84,7 @@ export const apiCall = async <T>(endpoint: string, method: string = 'GET', body?
         console.warn(`API Fallback (Mock) triggered for: ${endpoint}`, error);
         
         if (isNativeApp) {
-            console.error("Connection Failed. Check SERVER_HOST in apiService.ts or Internet Connection.");
+            console.error("Connection Failed. Check SERVER_HOST in Login Settings or Internet Connection.");
         }
 
         await delay(500);

@@ -1,5 +1,5 @@
 {
-  "name": "تا اینجا اوکیof PaymentOrderPro",
+  "name": "PaymentOrderPro",
   "description": "A comprehensive payment order management system with approval workflows and formal printing capabilities, designed for small businesses.",
   "requestFramePermissions": [
     "microphone"
