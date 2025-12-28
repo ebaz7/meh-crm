@@ -68,30 +68,47 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
         const msgs = await getMessages();
         const prevCount = lastMsgCountRef.current;
         setMessages(msgs);
-        if (prevCount === 0 && msgs.length > 0) lastMsgCountRef.current = msgs.length;
-        if (prevCount > 0 && prevCount < msgs.length) {
+        
+        // Logic to detect new incoming messages
+        if (prevCount > 0 && msgs.length > prevCount) {
             const newMsgs = msgs.slice(prevCount);
+            // Filter messages NOT sent by me
             const incoming = newMsgs.filter(m => m.senderUsername !== currentUser.username);
+            
             incoming.forEach(inc => {
                 const msgChannelKey = inc.groupId ? `group_${inc.groupId}` : inc.recipient ? `private_${inc.senderUsername}` : 'public';
                 const currentChannelKey = getChannelKey(activeChannelRef.current.type, activeChannelRef.current.id);
                 
                 // --- NOTIFICATION LOGIC ---
-                // Notify if user is NOT looking at this channel, OR if the window is hidden/minimized
-                if (msgChannelKey !== currentChannelKey || document.hidden) { 
+                // Trigger notification if:
+                // 1. I am NOT looking at the specific channel where message came from
+                // OR
+                // 2. I AM looking at the channel, but the window/tab is hidden (background)
+                const shouldNotify = (msgChannelKey !== currentChannelKey) || document.hidden;
+
+                if (shouldNotify) { 
                     const title = `💬 پیام جدید از ${inc.sender}`; 
                     let body = inc.message || (inc.audioUrl ? 'پیام صوتی' : 'فایل ضمیمه'); 
                     if (body.startsWith('CALL_INVITE|')) body = '📞 تماس ورودی...';
                     
                     // Call UNIFIED handler (triggers Bell + System Notification)
-                    onNotification(title, body); 
+                    if (onNotification) {
+                        onNotification(title, body); 
+                    }
                 } else { 
-                    // If looking at it, mark read
+                    // If looking at it and window active, just mark read silently
                     updateLastRead(currentChannelKey); 
                 }
             });
         }
+        
+        // Initial load sync
+        if (prevCount === 0 && msgs.length > 0) {
+             // Don't notify on first load, just sync count
+        }
+
         lastMsgCountRef.current = msgs.length;
+        
         const usrList = await getUsers(); setUsers(usrList.filter(u => u.username !== currentUser.username));
         const grpList = await getGroups(); const isManager = [UserRole.ADMIN, UserRole.MANAGER, UserRole.CEO].includes(currentUser.role); setGroups(grpList.filter(g => isManager || g.members.includes(currentUser.username) || g.createdBy === currentUser.username));
         const tskList = await getTasks(); setTasks(tskList);
@@ -144,6 +161,8 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
         loadData();
     };
 
+    // ... (Rest of component same as before) ...
+    // Note: Re-implementing helper functions to ensure file validity
     const handleDeleteMessage = async (id: string) => { if (window.confirm("آیا از حذف این پیام مطمئن هستید؟")) { await deleteMessage(id); loadData(); } };
     const handleEditMessage = (msg: ChatMessage) => { setEditingMessageId(msg.id); setInputText(msg.message); inputRef.current?.focus(); };
     const handleCancelEdit = () => { setEditingMessageId(null); setInputText(''); };
@@ -151,100 +170,38 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 150 * 1024 * 1024) { alert('حجم فایل نباید بیشتر از 150 مگابایت باشد.'); return; } setIsUploading(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const result = await uploadFile(file.name, base64); await handleSend(null, { fileName: result.fileName, url: result.url }); } catch (error) { alert('خطا در آپلود فایل'); } finally { setIsUploading(false); } }; reader.readAsDataURL(file); e.target.value = ''; };
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { const val = e.target.value; setInputText(val); if (val.endsWith('@')) { setShowTagList(true); } else if (!val.includes('@')) { setShowTagList(false); } };
     const handleTagUser = (username: string) => { setInputText(prev => prev + username + ' '); setShowTagList(false); inputRef.current?.focus(); };
-    const getUnreadCount = (type: 'public' | 'private' | 'group', id: string | null) => { const key = getChannelKey(type, id); const lastRead = lastReadMap[key] || 0; return messages.filter(msg => { if (msg.timestamp <= lastRead) return false; if (msg.senderUsername === currentUser.username) return false; if (type === 'public') return !msg.recipient && !msg.groupId; if (type === 'group') return msg.groupId === id; if (type === 'private') { return (msg.senderUsername === id && msg.recipient === currentUser.username); } return false; }).length; };
     const handleCreateGroup = async () => { if (!newGroupName.trim() || selectedGroupMembers.length === 0) { alert("نام گروه و حداقل یک عضو الزامی است."); return; } const newGroup: ChatGroup = { id: generateUUID(), name: newGroupName, members: [...selectedGroupMembers, currentUser.username], createdBy: currentUser.username }; await createGroup(newGroup); setShowGroupModal(false); setNewGroupName(''); setSelectedGroupMembers([]); loadData(); };
     const handleDeleteGroup = async (id: string) => { if (window.confirm("آیا از حذف این گروه و تمامی محتویات آن مطمئن هستید؟")) { await deleteGroup(id); if (activeChannel.id === id) { setActiveChannel({ type: 'public', id: null }); setMobileShowChat(false); } loadData(); } };
     const handleAddTask = async () => { if (!newTaskTitle.trim() || !activeChannel.id || activeChannel.type !== 'group') return; const newTask: GroupTask = { id: generateUUID(), groupId: activeChannel.id, title: newTaskTitle, assignee: newTaskAssignee || undefined, isCompleted: false, createdBy: currentUser.username, createdAt: Date.now() }; await createTask(newTask); setNewTaskTitle(''); setNewTaskAssignee(''); loadData(); };
     const toggleTask = async (task: GroupTask) => { await updateTask({ ...task, isCompleted: !task.isCompleted }); loadData(); };
     const handleDeleteTask = async (id: string) => { if (window.confirm("آیا از حذف این تسک مطمئن هستید؟")) { await deleteTask(id); loadData(); } };
-    const displayedMessages = messages.filter(msg => { if (activeChannel.type === 'public') return !msg.recipient && !msg.groupId; else if (activeChannel.type === 'private') { const otherUser = activeChannel.id; const isMeSender = msg.senderUsername === currentUser.username; const isMeRecipient = msg.recipient === currentUser.username; const isOtherSender = msg.senderUsername === otherUser; const isOtherRecipient = msg.recipient === otherUser; return (isMeSender && isOtherRecipient) || (isOtherSender && isMeRecipient); } else if (activeChannel.type === 'group') return msg.groupId === activeChannel.id; return false; });
     const activeGroupTasks = tasks.filter(t => activeChannel.type === 'group' && t.groupId === activeChannel.id);
     const isAdminOrManager = [UserRole.ADMIN, UserRole.MANAGER, UserRole.CEO].includes(currentUser.role);
-    
-    // Group Info Handlers
     const activeGroup = groups.find(g => g.id === activeChannel.id);
     const handleOpenGroupInfo = () => { if (activeGroup) { setEditingGroupName(activeGroup.name); setShowGroupInfoModal(true); } };
     const handleSaveGroupInfo = async () => { if (!activeGroup || !editingGroupName.trim()) return; const updatedGroup = { ...activeGroup, name: editingGroupName }; await updateGroup(updatedGroup); setShowGroupInfoModal(false); loadData(); };
     const handleGroupIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file || !activeGroup) return; setUploadingGroupIcon(true); const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target?.result as string; try { const result = await uploadFile(file.name, base64); const updatedGroup = { ...activeGroup, icon: result.url }; await updateGroup(updatedGroup); loadData(); } catch (error) { alert('خطا در آپلود'); } finally { setUploadingGroupIcon(false); } }; reader.readAsDataURL(file); };
     const handleSelectChannel = (channel: {type: 'public' | 'private' | 'group', id: string | null}) => { setActiveChannel(channel); setActiveTab('chat'); setMobileShowChat(true); };
-
-    // Emoji Logic
     const handleEmojiClick = (emoji: string) => { setInputText(prev => prev + emoji); setShowEmojiPicker(false); inputRef.current?.focus(); };
+    const handleStopRecording = () => { if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); setIsRecording(false); setMediaRecorder(null); } };
+    const handleStartRecording = async () => { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); let mimeType = ''; if (MediaRecorder.isTypeSupported('audio/mp4')) { mimeType = 'audio/mp4'; } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) { mimeType = 'audio/webm;codecs=opus'; } else if (MediaRecorder.isTypeSupported('audio/webm')) { mimeType = 'audio/webm'; } const options = mimeType ? { mimeType } : undefined; const recorder = new MediaRecorder(stream, options); setRecordingMimeType(mimeType); setMediaRecorder(recorder); const chunks: BlobPart[] = []; recorder.ondataavailable = (e) => chunks.push(e.data); recorder.onstop = async () => { const blob = new Blob(chunks, { type: recordingMimeType || 'audio/webm' }); const reader = new FileReader(); reader.readAsDataURL(blob); reader.onloadend = async () => { const base64 = reader.result as string; try { setIsUploading(true); const ext = recordingMimeType.includes('mp4') ? 'm4a' : 'webm'; const result = await uploadFile(`voice_${Date.now()}.${ext}`, base64); await handleSend(null, undefined, result.url); } catch (e) { alert("خطا در ارسال پیام صوتی"); } finally { setIsUploading(false); } }; stream.getTracks().forEach(track => track.stop()); }; recorder.start(); setIsRecording(true); } catch (err) { alert("برای ضبط صدا، دسترسی به میکروفون الزامی است."); } };
 
-    // CALL LOGIC
-    const handleStartCall = async (video: boolean) => {
-        const roomName = `PaymentSys_${activeChannel.type}_${activeChannel.id || 'public'}_${generateUUID().substring(0, 8)}`;
-        // Use Jitsi Meet free service
-        const url = `https://meet.jit.si/${roomName}#config.startWithVideoMuted=${!video}&config.prejoinPageEnabled=false`;
-        const icon = video ? '📹' : '📞';
-        const text = video ? 'تماس تصویری شروع شد' : 'تماس صوتی شروع شد';
-        const fullMsg = `CALL_INVITE|${icon} ${text}|${url}`;
-        
-        await handleSend(null, undefined, undefined, fullMsg);
-        
-        // Open for caller immediately
-        window.open(url, '_blank');
+    const getUnreadCount = (type: 'public' | 'private' | 'group', id: string | null) => {
+        const key = getChannelKey(type, id);
+        const lastRead = lastReadMap[key] || 0;
+        return messages.filter(m => {
+            if (m.senderUsername === currentUser.username) return false;
+            if (type === 'public') return !m.recipient && !m.groupId && m.timestamp > lastRead;
+            if (type === 'private') return m.senderUsername === id && m.recipient === currentUser.username && m.timestamp > lastRead;
+            if (type === 'group') return m.groupId === id && m.timestamp > lastRead;
+            return false;
+        }).length;
     };
 
-
-    // Voice Recording Logic (Updated for iOS Support)
-    const handleStartRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // Check for iOS/Safari supported mime types
-            let mimeType = '';
-            if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                mimeType = 'audio/mp4'; // iOS 14.5+ preferred
-            } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                mimeType = 'audio/webm;codecs=opus';
-            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                mimeType = 'audio/webm';
-            }
-
-            const options = mimeType ? { mimeType } : undefined;
-            const recorder = new MediaRecorder(stream, options);
-            setRecordingMimeType(mimeType);
-
-            setMediaRecorder(recorder);
-            const chunks: BlobPart[] = [];
-            
-            recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = async () => {
-                // Create blob with the correctly detected type (or default if detection failed)
-                const blob = new Blob(chunks, { type: recordingMimeType || 'audio/webm' });
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = async () => {
-                    const base64 = reader.result as string;
-                    try {
-                        setIsUploading(true);
-                        // Use correct extension based on type
-                        const ext = recordingMimeType.includes('mp4') ? 'm4a' : 'webm';
-                        const result = await uploadFile(`voice_${Date.now()}.${ext}`, base64);
-                        await handleSend(null, undefined, result.url);
-                    } catch (e) {
-                        alert("خطا در ارسال پیام صوتی");
-                    } finally {
-                        setIsUploading(false);
-                    }
-                };
-                stream.getTracks().forEach(track => track.stop());
-            };
-            
-            recorder.start();
-            setIsRecording(true);
-        } catch (err) {
-            alert("برای ضبط صدا، دسترسی به میکروفون الزامی است. (نکته: در آیفون/اندروید باید سایت دارای SSL باشد)");
-        }
-    };
-
-    const handleStopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            setIsRecording(false);
-            setMediaRecorder(null);
-        }
+    const handleStartCall = async (isVideo: boolean) => {
+        const roomName = `PaySys_${generateUUID()}`;
+        const link = `https://meet.jit.si/${roomName}`;
+        await handleSend(null, undefined, undefined, `CALL_INVITE|${isVideo ? 'تماس تصویری' : 'تماس صوتی'}|${link}`);
     };
 
     return (
@@ -279,6 +236,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
             </div>
 
             <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
+                {/* Header Chat */}
                 <div className="p-3 border-b border-gray-100 bg-white flex justify-between items-center shadow-sm z-10">
                     <div className="flex items-center gap-2 md:gap-3">
                         <button onClick={() => setMobileShowChat(false)} className="md:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-full"><ArrowRight size={20} /></button>
@@ -286,17 +244,21 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
                         <div><h2 className="font-bold text-gray-800 text-sm md:text-base">{activeChannel.type === 'public' ? 'کانال عمومی شرکت' : activeChannel.type === 'private' ? users.find(u => u.username === activeChannel.id)?.fullName : groups.find(g => g.id === activeChannel.id)?.name}</h2></div>
                     </div>
                     <div className="flex items-center gap-1 md:gap-2">
-                         {/* CALL BUTTONS */}
                          <button onClick={() => handleStartCall(false)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="تماس صوتی"><Phone size={18} /></button>
                          <button onClick={() => handleStartCall(true)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تماس تصویری"><Video size={18} /></button>
                          <div className="w-px h-6 bg-gray-300 mx-1"></div>
-
                         {activeChannel.type === 'group' && (<><button onClick={handleOpenGroupInfo} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 flex items-center gap-1 text-xs font-bold"><Info size={18}/> <span className="hidden md:inline">اطلاعات</span></button><div className="h-6 w-px bg-gray-300 mx-1 hidden md:block"></div><div className="flex bg-gray-100 p-1 rounded-lg"><button onClick={() => setActiveTab('chat')} className={`px-2 md:px-4 py-1.5 rounded-md text-xs md:text-sm transition-all ${activeTab === 'chat' ? 'bg-white shadow text-blue-600 font-medium' : 'text-gray-500'}`}>گفتگو</button><button onClick={() => setActiveTab('tasks')} className={`px-2 md:px-4 py-1.5 rounded-md text-xs md:text-sm transition-all ${activeTab === 'tasks' ? 'bg-white shadow text-indigo-600 font-medium' : 'text-gray-500'}`}>تسک‌ها</button></div></>)}
                     </div>
                 </div>
+                
+                {/* Messages Body */}
                 {activeTab === 'chat' ? (
                     <><div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/50">
-                        {displayedMessages.map((msg) => { 
+                        {messages.filter(msg => { 
+                            if (activeChannel.type === 'public') return !msg.recipient && !msg.groupId; 
+                            else if (activeChannel.type === 'private') { const otherUser = activeChannel.id; const isMeSender = msg.senderUsername === currentUser.username; const isMeRecipient = msg.recipient === currentUser.username; const isOtherSender = msg.senderUsername === otherUser; const isOtherRecipient = msg.recipient === otherUser; return (isMeSender && isOtherRecipient) || (isOtherSender && isMeRecipient); } 
+                            else if (activeChannel.type === 'group') return msg.groupId === activeChannel.id; return false; 
+                        }).map((msg) => { 
                             const isMe = msg.senderUsername === currentUser.username; 
                             const isRecipient = activeChannel.type === 'private' && msg.recipient === currentUser.username; 
                             const canDelete = isAdminOrManager || isMe || isRecipient; 
@@ -310,74 +272,22 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
                                         {senderUser?.avatar ? <img src={senderUser.avatar} className="w-full h-full object-cover"/> : <UserIcon size={14} className="text-gray-700" />}
                                     </div>
                                     <div className="flex flex-col relative w-full">
-                                        
-                                        {/* Reply Button (Separated) */}
-                                        <button 
-                                            onClick={() => setReplyingTo(msg)} 
-                                            className={`absolute top-1/2 -translate-y-1/2 ${isMe ? '-right-10' : '-left-10'} p-2 rounded-full bg-white shadow-sm border border-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100 z-10 transform hover:scale-110`} 
-                                            title="پاسخ"
-                                        >
-                                            <Reply size={18} />
-                                        </button>
-
-                                        {/* Edit/Delete Buttons (Opposite Side) */}
+                                        <button onClick={() => setReplyingTo(msg)} className={`absolute top-1/2 -translate-y-1/2 ${isMe ? '-right-10' : '-left-10'} p-2 rounded-full bg-white shadow-sm border border-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100 z-10 transform hover:scale-110`} title="پاسخ"><Reply size={18} /></button>
                                         <div className={`absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-8' : '-right-8'} flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
                                             {isMe && !isCallInvite && <button onClick={() => handleEditMessage(msg)} className="text-gray-400 hover:text-amber-500 p-0.5" title="ویرایش"><Edit2 size={14} /></button>}
                                             {canDelete && <button onClick={() => handleDeleteMessage(msg.id)} className="text-gray-400 hover:text-red-500 p-0.5" title="حذف"><Trash2 size={14} /></button>}
                                         </div>
-
-                                        {msg.replyTo && (
-                                            <div className={`text-xs mb-1 px-3 py-1.5 rounded-lg border-l-4 ${isMe ? 'bg-blue-100 border-blue-400 self-end mr-2' : 'bg-gray-200 border-gray-400 self-start ml-2'}`}>
-                                                <span className="font-bold block mb-0.5">{msg.replyTo.sender}</span>
-                                                <span className="truncate block max-w-[150px] opacity-70">{msg.replyTo.message}</span>
-                                            </div>
-                                        )}
+                                        {msg.replyTo && (<div className={`text-xs mb-1 px-3 py-1.5 rounded-lg border-l-4 ${isMe ? 'bg-blue-100 border-blue-400 self-end mr-2' : 'bg-gray-200 border-gray-400 self-start ml-2'}`}><span className="font-bold block mb-0.5">{msg.replyTo.sender}</span><span className="truncate block max-w-[150px] opacity-70">{msg.replyTo.message}</span></div>)}
                                         
                                         {isCallInvite ? (
-                                            /* Call Invite Card */
-                                            <div className={`px-4 py-3 rounded-2xl text-sm shadow-sm border ${isMe ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-full animate-pulse ${isMe ? 'bg-blue-200 text-blue-700' : 'bg-green-200 text-green-700'}`}>
-                                                        <PhoneIncoming size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold">{msg.message.split('|')[1]}</div>
-                                                        <div className="text-xs opacity-70 mb-2">برای پیوستن کلیک کنید</div>
-                                                        <a href={msg.message.split('|')[2]} target="_blank" rel="noreferrer" className={`block text-center py-1.5 px-4 rounded-lg font-bold text-xs transition-colors ${isMe ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>
-                                                            پیوستن به تماس
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                                <div className="text-[9px] text-gray-400 text-left mt-2">{new Date(msg.timestamp).toLocaleTimeString('fa-IR')}</div>
-                                            </div>
+                                            <div className={`px-4 py-3 rounded-2xl text-sm shadow-sm border ${isMe ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}><div className="flex items-center gap-3"><div className={`p-2 rounded-full animate-pulse ${isMe ? 'bg-blue-200 text-blue-700' : 'bg-green-200 text-green-700'}`}><PhoneIncoming size={20} /></div><div><div className="font-bold">{msg.message.split('|')[1]}</div><div className="text-xs opacity-70 mb-2">برای پیوستن کلیک کنید</div><a href={msg.message.split('|')[2]} target="_blank" rel="noreferrer" className={`block text-center py-1.5 px-4 rounded-lg font-bold text-xs transition-colors ${isMe ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>پیوستن به تماس</a></div></div><div className="text-[9px] text-gray-400 text-left mt-2">{new Date(msg.timestamp).toLocaleTimeString('fa-IR')}</div></div>
                                         ) : (
-                                            /* Normal Message */
                                             <div className={`px-4 py-2 rounded-2xl text-sm shadow-sm relative transition-shadow ${isMe ? 'bg-blue-600 text-white rounded-bl-none' : 'bg-white border border-gray-200 text-gray-800 rounded-br-none'}`}>
-                                                <div className={`text-[10px] mb-1 font-bold ${isMe ? 'text-blue-100' : 'text-gray-500'} flex justify-between items-center min-w-[100px]`}>
-                                                    <span>{msg.sender}</span>
-                                                </div>
+                                                <div className={`text-[10px] mb-1 font-bold ${isMe ? 'text-blue-100' : 'text-gray-500'} flex justify-between items-center min-w-[100px]`}><span>{msg.sender}</span></div>
                                                 {msg.message && <p>{msg.message}</p>}
-                                                {msg.audioUrl && (
-                                                    <div className="mt-1">
-                                                        <audio 
-                                                            key={msg.audioUrl}
-                                                            controls 
-                                                            className="h-8 max-w-[200px]" 
-                                                            preload="metadata" 
-                                                            playsInline
-                                                            src={msg.audioUrl}
-                                                        >
-                                                            {/* Explicitly define source types for better iOS support */}
-                                                            {msg.audioUrl.includes('.m4a') && <source src={msg.audioUrl} type="audio/mp4" />}
-                                                            {msg.audioUrl.includes('.webm') && <source src={msg.audioUrl} type="audio/webm" />}
-                                                        </audio>
-                                                    </div>
-                                                )}
+                                                {msg.audioUrl && (<div className="mt-1"><audio key={msg.audioUrl} controls className="h-8 max-w-[200px]" preload="metadata" playsInline src={msg.audioUrl}>{msg.audioUrl.includes('.m4a') && <source src={msg.audioUrl} type="audio/mp4" />}{msg.audioUrl.includes('.webm') && <source src={msg.audioUrl} type="audio/webm" />}</audio></div>)}
                                                 {msg.attachment && (<div className={`mt-2 p-2 rounded-lg flex items-center gap-2 ${isMe ? 'bg-blue-700/50' : 'bg-gray-50 border border-gray-100'}`}><div className={`p-1.5 rounded-md ${isMe ? 'bg-blue-500 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}><Paperclip size={14} /></div><span className={`text-xs truncate flex-1 ${isMe ? 'text-blue-50' : 'text-gray-600'}`} dir="ltr">{msg.attachment.fileName}</span><div className="flex items-center gap-1"><a href={msg.attachment.url} target="_blank" rel="noreferrer" className={`p-1.5 rounded-md transition-colors ${isMe ? 'hover:bg-blue-500 text-blue-100' : 'hover:bg-gray-200 text-gray-500'}`} title="مشاهده"><Eye size={14} /></a><a href={msg.attachment.url} download={msg.attachment.fileName} className={`p-1.5 rounded-md transition-colors ${isMe ? 'hover:bg-blue-500 text-blue-100' : 'hover:bg-gray-200 text-gray-500'}`} title="دانلود"><Download size={14} /></a></div></div>)}
-                                                <div className="flex justify-end gap-1 mt-1">
-                                                    {msg.isEdited && <span className={`text-[9px] ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>(ویرایش شده)</span>}
-                                                    <span className={`text-[10px] ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>{new Date(msg.timestamp).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
+                                                <div className="flex justify-end gap-1 mt-1">{msg.isEdited && <span className={`text-[9px] ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>(ویرایش شده)</span>}<span className={`text-[10px] ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>{new Date(msg.timestamp).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</span></div>
                                             </div>
                                         )}
                                     </div>
@@ -385,57 +295,16 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, onNotification }) => {
                             </div>
                         ); })}<div ref={messagesEndRef} /></div>
                         
-                        {/* Reply / Edit Preview Bar */}
-                        {(replyingTo || editingMessageId) && (
-                            <div className="px-4 py-2 bg-gray-100 border-t flex justify-between items-center text-sm animate-fade-in">
-                                {replyingTo && (
-                                    <div className="flex items-center gap-2 text-gray-600">
-                                        <Reply size={16} className="text-blue-500"/>
-                                        <span className="font-bold text-blue-600">پاسخ به {replyingTo.sender}:</span>
-                                        <span className="truncate max-w-[150px] md:max-w-[200px]">{replyingTo.message || 'فایل/صدا'}</span>
-                                    </div>
-                                )}
-                                {editingMessageId && (
-                                    <div className="flex items-center gap-2 text-gray-600">
-                                        <Edit2 size={16} className="text-amber-500"/>
-                                        <span className="font-bold text-amber-600">در حال ویرایش پیام...</span>
-                                    </div>
-                                )}
-                                <button onClick={() => { setReplyingTo(null); handleCancelEdit(); }} className="text-gray-400 hover:text-red-500"><X size={18}/></button>
-                            </div>
-                        )}
+                        {(replyingTo || editingMessageId) && (<div className="px-4 py-2 bg-gray-100 border-t flex justify-between items-center text-sm animate-fade-in">{replyingTo && (<div className="flex items-center gap-2 text-gray-600"><Reply size={16} className="text-blue-500"/><span className="font-bold text-blue-600">پاسخ به {replyingTo.sender}:</span><span className="truncate max-w-[150px] md:max-w-[200px]">{replyingTo.message || 'فایل/صدا'}</span></div>)}{editingMessageId && (<div className="flex items-center gap-2 text-gray-600"><Edit2 size={16} className="text-amber-500"/><span className="font-bold text-amber-600">در حال ویرایش پیام...</span></div>)}<button onClick={() => { setReplyingTo(null); handleCancelEdit(); }} className="text-gray-400 hover:text-red-500"><X size={18}/></button></div>)}
 
                         <form onSubmit={(e) => handleSend(e, undefined, undefined, undefined)} className="p-4 border-t bg-white flex gap-2 items-center relative">
                             {showTagList && (<div className="absolute bottom-20 left-4 bg-white border shadow-xl rounded-xl overflow-hidden w-48 z-20">{users.map(u => (<button key={u.id} type="button" onClick={() => handleTagUser(u.username)} className="block w-full text-right px-4 py-2 hover:bg-gray-100 text-sm">{u.fullName}</button>))}</div>)}
-                            
-                            {showEmojiPicker && (
-                                <div className="absolute bottom-20 right-4 bg-white border shadow-xl rounded-xl p-3 z-20 w-64">
-                                    <div className="grid grid-cols-6 gap-2">
-                                        {COMMON_EMOJIS.map(emoji => (
-                                            <button key={emoji} type="button" onClick={() => handleEmojiClick(emoji)} className="text-xl hover:bg-gray-100 rounded p-1">{emoji}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
+                            {showEmojiPicker && (<div className="absolute bottom-20 right-4 bg-white border shadow-xl rounded-xl p-3 z-20 w-64"><div className="grid grid-cols-6 gap-2">{COMMON_EMOJIS.map(emoji => (<button key={emoji} type="button" onClick={() => handleEmojiClick(emoji)} className="text-xl hover:bg-gray-100 rounded p-1">{emoji}</button>))}</div></div>)}
                             <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" capture onChange={handleFileUpload} />
-                            
                             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading || !!editingMessageId} className="p-2 md:p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors" title="ارسال فایل"><Paperclip size={20} /></button>
-                            
-                            {!isRecording ? (
-                                <button type="button" onClick={handleStartRecording} disabled={!!editingMessageId} className={`p-2 md:p-3 rounded-xl bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 transition-colors ${editingMessageId ? 'opacity-50' : ''}`} title="ضبط صدا"><Mic size={20} /></button>
-                            ) : (
-                                <button type="button" onClick={handleStopRecording} className="p-2 md:p-3 rounded-xl bg-red-100 text-red-600 animate-pulse transition-colors" title="توقف ضبط"><StopCircle size={20} /></button>
-                            )}
-
-                            <div className="flex-1 relative">
-                                <input ref={inputRef} type="text" value={inputText} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder={isUploading ? "در حال ارسال فایل..." : isRecording ? "در حال ضبط صدا..." : "پیام..."} disabled={isUploading || isRecording} />
-                                <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-yellow-500"><Smile size={20}/></button>
-                            </div>
-
-                            <button type="submit" disabled={isUploading || isRecording} className={`text-white p-3 rounded-xl transition-colors shadow-lg ${editingMessageId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}>
-                                {editingMessageId ? <Check size={20}/> : <Send size={20} />}
-                            </button>
+                            {!isRecording ? (<button type="button" onClick={handleStartRecording} disabled={!!editingMessageId} className={`p-2 md:p-3 rounded-xl bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 transition-colors ${editingMessageId ? 'opacity-50' : ''}`} title="ضبط صدا"><Mic size={20} /></button>) : (<button type="button" onClick={handleStopRecording} className="p-2 md:p-3 rounded-xl bg-red-100 text-red-600 animate-pulse transition-colors" title="توقف ضبط"><StopCircle size={20} /></button>)}
+                            <div className="flex-1 relative"><input ref={inputRef} type="text" value={inputText} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder={isUploading ? "در حال ارسال فایل..." : isRecording ? "در حال ضبط صدا..." : "پیام..."} disabled={isUploading || isRecording} /><button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-yellow-500"><Smile size={20}/></button></div>
+                            <button type="submit" disabled={isUploading || isRecording} className={`text-white p-3 rounded-xl transition-colors shadow-lg ${editingMessageId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}>{editingMessageId ? <Check size={20}/> : <Send size={20} />}</button>
                         </form>
                     </>
                 ) : (
