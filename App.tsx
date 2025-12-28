@@ -18,7 +18,7 @@ import { getOrders, getSettings } from './services/storageService';
 import { getCurrentUser, getUsers } from './services/authService';
 import { PaymentOrder, User, OrderStatus, UserRole, AppNotification, SystemSettings, PaymentMethod } from './types';
 import { Loader2 } from 'lucide-react';
-import { sendNotification } from './services/notificationService';
+import { sendNotification, isNotificationEnabledInApp } from './services/notificationService';
 import { generateUUID, parsePersianDate, formatCurrency } from './constants';
 import { apiCall } from './services/apiService';
 
@@ -150,12 +150,27 @@ function App() {
     }
   }, [currentUser]);
 
-  // Unified Notification Handler
+  // --- SOUND EFFECT ---
+  const playNotificationSound = () => {
+      // اگر تنظیمات روشن است، صدا هم پخش کن
+      if (isNotificationEnabledInApp()) {
+          try {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // صدای بیپ ملایم
+              audio.volume = 0.5;
+              audio.play().catch(e => console.log("Audio play failed (interaction needed):", e));
+          } catch (e) { console.error("Sound error", e); }
+      }
+  };
+
+  // --- UNIFIED NOTIFICATION HANDLER ---
   const addAppNotification = (title: string, message: string) => { 
-      // 1. Add to In-App List (Bell Icon)
+      // 1. ALWAYS Add to In-App List (Bell Icon) - This is independent of system settings
       setNotifications(prev => [{ id: generateUUID(), title, message, timestamp: Date.now(), read: false }, ...prev]); 
       
-      // 2. Trigger Browser Notification
+      // 2. Play Sound (if allowed)
+      playNotificationSound();
+
+      // 3. Trigger Browser Notification (The service checks permissions and preferences)
       sendNotification(title, message);
   };
 

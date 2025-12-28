@@ -1,6 +1,7 @@
 
 const PREF_KEY = 'app_notification_pref';
 
+// بررسی اینکه آیا کاربر دکمه نوتیفیکیشن را در تنظیمات روشن کرده است یا خیر
 export const isNotificationEnabledInApp = (): boolean => {
     return localStorage.getItem(PREF_KEY) !== 'false';
 };
@@ -10,19 +11,12 @@ export const setNotificationPreference = (enabled: boolean) => {
 };
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
-  // 1. Check if browser supports notifications
   if (!("Notification" in window)) {
       alert("مرورگر شما از نوتیفیکیشن پشتیبانی نمی‌کند.");
       return false;
   }
 
-  // 2. Check if context is secure (HTTPS or localhost)
-  if (!window.isSecureContext) {
-      console.warn("Notifications require a secure context (HTTPS).");
-      // Note: We don't return false here immediately to allow local testing if browser permits
-  }
-
-  // 3. Request permission
+  // درخواست مجوز
   try {
       const permission = await Notification.requestPermission();
       return permission === "granted";
@@ -33,31 +27,32 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  // 1. Basic checks
-  if (!isNotificationEnabledInApp()) return;
-  if (Notification.permission !== "granted") {
-      console.log("Permission not granted");
+  // 1. اگر کاربر کلاً دکمه را خاموش کرده، هیچ کاری نکن (فقط برای نوتیفیکیشن سیستم)
+  if (!isNotificationEnabledInApp()) {
+      console.log("System notification is disabled by user preference.");
       return;
   }
 
-  // 2. Prepare Options (using 'any' to bypass TypeScript strictness on 'vibrate' for iOS)
+  // 2. اگر مجوز مرورگر داده نشده، کاری نکن
+  if (Notification.permission !== "granted") {
+      console.log("System notification permission not granted.");
+      return;
+  }
+
   const options: any = {
       body: body,
-      icon: '/pwa-192x192.png',
+      icon: '/pwa-192x192.png', // مطمئن شوید این فایل وجود دارد
       badge: '/pwa-192x192.png',
       dir: 'rtl',
       lang: 'fa',
-      tag: 'general-notification', // Overwrites older notifications with same tag
+      tag: 'payment-sys-' + Date.now(), // تگ یکتا برای جلوگیری از حذف پیام قبلی
       renotify: true,
-      vibrate: [200, 100, 200], // Vibration pattern
-      data: {
-          dateOfArrival: Date.now(),
-          url: window.location.href
-      }
+      requireInteraction: true, // پیام بماند تا کاربر ببندد
+      data: { url: window.location.href }
   };
 
   try {
-      // 3. Try Service Worker Method (Best for Mobile/PWA)
+      // روش اول: سرویس ورکر (برای موبایل و PWA عالی است)
       if ('serviceWorker' in navigator) {
           const registration = await navigator.serviceWorker.ready;
           if (registration) {
@@ -66,13 +61,13 @@ export const sendNotification = async (title: string, body: string) => {
           }
       }
   } catch (e) {
-      console.warn("Service Worker notification failed, falling back...", e);
+      console.warn("SW Notification failed, trying fallback...", e);
   }
 
-  // 4. Fallback to Standard Web Notification (Desktop/Old Browsers)
+  // روش دوم: روش سنتی (برای دسکتاپ)
   try {
       new Notification(title, options);
   } catch (e) {
-      console.error("Standard notification failed:", e);
+      console.error("Notification API failed:", e);
   }
 };
