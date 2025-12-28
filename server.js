@@ -255,19 +255,25 @@ app.post('/api/render-pdf', async (req, res) => {
         const pdfOptions = {
             printBackground: true,
             margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
-            preferCSSPageSize: true // This is crucial for Smart Detection
         };
 
+        // ENFORCE SIZE LOGIC:
         if (width && height) {
             // Explicit dimensions provided (e.g. Bank Forms)
             pdfOptions.width = width;
             pdfOptions.height = height;
+            // Disable smart CSS detection when explicit size is given
+            pdfOptions.preferCSSPageSize = false; 
         } else if (format) {
-            // Explicit format provided (e.g. A4)
+            // Explicit format provided (e.g. A4, A5)
             pdfOptions.format = format;
             pdfOptions.landscape = landscape || false;
-        } 
-        // If neither, preferCSSPageSize handles it based on @page CSS rules
+            // Disable smart CSS detection when explicit format is given
+            pdfOptions.preferCSSPageSize = false;
+        } else {
+             // If nothing specified, try to read from CSS
+             pdfOptions.preferCSSPageSize = true;
+        }
 
         const pdfBuffer = await page.pdf(pdfOptions);
 
