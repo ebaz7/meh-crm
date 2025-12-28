@@ -4,11 +4,10 @@ import { INITIAL_ORDERS } from '../constants';
 
 // *** تنظیمات اتصال به سرور (مهم برای اندروید) ***
 // آدرس کامل سایت خود را در خط زیر وارد کنید (همراه با http یا https)
-// مثال: 'https://payment.mycompany.com' یا 'http://my-server.ir:3000'
-const SERVER_HOST = 'https://example.com'; // <--- دامنه واقعی خود را اینجا جایگزین کنید
+// مثال: 'https://panel.my-website.com'
+const SERVER_HOST = 'https://example.com'; // <--- آدرس سایت خود را اینجا بنویسید
 
 // تشخیص اینکه آیا برنامه روی گوشی (Native) اجرا می‌شود یا مرورگر
-// در اندروید (Capacitor)، پروتکل معمولاً file: یا localhost خاص است
 const isNativeApp = window.location.protocol === 'file:' || (window as any).Capacitor?.isNativePlatform();
 
 // اگر روی گوشی هستیم، باید آدرس کامل سرور را بدهیم.
@@ -77,7 +76,6 @@ export const apiCall = async <T>(endpoint: string, method: string = 'GET', body?
     } catch (error) {
         console.warn(`API Fallback (Mock) triggered for: ${endpoint}`, error);
         
-        // اگر روی گوشی هستیم و خطا داد، یعنی اینترنت قطع است یا آدرس سرور اشتباه است
         if (isNativeApp) {
             console.error("Connection Failed. Check SERVER_HOST in apiService.ts or Internet Connection.");
         }
@@ -156,7 +154,6 @@ export const apiCall = async <T>(endpoint: string, method: string = 'GET', body?
             const id = endpoint.split('/').pop();
             let items = getLocalData<WarehouseItem[]>(LS_KEYS.WH_ITEMS, []);
             
-            // --- NEW PUT HANDLER FOR ITEMS ---
             if (method === 'PUT') {
                 const idx = items.findIndex(i => i.id === id);
                 if (idx !== -1) {
