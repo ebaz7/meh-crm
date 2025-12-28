@@ -10,79 +10,69 @@ export const setNotificationPreference = (enabled: boolean) => {
 };
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
-  if (!window.isSecureContext) {
-      console.error("Notifications require HTTPS (Secure Context).");
-      return false;
-  }
-  
+  // 1. Check if browser supports notifications
   if (!("Notification" in window)) {
-      console.error("This browser does not support desktop notification");
+      alert("مرورگر شما از نوتیفیکیشن پشتیبانی نمی‌کند.");
       return false;
   }
 
-  // Check if permission is already granted
-  if (Notification.permission === "granted") return true;
-
-  // If denied, we can't ask again via code, user must reset in settings
-  if (Notification.permission === "denied") {
-      console.warn("Notification permission was denied previously.");
-      return false;
+  // 2. Check if context is secure (HTTPS or localhost)
+  if (!window.isSecureContext) {
+      console.warn("Notifications require a secure context (HTTPS).");
+      // Note: We don't return false here immediately to allow local testing if browser permits
   }
 
+  // 3. Request permission
   try {
       const permission = await Notification.requestPermission();
       return permission === "granted";
   } catch (e) {
-      console.warn("Notification request failed", e);
+      console.error("Permission request error:", e);
       return false;
   }
 };
 
 export const sendNotification = async (title: string, body: string) => {
-  console.log(`Attempting to send notification: ${title}`);
-
-  if (!isNotificationEnabledInApp()) {
-      console.log("Notifications disabled in app settings.");
+  // 1. Basic checks
+  if (!isNotificationEnabledInApp()) return;
+  if (Notification.permission !== "granted") {
+      console.log("Permission not granted");
       return;
   }
-  
-  if (!window.isSecureContext) return;
 
-  if (Notification.permission === "granted") {
-    // Attempt to use Service Worker for better mobile/background support
-    if ('serviceWorker' in navigator) {
-        try {
-            const registration = await navigator.serviceWorker.ready;
-            if (registration) {
-                // iOS Safari implies strict options. Removed 'vibrate' and 'badge' to prevent potential crashes on strict parsers.
-                // We use minimal options for maximum compatibility.
-                const options: any = {
-                    body: body,
-                    dir: 'rtl',
-                    lang: 'fa',
-                    icon: '/pwa-192x192.png',
-                    tag: 'payment-sys-notif',
-                    renotify: true,
-                    data: { url: window.location.href }
-                };
+  // 2. Prepare Options (using 'any' to bypass TypeScript strictness on 'vibrate' for iOS)
+  const options: any = {
+      body: body,
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
+      dir: 'rtl',
+      lang: 'fa',
+      tag: 'general-notification', // Overwrites older notifications with same tag
+      renotify: true,
+      vibrate: [200, 100, 200], // Vibration pattern
+      data: {
+          dateOfArrival: Date.now(),
+          url: window.location.href
+      }
+  };
 
-                await registration.showNotification(title, options);
-                console.log("Notification sent via Service Worker");
-                return;
-            }
-        } catch (e) {
-            console.warn("SW Notification failed, falling back to standard API", e);
-        }
-    }
+  try {
+      // 3. Try Service Worker Method (Best for Mobile/PWA)
+      if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          if (registration) {
+              await registration.showNotification(title, options);
+              return;
+          }
+      }
+  } catch (e) {
+      console.warn("Service Worker notification failed, falling back...", e);
+  }
 
-    // Fallback for desktop or if SW not ready
-    try {
-        new Notification(title, { body, dir: 'rtl', lang: 'fa', icon: '/pwa-192x192.png' });
-        console.log("Notification sent via Standard API");
-    } catch (e) {
-        console.error("Standard Notification API failed", e);
-    }
-  } else {
-      console.log("Notification permission not granted:", Notification.permission);
+  // 4. Fallback to Standard Web Notification (Desktop/Old Browsers)
+  try {
+      new Notification(title, options);
+  } catch (e) {
+      console.error("Standard notification failed:", e);
   }
 };

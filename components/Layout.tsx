@@ -172,8 +172,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, curr
       } 
   };
 
-  const handleTestNotification = () => {
-      sendNotification("تست سیستم", "این یک پیام آزمایشی است.");
+  const handleTestNotification = async () => {
+      try {
+          if (Notification.permission !== 'granted') {
+              alert('مجوز نوتیفیکیشن داده نشده است.');
+              return;
+          }
+          await sendNotification("تست سیستم", "این یک پیام آزمایشی است.");
+      } catch (e: any) {
+          alert('خطا در ارسال پیام: ' + e.message);
+      }
   };
   
   const handleInstallClick = () => { 
