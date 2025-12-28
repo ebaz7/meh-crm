@@ -140,7 +140,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                         <thead>
                             <tr className="bg-gray-100 text-base">
                                 <th className="border-2 border-black p-3 w-12" rowSpan={2}>#</th>
-                                <th className="border-2 border-black p-3 text-right" rowSpan={2}>شرح کالا / محصول</th>
+                                <th className="border-2 border-black p-3 text-center" rowSpan={2}>شرح کالا / محصول</th>
                                 <th className="border-2 border-black p-2" colSpan={showDeliveryColumns ? 2 : 1}>تعداد (کارتن)</th>
                                 <th className="border-2 border-black p-2" colSpan={showDeliveryColumns ? 2 : 1}>وزن (KG)</th>
                             </tr>
@@ -157,7 +157,7 @@ const PrintExitPermit: React.FC<Props> = ({ permit, onClose, onApprove, onReject
                             {displayItems.map((item, idx) => (
                                 <tr key={idx} className="text-lg">
                                     <td className="border-2 border-black p-3">{idx + 1}</td>
-                                    <td className="border-2 border-black p-3 font-bold text-right">{item.goodsName}</td>
+                                    <td className="border-2 border-black p-3 font-bold text-center align-middle">{item.goodsName}</td>
                                     
                                     {showDeliveryColumns ? (
                                         <>
