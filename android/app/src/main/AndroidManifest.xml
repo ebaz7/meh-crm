@@ -12,12 +12,14 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
+    <!-- Added usesCleartextTraffic="true" to allow HTTP connections (critical for local dev) -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
         <activity
@@ -35,14 +37,8 @@
 
         </activity>
 
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
+        <!-- FileProvider removed to prevent 'Resource not found' build errors. 
+             Capacitor plugins inject their own providers automatically. -->
+
     </application>
 </manifest>
