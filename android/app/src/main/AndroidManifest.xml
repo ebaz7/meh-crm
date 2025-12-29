@@ -37,8 +37,5 @@
 
         </activity>
 
-        <!-- FileProvider removed to prevent 'Resource not found' build errors. 
-             Capacitor plugins inject their own providers automatically. -->
-
     </application>
 </manifest>
